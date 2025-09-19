@@ -1,0 +1,307 @@
+"""
+Core models for EchoChamber Analyst.
+"""
+
+from django.db import models
+from django.contrib.auth.models import User
+from django.utils import timezone
+import uuid
+import json
+
+
+class BaseModel(models.Model):
+    """Base model with common fields."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+
+class Campaign(BaseModel):
+    """Marketing campaign for tracking conversations."""
+
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('paused', 'Paused'),
+        ('completed', 'Completed'),
+        ('error', 'Error'),
+    ]
+
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='campaigns')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+
+    # Target configuration
+    keywords = models.JSONField(default=list)  # Keywords to search for
+    sources = models.JSONField(default=list)  # Reddit subreddits, Discord servers, etc.
+    exclude_keywords = models.JSONField(default=list)  # Keywords to exclude
+
+    # Scheduling
+    schedule_enabled = models.BooleanField(default=True)
+    schedule_interval = models.IntegerField(default=3600)  # Seconds between runs
+    last_run_at = models.DateTimeField(null=True, blank=True)
+    next_run_at = models.DateTimeField(null=True, blank=True)
+
+    # Budget and limits
+    daily_budget = models.DecimalField(max_digits=10, decimal_places=2, default=10.00)
+    current_spend = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
+    class Meta:
+        db_table = 'campaigns'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.name
+
+
+class Source(BaseModel):
+    """Data source (Reddit, Discord, forums, etc.)."""
+
+    SOURCE_TYPES = [
+        ('reddit', 'Reddit'),
+        ('discord', 'Discord'),
+        ('forum', 'Forum'),
+        ('website', 'Website'),
+    ]
+
+    name = models.CharField(max_length=255)
+    source_type = models.CharField(max_length=20, choices=SOURCE_TYPES)
+    url = models.URLField()
+
+    # Configuration
+    config = models.JSONField(default=dict)  # Source-specific configuration
+    is_active = models.BooleanField(default=True)
+
+    # Rate limiting
+    rate_limit = models.IntegerField(default=60)  # Requests per minute
+    last_accessed = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'sources'
+        unique_together = ['source_type', 'url']
+
+    def __str__(self):
+        return f"{self.name} ({self.source_type})"
+
+
+class RawContent(BaseModel):
+    """Raw content scraped from sources."""
+
+    source = models.ForeignKey(Source, on_delete=models.CASCADE, related_name='raw_content')
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='raw_content')
+
+    # Content metadata
+    external_id = models.CharField(max_length=255)  # Original ID from source
+    url = models.URLField()
+    title = models.CharField(max_length=500, blank=True)
+    author = models.CharField(max_length=255, blank=True)
+    published_at = models.DateTimeField()
+
+    # Content
+    content = models.TextField()
+    metadata = models.JSONField(default=dict)  # Additional metadata
+
+    # Processing status
+    is_processed = models.BooleanField(default=False)
+    is_valid = models.BooleanField(default=True)
+
+    # EchoScore components
+    echo_score = models.FloatField(null=True, blank=True)
+    depth_score = models.FloatField(null=True, blank=True)
+    diversity_score = models.FloatField(null=True, blank=True)
+    recency_score = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'raw_content'
+        unique_together = ['source', 'external_id']
+        ordering = ['-published_at']
+
+    def __str__(self):
+        return f"{self.title[:50]}..." if self.title else f"Content {self.external_id}"
+
+
+class ProcessedContent(BaseModel):
+    """Cleaned and processed content."""
+
+    raw_content = models.OneToOneField(RawContent, on_delete=models.CASCADE, related_name='processed')
+
+    # Cleaned content
+    cleaned_content = models.TextField()
+    language = models.CharField(max_length=10, default='en')
+
+    # Content analysis
+    sentiment_score = models.FloatField(null=True, blank=True)  # -1 to 1
+    toxicity_score = models.FloatField(null=True, blank=True)   # 0 to 1
+    spam_score = models.FloatField(null=True, blank=True)       # 0 to 1
+
+    # Extracted entities
+    keywords = models.JSONField(default=list)
+    entities = models.JSONField(default=dict)
+    topics = models.JSONField(default=list)
+
+    # Processing metadata
+    processing_version = models.CharField(max_length=50, default='1.0')
+    processing_time = models.DurationField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'processed_content'
+
+    def __str__(self):
+        return f"Processed: {self.raw_content}"
+
+
+class Insight(BaseModel):
+    """Generated insights from content analysis."""
+
+    INSIGHT_TYPES = [
+        ('pain_point', 'Pain Point'),
+        ('praise', 'Praise'),
+        ('feature_request', 'Feature Request'),
+        ('competitor_mention', 'Competitor Mention'),
+        ('trend', 'Trend'),
+        ('influencer', 'Influencer'),
+    ]
+
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='insights')
+    content = models.ManyToManyField(ProcessedContent, related_name='insights')
+
+    # Insight details
+    insight_type = models.CharField(max_length=30, choices=INSIGHT_TYPES)
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    summary = models.TextField(blank=True)
+
+    # Scoring
+    confidence_score = models.FloatField()  # 0 to 1
+    impact_score = models.FloatField(null=True, blank=True)  # 0 to 1
+    priority_score = models.FloatField(null=True, blank=True)  # 0 to 1
+
+    # Metadata
+    tags = models.JSONField(default=list)
+    metadata = models.JSONField(default=dict)
+
+    # User feedback
+    is_validated = models.BooleanField(default=False)
+    user_rating = models.IntegerField(null=True, blank=True)  # 1-5 stars
+    user_feedback = models.TextField(blank=True)
+
+    class Meta:
+        db_table = 'insights'
+        ordering = ['-priority_score', '-confidence_score']
+
+    def __str__(self):
+        return self.title
+
+
+class Influencer(BaseModel):
+    """Identified influencers from content analysis."""
+
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='influencers')
+
+    # Influencer details
+    username = models.CharField(max_length=255)
+    display_name = models.CharField(max_length=255, blank=True)
+    source_type = models.CharField(max_length=20)
+    profile_url = models.URLField(blank=True)
+
+    # Metrics
+    follower_count = models.IntegerField(null=True, blank=True)
+    engagement_rate = models.FloatField(null=True, blank=True)
+    influence_score = models.FloatField()  # 0 to 1
+
+    # Activity analysis
+    post_frequency = models.FloatField(null=True, blank=True)  # Posts per day
+    avg_likes = models.FloatField(null=True, blank=True)
+    avg_comments = models.FloatField(null=True, blank=True)
+
+    # Content analysis
+    content_topics = models.JSONField(default=list)
+    sentiment_distribution = models.JSONField(default=dict)
+
+    class Meta:
+        db_table = 'influencers'
+        unique_together = ['campaign', 'username', 'source_type']
+        ordering = ['-influence_score']
+
+    def __str__(self):
+        return f"{self.display_name or self.username} ({self.source_type})"
+
+
+class AuditLog(BaseModel):
+    """Audit trail for all system actions."""
+
+    ACTION_TYPES = [
+        ('campaign_created', 'Campaign Created'),
+        ('campaign_updated', 'Campaign Updated'),
+        ('content_scraped', 'Content Scraped'),
+        ('content_processed', 'Content Processed'),
+        ('insight_generated', 'Insight Generated'),
+        ('user_action', 'User Action'),
+        ('agent_action', 'Agent Action'),
+        ('error', 'Error'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, null=True, blank=True)
+
+    # Action details
+    action_type = models.CharField(max_length=30, choices=ACTION_TYPES)
+    action_description = models.TextField()
+
+    # Technical details
+    agent_name = models.CharField(max_length=100, blank=True)
+    model_version = models.CharField(max_length=50, blank=True)
+    prompt_hash = models.CharField(max_length=64, blank=True)  # SHA-256 of prompt
+
+    # Performance metrics
+    execution_time = models.DurationField(null=True, blank=True)
+    tokens_used = models.IntegerField(null=True, blank=True)
+    cost = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+
+    # Additional data
+    metadata = models.JSONField(default=dict)
+    error_details = models.TextField(blank=True)
+
+    class Meta:
+        db_table = 'audit_logs'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.action_type} at {self.created_at}"
+
+
+class AgentMetrics(BaseModel):
+    """Performance metrics for agents."""
+
+    agent_name = models.CharField(max_length=100)
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, null=True, blank=True)
+
+    # Performance metrics
+    execution_time = models.DurationField()
+    success_rate = models.FloatField()  # 0 to 1
+    error_count = models.IntegerField(default=0)
+
+    # Resource usage
+    cpu_usage = models.FloatField(null=True, blank=True)
+    memory_usage = models.FloatField(null=True, blank=True)
+    tokens_used = models.IntegerField(null=True, blank=True)
+    cost = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+
+    # Quality metrics
+    accuracy_score = models.FloatField(null=True, blank=True)
+    precision_score = models.FloatField(null=True, blank=True)
+    recall_score = models.FloatField(null=True, blank=True)
+
+    # Timestamp for metrics collection
+    metric_date = models.DateField(default=timezone.now)
+
+    class Meta:
+        db_table = 'agent_metrics'
+        unique_together = ['agent_name', 'metric_date', 'campaign']
+        ordering = ['-metric_date']
+
+    def __str__(self):
+        return f"{self.agent_name} metrics for {self.metric_date}"

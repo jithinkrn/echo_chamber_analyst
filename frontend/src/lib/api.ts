@@ -1,0 +1,230 @@
+import axios from 'axios';
+
+// API configuration
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8003/api/v1';
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Types
+export interface ChatMessage {
+  user: string;
+  assistant: string;
+}
+
+export interface User {
+  id: number;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  is_staff: boolean;
+  is_superuser: boolean;
+}
+
+export interface LoginResponse {
+  access: string;
+  refresh: string;
+  user: User;
+}
+
+export interface AuthTokens {
+  access: string;
+  refresh: string;
+}
+
+export interface ChatResponse {
+  response: string;
+  context_used: number;
+  sources: string[];
+  tokens_used: number;
+  cost: number;
+  correlation_id: string;
+}
+
+export interface SearchResult {
+  id: string;
+  type: string;
+  title: string;
+  content: string;
+  sentiment?: number;
+  published_at?: string;
+  campaign?: string;
+  source?: string;
+}
+
+export interface SearchResponse {
+  results: SearchResult[];
+  total_found: number;
+  query: string;
+}
+
+export interface CampaignSummary {
+  summary: string;
+  metrics: {
+    processed_content: number;
+    insights_generated: number;
+    average_sentiment: number;
+  };
+  tokens_used: number;
+  cost: number;
+}
+
+export interface AgentStatus {
+  agent_id: string;
+  status: 'healthy' | 'unhealthy';
+  capabilities: string[];
+}
+
+// Token management
+export const tokenService = {
+  getTokens(): AuthTokens | null {
+    if (typeof window === 'undefined') return null;
+    const access = localStorage.getItem('access_token');
+    const refresh = localStorage.getItem('refresh_token');
+    return access && refresh ? { access, refresh } : null;
+  },
+
+  setTokens(tokens: AuthTokens): void {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('access_token', tokens.access);
+    localStorage.setItem('refresh_token', tokens.refresh);
+  },
+
+  clearTokens(): void {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+  },
+
+  getAccessToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('access_token');
+  }
+};
+
+// Add token to requests
+api.interceptors.request.use((config) => {
+  const token = tokenService.getAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Handle token refresh
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const original = error.config;
+    if (error.response?.status === 401 && !original._retry) {
+      original._retry = true;
+      try {
+        const tokens = tokenService.getTokens();
+        if (tokens?.refresh) {
+          const response = await axios.post(`${API_BASE_URL}/auth/token/refresh/`, {
+            refresh: tokens.refresh
+          });
+          const newTokens = { access: response.data.access, refresh: tokens.refresh };
+          tokenService.setTokens(newTokens);
+          original.headers.Authorization = `Bearer ${response.data.access}`;
+          return api(original);
+        }
+      } catch (refreshError) {
+        tokenService.clearTokens();
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
+// API functions
+export const apiService = {
+  // Authentication
+  async login(username: string, password: string): Promise<LoginResponse> {
+    const response = await api.post('/auth/login/', { username, password });
+    tokenService.setTokens({ access: response.data.access, refresh: response.data.refresh });
+    return response.data;
+  },
+
+  async logout(): Promise<void> {
+    const tokens = tokenService.getTokens();
+    if (tokens?.refresh) {
+      try {
+        await api.post('/auth/logout/', { refresh: tokens.refresh });
+      } catch (error) {
+        // Continue with logout even if server request fails
+      }
+    }
+    tokenService.clearTokens();
+  },
+
+  async getCurrentUser(): Promise<User> {
+    const response = await api.get('/auth/profile/');
+    return response.data;
+  },
+
+  async verifyToken(): Promise<boolean> {
+    try {
+      await api.get('/auth/verify-token/');
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  // Chat with the RAG chatbot
+  async chat(query: string, conversation_history: ChatMessage[] = [], campaign_id?: string): Promise<ChatResponse> {
+    const response = await api.post('/chat/', {
+      query,
+      conversation_history,
+      campaign_id,
+    });
+    return response.data;
+  },
+
+  // Search content
+  async searchContent(
+    query: string,
+    content_type: 'all' | 'processed' | 'insights' = 'all',
+    limit: number = 20,
+    campaign_id?: string
+  ): Promise<SearchResponse> {
+    const response = await api.post('/search/', {
+      query,
+      content_type,
+      limit,
+      campaign_id,
+    });
+    return response.data;
+  },
+
+  // Get campaign summary
+  async getCampaignSummary(campaign_id: string): Promise<CampaignSummary> {
+    const response = await api.get(`/campaigns/${campaign_id}/summary/`);
+    return response.data;
+  },
+
+  // Get API root (system info)
+  async getSystemInfo() {
+    const response = await api.get('/');
+    return response.data;
+  },
+
+  // Test connection
+  async testConnection() {
+    try {
+      const response = await this.getSystemInfo();
+      return { success: true, data: response };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  },
+};
+
+export default api;
