@@ -4,49 +4,44 @@ import { useState } from 'react';
 import {
   Users,
   Globe,
-  FileText,
   TrendingUp,
-  Database,
   Activity,
   Plus,
   Search,
-  Filter
+  Filter,
+  Building
 } from 'lucide-react';
 import CampaignManager from './admin/CampaignManager';
+import BrandManager from './admin/BrandManager';
 import SourceManager from './admin/SourceManager';
-import ContentManager from './admin/ContentManager';
-import InsightManager from './admin/InsightManager';
 import UserManager from './admin/UserManager';
 import AuditLogViewer from './admin/AuditLogViewer';
 
 export default function AdminInterface() {
-  const [activeSection, setActiveSection] = useState('campaigns');
+  const [activeSection, setActiveSection] = useState('brands');
 
   const adminSections = [
+    { id: 'brands', label: 'Brands', icon: Building, description: 'Manage brands and competitors' },
     { id: 'campaigns', label: 'Campaigns', icon: TrendingUp, description: 'Manage analysis campaigns' },
     { id: 'sources', label: 'Sources', icon: Globe, description: 'Configure content sources' },
-    { id: 'content', label: 'Content', icon: FileText, description: 'View processed content' },
-    { id: 'insights', label: 'Insights', icon: Database, description: 'Review AI insights' },
     { id: 'users', label: 'Users', icon: Users, description: 'Manage user accounts' },
     { id: 'audit', label: 'Audit Logs', icon: Activity, description: 'System activity logs' },
   ];
 
   const renderActiveSection = () => {
     switch (activeSection) {
+      case 'brands':
+        return <BrandManager />;
       case 'campaigns':
         return <CampaignManager />;
       case 'sources':
         return <SourceManager />;
-      case 'content':
-        return <ContentManager />;
-      case 'insights':
-        return <InsightManager />;
       case 'users':
         return <UserManager />;
       case 'audit':
         return <AuditLogViewer />;
       default:
-        return <CampaignManager />;
+        return <BrandManager />;
     }
   };
 

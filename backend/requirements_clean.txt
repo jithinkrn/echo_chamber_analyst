@@ -1,0 +1,61 @@
+# EchoChamber Analyst - Backend Requirements
+# Generated from conda environment: ecapy312
+# Date: 2025-09-19
+
+# Core Django Framework
+Django==5.1.1
+djangorestframework==3.15.2
+django-filter==24.3
+django-cors-headers==4.6.0
+dj-database-url==2.3.0
+
+# Authentication & Security
+djangorestframework-simplejwt==5.3.0
+
+# Database
+psycopg2-binary==2.9.9
+
+# LangGraph & LangChain Stack
+langgraph==0.2.34
+langchain==0.3.7
+langchain-core==0.3.17
+langchain-openai==0.2.6
+langsmith==0.1.137
+
+# AI & Machine Learning
+openai==1.54.3
+anthropic==0.37.1
+
+# Task Queue & Background Processing
+celery==5.5.3
+redis==5.2.1
+
+# Web Scraping & Data Processing
+requests==2.32.3
+beautifulsoup4==4.12.3
+praw==7.8.1
+aiohttp==3.10.10
+
+# Data Processing & Analysis
+pandas==2.2.3
+numpy==2.1.2
+
+# Development & Testing
+python-dotenv==1.0.1
+pytest==8.3.3
+pytest-django==4.9.0
+black==24.10.0
+
+# API Documentation
+drf-spectacular==0.27.2
+
+# Monitoring & Logging
+sentry-sdk==2.17.0
+
+# File Processing
+Pillow==10.4.0
+
+# Utilities
+pytz==2024.2
+python-dateutil==2.9.0
+six==1.16.0

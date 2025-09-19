@@ -19,6 +19,67 @@ class BaseModel(models.Model):
         abstract = True
 
 
+class Brand(BaseModel):
+    """Brand/Company being analyzed for echo chamber effects."""
+    
+    name = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True)
+    
+    # Brand details
+    website = models.URLField(blank=True)
+    industry = models.CharField(max_length=100, blank=True)
+    headquarters = models.CharField(max_length=255, blank=True)
+    
+    # Social media handles (optional)
+    social_handles = models.JSONField(default=dict)  # {"twitter": "@brand", "instagram": "@brand"}
+    
+    # Monitoring configuration
+    primary_keywords = models.JSONField(default=list)  # Main brand keywords
+    product_keywords = models.JSONField(default=list)  # Product-specific keywords
+    exclude_keywords = models.JSONField(default=list)  # Keywords to exclude
+    
+    # Sources to monitor for this brand
+    sources = models.JSONField(default=list)  # Reddit subreddits, Discord servers, etc.
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        db_table = 'brands'
+        ordering = ['name']
+    
+    def __str__(self):
+        return self.name
+
+
+class Competitor(BaseModel):
+    """Competitor of a brand for competitive analysis."""
+    
+    brand = models.ForeignKey(Brand, on_delete=models.CASCADE, related_name='competitors')
+    
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    website = models.URLField(blank=True)
+    
+    # Competitive monitoring
+    keywords = models.JSONField(default=list)
+    social_handles = models.JSONField(default=dict)
+    
+    # Competitive metrics
+    market_share_estimate = models.FloatField(null=True, blank=True)  # Percentage
+    sentiment_comparison = models.FloatField(null=True, blank=True)  # vs brand sentiment
+    
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        db_table = 'competitors'
+        ordering = ['name']
+        unique_together = ['brand', 'name']
+    
+    def __str__(self):
+        return f"{self.name} (competitor of {self.brand.name})"
+
+
 class Campaign(BaseModel):
     """Marketing campaign for tracking conversations."""
 
@@ -31,6 +92,7 @@ class Campaign(BaseModel):
 
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    brand = models.ForeignKey(Brand, on_delete=models.CASCADE, related_name='campaigns', null=True, blank=True)
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='campaigns')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
 
@@ -200,6 +262,7 @@ class Influencer(BaseModel):
     """Identified influencers from content analysis."""
 
     campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='influencers')
+    community = models.ForeignKey('Community', on_delete=models.CASCADE, related_name='influencers', null=True, blank=True)
 
     # Influencer details
     username = models.CharField(max_length=255)
@@ -207,10 +270,16 @@ class Influencer(BaseModel):
     source_type = models.CharField(max_length=20)
     profile_url = models.URLField(blank=True)
 
-    # Metrics
+    # Metrics for dashboard
+    reach = models.IntegerField(default=0)  # follower count
+    engagement_rate = models.FloatField(default=0.0)
+    karma_score = models.IntegerField(default=0)
+    topics = models.JSONField(default=list)  # topics they talk about
+    last_active = models.DateTimeField(null=True, blank=True)
+
+    # Legacy fields
     follower_count = models.IntegerField(null=True, blank=True)
-    engagement_rate = models.FloatField(null=True, blank=True)
-    influence_score = models.FloatField()  # 0 to 1
+    influence_score = models.FloatField(default=0.0)  # 0 to 1
 
     # Activity analysis
     post_frequency = models.FloatField(null=True, blank=True)  # Posts per day
@@ -305,3 +374,147 @@ class AgentMetrics(BaseModel):
 
     def __str__(self):
         return f"{self.agent_name} metrics for {self.metric_date}"
+
+
+class Community(BaseModel):
+    """Online communities tracked for conversations."""
+    
+    PLATFORM_CHOICES = [
+        ('reddit', 'Reddit'),
+        ('discord', 'Discord'),
+        ('tiktok', 'TikTok'),
+        ('forum', 'Forum'),
+        ('twitter', 'Twitter'),
+    ]
+    
+    name = models.CharField(max_length=200)
+    platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
+    url = models.URLField()
+    member_count = models.IntegerField(default=0)
+    echo_score = models.FloatField(default=0.0)
+    echo_score_change = models.FloatField(default=0.0)  # percentage change
+    is_active = models.BooleanField(default=True)
+    last_analyzed = models.DateTimeField(auto_now=True)
+    
+    # Community metadata
+    description = models.TextField(blank=True)
+    category = models.CharField(max_length=100, blank=True)
+    language = models.CharField(max_length=10, default='en')
+    
+    class Meta:
+        db_table = 'communities'
+        verbose_name_plural = "Communities"
+        unique_together = ['platform', 'name']
+        ordering = ['-echo_score']
+    
+    def __str__(self):
+        return f"{self.name} ({self.platform})"
+
+
+class PainPoint(BaseModel):
+    """Pain points extracted from content analysis."""
+    
+    keyword = models.CharField(max_length=100)
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='pain_points')
+    community = models.ForeignKey(Community, on_delete=models.CASCADE, related_name='pain_points')
+    
+    # Metrics
+    mention_count = models.IntegerField(default=0)
+    growth_percentage = models.FloatField(default=0.0)
+    sentiment_score = models.FloatField(default=0.0)
+    heat_level = models.IntegerField(default=1)  # 1-5 for heat map visualization
+    
+    # Context
+    example_content = models.TextField(blank=True)
+    related_keywords = models.JSONField(default=list)
+    
+    # Time tracking
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'pain_points'
+        unique_together = ['keyword', 'campaign', 'community']
+        ordering = ['-growth_percentage', '-mention_count']
+    
+    def __str__(self):
+        return f"{self.keyword} (+{self.growth_percentage}%)"
+
+
+class Thread(BaseModel):
+    """Individual threads/posts from communities."""
+    
+    thread_id = models.CharField(max_length=100)
+    title = models.CharField(max_length=500)
+    content = models.TextField()
+    community = models.ForeignKey(Community, on_delete=models.CASCADE, related_name='threads')
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='threads')
+    
+    # Thread metadata
+    author = models.CharField(max_length=100)
+    author_karma = models.IntegerField(default=0)
+    comment_count = models.IntegerField(default=0)
+    upvotes = models.IntegerField(default=0)
+    downvotes = models.IntegerField(default=0)
+    
+    # Analysis results
+    echo_score = models.FloatField(default=0.0)
+    sentiment_score = models.FloatField(default=0.0)
+    pain_points = models.ManyToManyField(PainPoint, blank=True)
+    influencers_mentioned = models.ManyToManyField(Influencer, blank=True)
+    
+    # LLM processing
+    llm_summary = models.TextField(blank=True)
+    token_count = models.IntegerField(default=0)
+    processing_cost = models.DecimalField(max_digits=10, decimal_places=4, default=0.0)
+    
+    # Timestamps
+    published_at = models.DateTimeField()
+    analyzed_at = models.DateTimeField(auto_now=True)
+    
+    # Engagement metrics
+    engagement_rate = models.FloatField(default=0.0)
+    controversy_score = models.FloatField(default=0.0)
+    
+    class Meta:
+        db_table = 'threads'
+        unique_together = ['thread_id', 'community']
+        ordering = ['-published_at']
+    
+    def __str__(self):
+        return f"{self.title[:50]}..." if self.title else f"Thread {self.thread_id}"
+
+
+class DashboardMetrics(BaseModel):
+    """Daily aggregated metrics for dashboard KPIs."""
+    
+    date = models.DateField()
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='dashboard_metrics')
+    
+    # KPI Metrics
+    active_campaigns = models.IntegerField(default=0)
+    high_echo_communities = models.IntegerField(default=0)
+    high_echo_change_percent = models.FloatField(default=0.0)
+    new_pain_points_above_50 = models.IntegerField(default=0)
+    new_pain_points_change = models.IntegerField(default=0)
+    positivity_ratio = models.FloatField(default=0.0)
+    positivity_change_pp = models.FloatField(default=0.0)  # percentage points
+    llm_tokens_used = models.IntegerField(default=0)
+    llm_cost_usd = models.FloatField(default=0.0)
+    
+    # Content metrics
+    total_threads_analyzed = models.IntegerField(default=0)
+    total_communities_tracked = models.IntegerField(default=0)
+    total_influencers_identified = models.IntegerField(default=0)
+    
+    # Quality metrics
+    sentiment_average = models.FloatField(default=0.0)
+    echo_score_average = models.FloatField(default=0.0)
+    
+    class Meta:
+        db_table = 'dashboard_metrics'
+        unique_together = ['date', 'campaign']
+        ordering = ['-date']
+    
+    def __str__(self):
+        return f"Dashboard metrics for {self.campaign.name} on {self.date}"

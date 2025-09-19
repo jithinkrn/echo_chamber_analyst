@@ -101,7 +101,7 @@ export default function SystemStatus() {
     setIsLoadingAgents(true);
     try {
       // Try to fetch real agents data from API
-      const response = await fetch('/api/v1/admin/agents/status/', {
+      const response = await fetch('http://localhost:8003/api/v1/admin/agents/status/', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         },

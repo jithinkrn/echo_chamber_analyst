@@ -1,4 +1,4 @@
-# EchoChamber Analyst - Comprehensive Project Documentation
+# EchoChamber Analyst 
 
 ## Project Overview
 **Project Title:** EchoChamber Analyst - Continuous Market-Conversation Intelligence via Multi-Agent AI

@@ -12,13 +12,16 @@ import {
   Filter,
   Calendar,
   DollarSign,
-  Users
+  Users,
+  Building
 } from 'lucide-react';
 
 interface Campaign {
   id: string;
   name: string;
   description: string;
+  brand?: string;
+  brand_name?: string;
   status: 'active' | 'paused' | 'completed' | 'draft';
   keywords: string;
   owner: number;
@@ -56,6 +59,8 @@ export default function CampaignManager() {
           id: '1',
           name: 'Reddit Echo Chamber Analysis',
           description: 'Analyzing political discourse in Reddit communities',
+          brand: '1',
+          brand_name: 'BreezyCool',
           status: 'active',
           keywords: 'politics, election, voting',
           owner: 1,
@@ -71,6 +76,8 @@ export default function CampaignManager() {
           id: '2',
           name: 'Social Media Sentiment Tracking',
           description: 'Monitoring sentiment trends across platforms',
+          brand: '1',
+          brand_name: 'BreezyCool',
           status: 'paused',
           keywords: 'sentiment, emotion, social',
           owner: 1,
@@ -190,6 +197,14 @@ export default function CampaignManager() {
                   <p className="text-sm text-gray-600 line-clamp-2">
                     {campaign.description}
                   </p>
+                  {campaign.brand_name && (
+                    <div className="mt-2">
+                      <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                        <Building className="h-3 w-3 mr-1" />
+                        {campaign.brand_name}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(campaign.status)}`}>
                   {campaign.status}
@@ -249,11 +264,6 @@ export default function CampaignManager() {
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <button className="flex items-center space-x-1 px-2 py-1 text-gray-600 hover:text-gray-700 hover:bg-gray-50 rounded transition-colors">
-                    <BarChart className="h-4 w-4" />
-                    <span className="text-xs">Stats</span>
-                  </button>
-
                   <button
                     onClick={() => handleDeleteCampaign(campaign.id)}
                     className="flex items-center space-x-1 px-2 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
