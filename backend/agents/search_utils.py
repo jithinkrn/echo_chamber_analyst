@@ -21,7 +21,11 @@ class SearchUtils:
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
         }
-        self.llm = llm or ChatOpenAI()
+        self.llm = llm or llm = ChatOpenAI(
+                model="gpt-4",
+                temperature=0.1,
+                max_tokens=2000
+            )
 
     async def search_for_links(self, query: str, websites: List[str], max_results_per_site: int = DEFAULT_MAX_RESULTS) -> List[str]:
         """
@@ -45,17 +49,17 @@ class SearchUtils:
                             and "duckduckgo.com/y.js" not in r["href"]
                         ]
                         all_links.extend(valid_links)
-                        logger.debug(f"    ✓ Found {len(valid_links)} valid links for {site_domain}")
+                        logger.debug(f"Found {len(valid_links)} valid links for {site_domain}")
                         
                     except Exception as e:
-                        logger.warning(f"    ⚠ Error searching {site_domain}: {str(e)}")
+                        logger.warning(f"Error searching {site_domain}: {str(e)}")
                         continue
                         
         except Exception as e:
-            logger.error(f"❌ Search operation failed: {str(e)}")
+            logger.error(f"Search operation failed: {str(e)}")
             raise
             
-        logger.info(f"✓ Search complete - Found {len(all_links)} total links")
+        logger.info(f"Search complete - Found {len(all_links)} total links")
         return all_links
     
     @staticmethod
