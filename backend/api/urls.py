@@ -24,4 +24,7 @@ urlpatterns = [
     path('brands/', views.brand_list, name='brand_list'),
     path('brands/<uuid:brand_id>/', views.brand_detail, name='brand_detail'),
     path('brands/<uuid:brand_id>/competitors/', views.competitor_list, name='competitor_list'),
+
+    path('brands/new/', views.create_brand, name='create_brand'),
+    path('scout/analyze/', views.trigger_scout_analysis, name='trigger_scout_analysis'),
 ]

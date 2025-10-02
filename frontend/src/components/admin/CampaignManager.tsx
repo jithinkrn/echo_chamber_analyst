@@ -15,6 +15,8 @@ import {
   Users,
   Building
 } from 'lucide-react';
+import { AddCampaignModal } from '../modals/AddCampaignModal';
+import api from '@/lib/api';
 
 interface Campaign {
   id: string;
@@ -304,23 +306,14 @@ export default function CampaignManager() {
 
       {/* TODO: Add Create/Edit Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Create Campaign</h3>
-            <p className="text-sm text-gray-600">Campaign creation form will be implemented here.</p>
-            <div className="mt-6 flex justify-end space-x-3">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                Create
-              </button>
-            </div>
-          </div>
-        </div>
+        <AddCampaignModal
+          onClose={() => setShowCreateModal(false)}
+          onCampaignAdded={() => {
+            setShowCreateModal(false);
+            fetchCampaigns(); // Refresh campaigns list after successful creation
+          }}
+          brandId={null} // Or pass a specific brandId if you want to pre-select one
+        />
       )}
     </div>
   );
