@@ -240,9 +240,8 @@ export const apiService = {
     return response.data;
   },
 
-  // FIXED: Use axios instead of fetch for consistency
   async triggerScoutAnalysis(brandName: string, keywords: string[], brandId?: string, scoutConfig?: any) {
-    const response = await api.post('/trigger-scout-analysis/', {
+    const response = await api.post('/scout/analyze/', {
       brand_name: brandName,
       keywords: keywords,
       brand_id: brandId,

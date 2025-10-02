@@ -1420,3 +1420,137 @@ async def _store_brand_scout_data(brand, scout_results):
     except Exception as e:
         logger.error(f"❌ Failed to store scout data: {e}")
         raise Exception(f"Database storage failed: {str(e)}")
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_scout_results(request, brand_id):
+    """Get scout results for a specific brand."""
+    try:
+        brand = Brand.objects.get(id=brand_id)
+        campaigns = Campaign.objects.filter(brand=brand).order_by('-created_at')
+        
+        if not campaigns.exists():
+            return Response({'error': 'No scout analysis found for this brand'}, status=404)
+        
+        latest_campaign = campaigns.first()
+        
+        # Get related data
+        communities = Community.objects.filter(thread__pain_points__campaign=latest_campaign).distinct()
+        pain_points = PainPoint.objects.filter(campaign=latest_campaign)
+        threads = Thread.objects.filter(pain_points__campaign=latest_campaign).distinct()
+        
+        return Response({
+            'brand': {'id': brand.id, 'name': brand.name},
+            'campaign': {'id': latest_campaign.id, 'created_at': latest_campaign.created_at},
+            'summary': {
+                'communities_found': communities.count(),
+                'pain_points_identified': pain_points.count(),
+                'threads_collected': threads.count(),
+                'analysis_status': latest_campaign.status
+            }
+        })
+        
+    except Brand.DoesNotExist:
+        return Response({'error': 'Brand not found'}, status=404)
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_communities(request):
+    """Get communities, optionally filtered by brand."""
+    brand_id = request.GET.get('brand')
+    
+    try:
+        if brand_id:
+            brand_campaigns = Campaign.objects.filter(brand_id=brand_id)
+            communities = Community.objects.filter(
+                thread__pain_points__campaign__in=brand_campaigns
+            ).distinct()
+        else:
+            communities = Community.objects.all()
+        
+        communities_data = [
+            {
+                'id': c.id,
+                'name': c.name,
+                'platform': c.platform,
+                'echo_score': c.echo_score,
+                'member_count': c.member_count
+            }
+            for c in communities
+        ]
+        
+        return Response({'communities': communities_data})
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_pain_points(request):
+    """Get pain points, optionally filtered by brand."""
+    brand_id = request.GET.get('brand')
+    
+    try:
+        if brand_id:
+            brand_campaigns = Campaign.objects.filter(brand_id=brand_id)
+            pain_points = PainPoint.objects.filter(campaign__in=brand_campaigns)
+        else:
+            pain_points = PainPoint.objects.all()
+        
+        pain_points_data = [
+            {
+                'id': pp.id,
+                'keyword': pp.keyword,
+                'mention_count': pp.mention_count,
+                'growth_percentage': pp.growth_percentage,
+                'heat_level': pp.heat_level
+            }
+            for pp in pain_points
+        ]
+        
+        return Response({'pain_points': pain_points_data})
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_threads(request):
+    """Get threads, optionally filtered by brand or community."""
+    brand_id = request.GET.get('brand')
+    community_id = request.GET.get('community')
+    
+    try:
+        threads = Thread.objects.all()
+        
+        if brand_id:
+            brand_campaigns = Campaign.objects.filter(brand_id=brand_id)
+            threads = threads.filter(pain_points__campaign__in=brand_campaigns)
+        
+        if community_id:
+            threads = threads.filter(community_id=community_id)
+        
+        threads = threads.distinct()
+        
+        threads_data = [
+            {
+                'id': t.id,
+                'thread_id': t.thread_id,
+                'title': t.title,
+                'echo_score': t.echo_score,
+                'sentiment_score': t.sentiment_score,
+                'platform': t.platform
+            }
+            for t in threads
+        ]
+        
+        return Response({'threads': threads_data})
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)

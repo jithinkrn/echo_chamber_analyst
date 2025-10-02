@@ -27,4 +27,10 @@ urlpatterns = [
 
     path('brands/new/', views.create_brand, name='create_brand'),
     path('scout/analyze/', views.trigger_scout_analysis, name='trigger_scout_analysis'),
+
+    # Add these lines to your existing urlpatterns list:
+    path('brands/<uuid:brand_id>/scout-results/', views.get_scout_results, name='get_scout_results'),
+    path('communities/', views.get_communities, name='get_communities'),
+    path('pain-points/', views.get_pain_points, name='get_pain_points'),
+    path('threads/', views.get_threads, name='get_threads'),
 ]
