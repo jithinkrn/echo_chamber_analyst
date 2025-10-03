@@ -6,10 +6,10 @@ import { X, Plus, Loader2, Search, CheckCircle, AlertCircle, Building, Target, Z
 
 interface AddBrandModalProps {
   onClose: () => void;
-  onSuccess: () => void;
+  onBrandAdded: () => void;  // Add this line
 }
 
-export function AddBrandModal({ onClose, onSuccess }: AddBrandModalProps) {
+export function AddBrandModal({ onClose, onBrandAdded }: AddBrandModalProps) {
   const [formData, setFormData] = useState({
     // Basic brand info
     name: '',
@@ -97,7 +97,7 @@ export function AddBrandModal({ onClose, onSuccess }: AddBrandModalProps) {
         setScoutStatus('completed'); // Brand created successfully
       }
 
-      onSuccess();
+      onBrandAdded();
       
       setTimeout(() => {
         onClose();

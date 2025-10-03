@@ -690,11 +690,11 @@ export default function Dashboard() {
         />
       )}
       {showAddBrand && (
-        <AddBrandModal
+        <AddBrandModal 
           onClose={() => setShowAddBrand(false)}
           onBrandAdded={() => {
-            fetchBrands();
             setShowAddBrand(false);
+            // refresh brands list
           }}
         />
       )}
