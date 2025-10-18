@@ -20,7 +20,6 @@ env:
   BACKEND_SERVICE: echochamber-backend-service
   FRONTEND_SERVICE: echochamber-frontend-service
   CELERY_WORKER_SERVICE: echochamber-celery-worker-service
-  CELERY_BEAT_SERVICE: echochamber-celery-beat-service
 
   # ECR Repository names
   BACKEND_REPO: echochamber-backend
@@ -142,14 +141,6 @@ jobs:
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.CELERY_WORKER_SERVICE }} \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
-
-      - name: Deploy Celery Beat to ECS
-        run: |
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service ${{ env.CELERY_BEAT_SERVICE }} \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 
