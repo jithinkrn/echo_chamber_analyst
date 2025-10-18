@@ -1,0 +1,186 @@
+# ========================================
+# GitHub Actions - Deploy to AWS ECS Fargate
+# ========================================
+
+name: Deploy to AWS ECS
+
+on:
+  push:
+    branches:
+      - main
+      - production
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-southeast-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-southeast-1.amazonaws.com
+  ECS_CLUSTER: echochamber-cluster
+
+  # Service names
+  BACKEND_SERVICE: echochamber-backend-service
+  FRONTEND_SERVICE: echochamber-frontend-service
+  CELERY_WORKER_SERVICE: echochamber-celery-worker-service
+  CELERY_BEAT_SERVICE: echochamber-celery-beat-service
+
+  # ECR Repository names
+  BACKEND_REPO: echochamber-backend
+  FRONTEND_REPO: echochamber-frontend
+  CELERY_REPO: echochamber-celery
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy to ECS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-ECS-Deploy
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ========================================
+      # Build and Push Backend Image
+      # ========================================
+      - name: Build Backend Docker image
+        working-directory: ./backend
+        run: |
+          docker build -f Dockerfile.prod -t ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:${{ github.sha }} .
+          docker tag ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:${{ github.sha }} ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:latest
+
+      - name: Push Backend image to ECR
+        run: |
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:${{ github.sha }}
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:latest
+
+      # ========================================
+      # Build and Push Celery Worker Image
+      # ========================================
+      - name: Build Celery Docker image
+        working-directory: ./backend
+        run: |
+          docker build -f Dockerfile.celery -t ${{ env.ECR_REGISTRY }}/${{ env.CELERY_REPO }}:${{ github.sha }} .
+          docker tag ${{ env.ECR_REGISTRY }}/${{ env.CELERY_REPO }}:${{ github.sha }} ${{ env.ECR_REGISTRY }}/${{ env.CELERY_REPO }}:latest
+
+      - name: Push Celery image to ECR
+        run: |
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.CELERY_REPO }}:${{ github.sha }}
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.CELERY_REPO }}:latest
+
+      # ========================================
+      # Build and Push Frontend Image
+      # ========================================
+      - name: Build Frontend Docker image
+        working-directory: ./frontend
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+        run: |
+          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:${{ github.sha }} \
+            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} .
+          docker tag ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:${{ github.sha }} ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:latest
+
+      - name: Push Frontend image to ECR
+        run: |
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:${{ github.sha }}
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:latest
+
+      # ========================================
+      # Run Database Migrations
+      # ========================================
+      - name: Run Database Migrations
+        continue-on-error: true
+        run: |
+          echo "Running database migrations..."
+          TASK_ARN=$(aws ecs run-task \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --task-definition echochamber-migrate-task \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.PRIVATE_SUBNET_IDS }}],securityGroups=[${{ secrets.BACKEND_SECURITY_GROUP }}],assignPublicIp=DISABLED}" \
+            --region ${{ env.AWS_REGION }} \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          echo "Migration task ARN: $TASK_ARN"
+
+          # Wait for migration task to complete
+          echo "Waiting for migrations to complete..."
+          aws ecs wait tasks-stopped \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --tasks $TASK_ARN \
+            --region ${{ env.AWS_REGION }} || true
+
+          echo "✅ Migrations completed"
+
+      # ========================================
+      # Update ECS Services
+      # ========================================
+      - name: Deploy Backend to ECS
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.BACKEND_SERVICE }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Deploy Celery Worker to ECS
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.CELERY_WORKER_SERVICE }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Deploy Celery Beat to ECS
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.CELERY_BEAT_SERVICE }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Deploy Frontend to ECS
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.FRONTEND_SERVICE }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      # ========================================
+      # Wait for Deployments
+      # ========================================
+      - name: Wait for Backend deployment
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.BACKEND_SERVICE }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Wait for Frontend deployment
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.FRONTEND_SERVICE }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Deployment Summary
+        run: |
+          echo "✅ Deployment completed successfully!"
+          echo "Backend Image: ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:${{ github.sha }}"
+          echo "Frontend Image: ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:${{ github.sha }}"
+          echo "Celery Image: ${{ env.ECR_REGISTRY }}/${{ env.CELERY_REPO }}:${{ github.sha }}"

@@ -55,6 +55,47 @@ def api_root(request):
     })
 
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    """
+    Health check endpoint for AWS ECS/ALB health checks.
+    Returns 200 OK if the service is healthy.
+    """
+    from django.db import connection
+
+    health_status = {
+        'status': 'healthy',
+        'timestamp': timezone.now().isoformat(),
+        'service': 'echochamber-analyst',
+        'version': '2.0.0'
+    }
+
+    # Check database connectivity
+    try:
+        connection.ensure_connection()
+        health_status['database'] = 'connected'
+    except Exception as e:
+        health_status['database'] = 'disconnected'
+        health_status['status'] = 'unhealthy'
+        health_status['error'] = str(e)
+        return Response(health_status, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    # Check Redis connectivity (optional)
+    try:
+        from django.core.cache import cache
+        cache.set('health_check', 'ok', 10)
+        if cache.get('health_check') == 'ok':
+            health_status['redis'] = 'connected'
+        else:
+            health_status['redis'] = 'disconnected'
+    except Exception as e:
+        health_status['redis'] = 'disconnected'
+        logger.warning(f"Redis health check failed: {e}")
+
+    return Response(health_status, status=status.HTTP_200_OK)
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def chat_query(request):

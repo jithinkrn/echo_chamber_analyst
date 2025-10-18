@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/jithinkrishnan/Documents/Study/IS06 /MVP/echo_chamber_analyst/**)",
+      "Bash(pip install:*)",
+      "Bash(python manage.py startapp:*)",
+      "Bash(python manage.py shell:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(python manage.py runserver:*)",
+      "Bash(curl:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

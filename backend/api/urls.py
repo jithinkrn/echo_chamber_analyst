@@ -7,6 +7,7 @@ from . import views
 
 urlpatterns = [
     path('', views.api_root, name='api_root'),
+    path('health/', views.health_check, name='health_check'),
 
     # LangGraph workflow endpoints
     path('chat/', views.chat_query, name='chat_query'),
