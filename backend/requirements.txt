@@ -52,7 +52,7 @@ langsmith==0.3.45
 marshmallow==3.26.1
 multidict==6.7.0
 mypy_extensions==1.1.0
-numpy==2.3.4
+numpy==1.26.4
 openai==1.109.1
 orjson==3.11.3
 ormsgpack==1.11.0
