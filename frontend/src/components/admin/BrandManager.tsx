@@ -12,6 +12,8 @@ import {
   Filter,
   ExternalLink
 } from 'lucide-react';
+import { AddBrandModal } from '../modals/AddBrandModal';
+
 
 interface Brand {
   id: string;
@@ -46,7 +48,7 @@ interface Competitor {
 export default function BrandManager() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateModal,  setShowCreateModal] = useState(false);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [industryFilter, setIndustryFilter] = useState<string>('all');
@@ -288,25 +290,15 @@ export default function BrandManager() {
         </div>
       )}
 
-      {/* TODO: Add Create/Edit Brand Modal */}
+      {/* Add Brand Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Brand</h3>
-            <p className="text-sm text-gray-600">Brand creation form will be implemented here.</p>
-            <div className="mt-4 flex justify-end space-x-2">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                Create Brand
-              </button>
-            </div>
-          </div>
-        </div>
+        <AddBrandModal
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={() => {
+            setShowCreateModal(false);
+            fetchBrands(); // Refresh brands list after successful creation
+          }}
+        />
       )}
 
       {/* TODO: Add Edit Brand Modal */}

@@ -225,6 +225,102 @@ export const apiService = {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   },
+
+  // Brand management
+  // Brand management - FIXED: Use consistent brand creation
+  async createBrand(brandData: {
+    name: string;
+    description?: string;
+    website?: string;
+    industry?: string;
+    keywords?: string[];
+    scout_config?: any;  // Add scout config support
+  }) {
+    const response = await api.post('/brands/new/', brandData);
+    return response.data;
+  },
+
+  async triggerScoutAnalysis(brandName: string, keywords: string[], brandId?: string, scoutConfig?: any) {
+    const response = await api.post('/scout/analyze/', {
+      brand_name: brandName,
+      keywords: keywords,
+      brand_id: brandId,
+      scout_config: scoutConfig
+    });
+    return response.data;
+  },
+
+  // ADD: Get brand data
+  async getBrand(brandId: string) {
+    const response = await api.get(`/brands/${brandId}/`);
+    return response.data;
+  },
+
+  // ADD: Get brands list
+  async getBrands() {
+    const response = await api.get('/brands/');
+    return response.data;
+  },
+
+  // ADD: Get scout results for a brand
+  async getScoutResults(brandId: string) {
+    const response = await api.get(`/brands/${brandId}/scout-results/`);
+    return response.data;
+  },
+
+  // ADD: Get communities data
+  async getCommunities(brandId?: string) {
+    const url = brandId ? `/communities/?brand=${brandId}` : '/communities/';
+    const response = await api.get(url);
+    return response.data;
+  },
+
+  // ADD: Get pain points
+  async getPainPoints(brandId?: string) {
+    const url = brandId ? `/pain-points/?brand=${brandId}` : '/pain-points/';
+    const response = await api.get(url);
+    return response.data;
+  },
+
+  // ADD: Get threads
+  async getThreads(brandId?: string, communityId?: string) {
+    let url = '/threads/';
+    const params = new URLSearchParams();
+    if (brandId) params.append('brand', brandId);
+    if (communityId) params.append('community', communityId);
+    if (params.toString()) url += `?${params.toString()}`;
+    
+    const response = await api.get(url);
+    return response.data;
+  },
+
+  // Campaign management with scout integration
+  async createCampaign(campaignData: {
+    name: string;
+    description?: string;
+    brand: string;
+    budget?: number;
+    start_date?: string;
+    end_date?: string;
+    keywords?: string[];
+    scout_config?: any;
+  }) {
+    const response = await api.post('/campaigns/', campaignData);
+    return response.data;
+  },
+
+  // ADD: Get campaigns
+  async getCampaigns(brandId?: string) {
+    const url = brandId ? `/campaigns/?brand=${brandId}` : '/campaigns/';
+    const response = await api.get(url);
+    return response.data;
+  },
+
+  // ADD: Get campaign details
+  async getCampaign(campaignId: string) {
+    const response = await api.get(`/campaigns/${campaignId}/`);
+    return response.data;
+  }
 };
 
 export default api;
