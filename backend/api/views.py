@@ -1554,3 +1554,289 @@ def get_threads(request):
         
     except Exception as e:
         return Response({'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+async def create_campaign(request):
+    """Create a new campaign with optional scout analysis."""
+    try:
+        data = request.data
+        
+        # Validate required fields
+        if not data.get('name'):
+            return Response({'error': 'Campaign name is required'}, status=400)
+        
+        if not data.get('brand'):
+            return Response({'error': 'Brand ID is required'}, status=400)
+        
+        # Check if brand exists
+        try:
+            brand = Brand.objects.get(id=data.get('brand'))
+        except Brand.DoesNotExist:
+            return Response({'error': 'Brand not found'}, status=404)
+        
+        logger.info(f"🚀 Creating campaign: {data.get('name')} for brand: {brand.name}")
+        
+        # Create campaign
+        campaign = Campaign.objects.create(
+            name=data.get('name'),
+            description=data.get('description', ''),
+            brand=brand,
+            budget=data.get('budget', 0),
+            start_date=data.get('start_date') or timezone.now().date(),
+            end_date=data.get('end_date'),
+            status='active'
+        )
+        
+        logger.info(f"✅ Campaign created: {campaign.id}")
+        
+        # Initialize response
+        response_data = {
+            'id': campaign.id,
+            'name': campaign.name,
+            'description': campaign.description,
+            'brand': {
+                'id': brand.id,
+                'name': brand.name
+            },
+            'budget': campaign.budget,
+            'start_date': campaign.start_date,
+            'end_date': campaign.end_date,
+            'status': campaign.status,
+            'created_at': campaign.created_at
+        }
+        
+        # Scout analysis (if configured)
+        scout_config = data.get('scout_config')
+        keywords = data.get('keywords', [])
+        
+        if scout_config and keywords:
+            logger.info(f"🔍 Starting scout analysis for campaign: {campaign.name}")
+            
+            try:
+                # Prepare campaign-specific scout configuration
+                campaign_scout_config = {
+                    'brand_name': brand.name,
+                    'campaign_name': campaign.name,
+                    'keywords': keywords,
+                    'focus': scout_config.get('focus', 'campaign_performance'),
+                    'search_depth': scout_config.get('search_depth', 'comprehensive'),
+                    'target_communities': scout_config.get('target_communities', []),
+                    'include_sentiment': scout_config.get('include_sentiment', True),
+                    'include_competitors': scout_config.get('include_competitors', True),
+                    'focus_areas': scout_config.get('focus_areas', ['campaign_mentions', 'audience_response']),
+                    'campaign_context': {
+                        'campaign_id': str(campaign.id),
+                        'campaign_objectives': data.get('description', ''),
+                        'budget': campaign.budget,
+                        'timeline': f"{campaign.start_date} to {campaign.end_date or 'ongoing'}"
+                    }
+                }
+                
+                # Run scout analysis
+                scout_results = await collect_real_brand_data(
+                    brand_name=f"{brand.name} {campaign.name}",
+                    config=campaign_scout_config
+                )
+                
+                # Store scout results linked to campaign
+                if scout_results:
+                    await _store_campaign_scout_data(campaign, scout_results)
+                    
+                    response_data['scout_analysis'] = {
+                        'analysis_status': 'completed',
+                        'communities_found': len(scout_results.get('communities', [])),
+                        'discussions_found': len(scout_results.get('threads', [])),
+                        'pain_points_identified': len(scout_results.get('pain_points', [])),
+                        'sentiment_score': scout_results.get('sentiment_analysis', {}).get('overall_sentiment', 'neutral'),
+                        'engagement_metrics': sum(
+                            thread.get('engagement_metrics', {}).get('score', 0) 
+                            for thread in scout_results.get('threads', [])
+                        ),
+                        'collection_timestamp': scout_results.get('metadata', {}).get('collection_timestamp')
+                    }
+                    
+                    logger.info(f"✅ Scout analysis completed for campaign: {campaign.name}")
+                else:
+                    response_data['scout_analysis'] = {
+                        'analysis_status': 'no_data',
+                        'message': 'Scout analysis completed but no relevant data found'
+                    }
+                    
+            except Exception as scout_error:
+                logger.error(f"❌ Scout analysis failed for campaign {campaign.name}: {scout_error}")
+                response_data['scout_analysis'] = {
+                    'analysis_status': 'failed',
+                    'error': str(scout_error),
+                    'message': 'Campaign created successfully, but scout analysis failed'
+                }
+        
+        return Response(response_data, status=201)
+        
+    except Exception as e:
+        logger.error(f"❌ Campaign creation failed: {e}")
+        return Response({'error': str(e)}, status=500)
+
+
+async def _store_campaign_scout_data(campaign, scout_results):
+    """Store scout analysis results for a campaign."""
+    try:
+        # Store communities
+        communities_created = 0
+        for community_data in scout_results.get('communities', []):
+            community, created = Community.objects.get_or_create(
+                name=community_data.get('name', 'Unknown'),
+                platform=community_data.get('platform', 'reddit'),
+                defaults={
+                    'member_count': community_data.get('member_count', 0),
+                    'echo_score': 0.0,
+                    'campaign': campaign
+                }
+            )
+            if created:
+                communities_created += 1
+        
+        # Store threads
+        threads_created = 0
+        for thread_data in scout_results.get('threads', []):
+            # Find or create community for thread
+            community_name = thread_data.get('community', 'General')
+            community, _ = Community.objects.get_or_create(
+                name=community_name,
+                platform=thread_data.get('platform', 'reddit'),
+                defaults={
+                    'member_count': 0,
+                    'echo_score': 0.0,
+                    'campaign': campaign
+                }
+            )
+            
+            thread, created = Thread.objects.get_or_create(
+                thread_id=thread_data.get('id', f"campaign_{campaign.id}_{threads_created}"),
+                defaults={
+                    'title': thread_data.get('title', ''),
+                    'content': thread_data.get('content', ''),
+                    'platform': thread_data.get('platform', 'reddit'),
+                    'echo_score': thread_data.get('engagement_metrics', {}).get('score', 0),
+                    'sentiment_score': thread_data.get('sentiment_score', 0.0),
+                    'community': community
+                }
+            )
+            if created:
+                threads_created += 1
+        
+        # Store pain points linked to campaign
+        pain_points_created = 0
+        for pain_point_data in scout_results.get('pain_points', []):
+            pain_point, created = PainPoint.objects.get_or_create(
+                keyword=pain_point_data.get('category', 'Unknown'),
+                campaign=campaign,
+                defaults={
+                    'mention_count': pain_point_data.get('frequency', 1),
+                    'growth_percentage': 0.0,
+                    'heat_level': pain_point_data.get('severity_score', 5)
+                }
+            )
+            if created:
+                pain_points_created += 1
+        
+        logger.info(f"📊 Stored scout data for campaign {campaign.name}: "
+                   f"{communities_created} communities, {threads_created} threads, "
+                   f"{pain_points_created} pain points")
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to store scout data for campaign {campaign.name}: {e}")
+        raise
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_campaigns(request):
+    """Get campaigns, optionally filtered by brand."""
+    brand_id = request.GET.get('brand')
+    
+    try:
+        if brand_id:
+            campaigns = Campaign.objects.filter(brand_id=brand_id)
+        else:
+            campaigns = Campaign.objects.all()
+        
+        campaigns = campaigns.select_related('brand').order_by('-created_at')
+        
+        campaigns_data = [
+            {
+                'id': c.id,
+                'name': c.name,
+                'description': c.description,
+                'brand': {
+                    'id': c.brand.id,
+                    'name': c.brand.name
+                },
+                'budget': c.budget,
+                'start_date': c.start_date,
+                'end_date': c.end_date,
+                'status': c.status,
+                'created_at': c.created_at
+            }
+            for c in campaigns
+        ]
+        
+        return Response({'campaigns': campaigns_data})
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_campaign_detail(request, campaign_id):
+    """Get detailed information about a specific campaign."""
+    try:
+        campaign = Campaign.objects.select_related('brand').get(id=campaign_id)
+        
+        # Get related data
+        pain_points = PainPoint.objects.filter(campaign=campaign)
+        communities = Community.objects.filter(campaign=campaign)
+        
+        campaign_data = {
+            'id': campaign.id,
+            'name': campaign.name,
+            'description': campaign.description,
+            'brand': {
+                'id': campaign.brand.id,
+                'name': campaign.brand.name
+            },
+            'budget': campaign.budget,
+            'start_date': campaign.start_date,
+            'end_date': campaign.end_date,
+            'status': campaign.status,
+            'created_at': campaign.created_at,
+            'pain_points_count': pain_points.count(),
+            'communities_count': communities.count(),
+            'pain_points': [
+                {
+                    'id': pp.id,
+                    'keyword': pp.keyword,
+                    'mention_count': pp.mention_count,
+                    'heat_level': pp.heat_level
+                }
+                for pp in pain_points[:10]  # Top 10 pain points
+            ],
+            'communities': [
+                {
+                    'id': c.id,
+                    'name': c.name,
+                    'platform': c.platform,
+                    'member_count': c.member_count
+                }
+                for c in communities[:10]  # Top 10 communities
+            ]
+        }
+        
+        return Response(campaign_data)
+        
+    except Campaign.DoesNotExist:
+        return Response({'error': 'Campaign not found'}, status=404)
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)

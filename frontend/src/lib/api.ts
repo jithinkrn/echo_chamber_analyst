@@ -292,6 +292,34 @@ export const apiService = {
     
     const response = await api.get(url);
     return response.data;
+  },
+
+  // Campaign management with scout integration
+  async createCampaign(campaignData: {
+    name: string;
+    description?: string;
+    brand: string;
+    budget?: number;
+    start_date?: string;
+    end_date?: string;
+    keywords?: string[];
+    scout_config?: any;
+  }) {
+    const response = await api.post('/campaigns/', campaignData);
+    return response.data;
+  },
+
+  // ADD: Get campaigns
+  async getCampaigns(brandId?: string) {
+    const url = brandId ? `/campaigns/?brand=${brandId}` : '/campaigns/';
+    const response = await api.get(url);
+    return response.data;
+  },
+
+  // ADD: Get campaign details
+  async getCampaign(campaignId: string) {
+    const response = await api.get(`/campaigns/${campaignId}/`);
+    return response.data;
   }
 };
 
