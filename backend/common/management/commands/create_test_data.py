@@ -21,9 +21,9 @@ class Command(BaseCommand):
             }
         )
         if created:
-            admin_user.set_password('admin123')
+            admin_user.set_password('puthiyathala123')
             admin_user.save()
-            self.stdout.write(f'Created admin user: admin/admin123')
+            self.stdout.write(f'Created admin user: admin/puthiyathala123')
 
         # Create test brands
         brands_data = [

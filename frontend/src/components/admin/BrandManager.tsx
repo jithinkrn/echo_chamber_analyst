@@ -10,9 +10,13 @@ import {
   Users,
   Search,
   Filter,
-  ExternalLink
+  ExternalLink,
+  Play,
+  Pause,
+  Loader2
 } from 'lucide-react';
 import { AddBrandModal } from '../modals/AddBrandModal';
+import { apiService } from '@/lib/api';
 
 
 interface Brand {
@@ -31,6 +35,7 @@ interface Brand {
   competitors: Competitor[];
   campaign_count: number;
   created_at: string;
+  analysis_status?: string;
 }
 
 interface Competitor {
@@ -48,10 +53,12 @@ interface Competitor {
 export default function BrandManager() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal,  setShowCreateModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [industryFilter, setIndustryFilter] = useState<string>('all');
+  const [analysisOperations, setAnalysisOperations] = useState<{ [key: string]: boolean }>({});
+
 
   useEffect(() => {
     fetchBrands();
@@ -60,10 +67,8 @@ export default function BrandManager() {
   const fetchBrands = async () => {
     try {
       setLoading(true);
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-      const response = await fetch(`${API_BASE_URL}/brands/`);
-      const data = await response.json();
-      setBrands(data.results || []);
+      const data = await apiService.getBrands();
+      setBrands(data.results || data || []);
     } catch (error) {
       console.error('Failed to fetch brands:', error);
       // Mock data for development
@@ -99,7 +104,8 @@ export default function BrandManager() {
             }
           ],
           campaign_count: 3,
-          created_at: '2025-09-15T10:00:00Z'
+          created_at: '2025-09-15T10:00:00Z',
+          analysis_status: 'not_started'
         }
       ]);
     } finally {
@@ -119,6 +125,31 @@ export default function BrandManager() {
     }
   };
 
+  const handleAnalysisControl = async (brandId: string, action: 'start' | 'pause') => {
+    try {
+      setAnalysisOperations(prev => ({ ...prev, [brandId]: true }));
+
+      await apiService.controlBrandAnalysis(brandId, action);
+
+      // Update the brand's analysis status in the local state
+      setBrands(brands.map(brand =>
+        brand.id === brandId
+          ? { ...brand, analysis_status: action === 'start' ? 'running' : 'paused' }
+          : brand
+      ));
+
+      // Refresh brands data to get updated status
+      setTimeout(() => {
+        fetchBrands();
+      }, 2000);
+
+    } catch (error) {
+      console.error(`Failed to ${action} analysis:`, error);
+    } finally {
+      setAnalysisOperations(prev => ({ ...prev, [brandId]: false }));
+    }
+  };
+
   const filteredBrands = brands.filter(brand => {
     const matchesSearch = brand.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          brand.description.toLowerCase().includes(searchTerm.toLowerCase());
@@ -127,6 +158,36 @@ export default function BrandManager() {
   });
 
   const uniqueIndustries = [...new Set(brands.map(b => b.industry).filter(Boolean))];
+
+  const getAnalysisStatusColor = (status?: string) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'running':
+        return 'bg-blue-100 text-blue-800';
+      case 'failed':
+        return 'bg-red-100 text-red-800';
+      case 'paused':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getAnalysisStatusText = (status?: string) => {
+    switch (status) {
+      case 'completed':
+        return 'Analysis Complete';
+      case 'running':
+        return 'Analyzing...';
+      case 'failed':
+        return 'Analysis Failed';
+      case 'paused':
+        return 'Analysis Paused';
+      default:
+        return 'Not Started';
+    }
+  };
 
   if (loading) {
     return (
@@ -237,6 +298,13 @@ export default function BrandManager() {
                     )}
                   </div>
                 )}
+
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">Analysis Status</span>
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getAnalysisStatusColor(brand.analysis_status)}`}>
+                    {getAnalysisStatusText(brand.analysis_status)}
+                  </span>
+                </div>
               </div>
 
               {/* Actions */}
@@ -249,6 +317,35 @@ export default function BrandManager() {
                     <Edit className="h-4 w-4" />
                     <span className="text-xs">Edit</span>
                   </button>
+
+                  {/* Analysis Control Buttons */}
+                  {brand.analysis_status === 'not_started' || brand.analysis_status === 'paused' || brand.analysis_status === 'completed' || brand.analysis_status === 'failed' ? (
+                    <button
+                      onClick={() => handleAnalysisControl(brand.id, 'start')}
+                      disabled={analysisOperations[brand.id]}
+                      className="flex items-center space-x-1 px-2 py-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+                    >
+                      {analysisOperations[brand.id] ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                      <span className="text-xs">Start Analysis</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleAnalysisControl(brand.id, 'pause')}
+                      disabled={analysisOperations[brand.id]}
+                      className="flex items-center space-x-1 px-2 py-1 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50 rounded transition-colors disabled:opacity-50"
+                    >
+                      {analysisOperations[brand.id] ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Pause className="h-4 w-4" />
+                      )}
+                      <span className="text-xs">Pause Analysis</span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-center space-x-2">
@@ -294,7 +391,7 @@ export default function BrandManager() {
       {showCreateModal && (
         <AddBrandModal
           onClose={() => setShowCreateModal(false)}
-          onSuccess={() => {
+          onBrandAdded={() => {
             setShowCreateModal(false);
             fetchBrands(); // Refresh brands list after successful creation
           }}

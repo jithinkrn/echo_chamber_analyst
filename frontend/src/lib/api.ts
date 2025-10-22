@@ -289,8 +289,14 @@ export const apiService = {
     if (brandId) params.append('brand', brandId);
     if (communityId) params.append('community', communityId);
     if (params.toString()) url += `?${params.toString()}`;
-    
+
     const response = await api.get(url);
+    return response.data;
+  },
+
+  // ADD: Control brand analysis (start/pause)
+  async controlBrandAnalysis(brandId: string, action: 'start' | 'pause') {
+    const response = await api.post(`/brands/${brandId}/analysis/`, { action });
     return response.data;
   },
 

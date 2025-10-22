@@ -1,10 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Users, MessageSquare, AlertTriangle, Building, Search, ChevronDown } from 'lucide-react';
-import { AddBrandModal } from './modals/AddBrandModal';
-import { AddCampaignModal } from './modals/AddCampaignModal';
-import { Plus } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Users, MessageSquare, AlertTriangle, Building, ChevronDown } from 'lucide-react';
 
 // Simple Card components
 const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
@@ -131,8 +128,6 @@ export default function Dashboard() {
   const [selectedThread, setSelectedThread] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showBrandDropdown, setShowBrandDropdown] = useState(false);
-  const [showAddBrand, setShowAddBrand] = useState(false);  
-  const [showAddCampaign, setShowAddCampaign] = useState(false);
 
   useEffect(() => {
     fetchBrands();
@@ -292,29 +287,6 @@ export default function Dashboard() {
         <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-medium text-gray-900">Brand Analytics</h2>
-                      <div className="flex items-center space-x-3">
-            {/* Existing brand dropdown */}
-            <div className="relative">
-              {/* ...existing dropdown code... */}
-            </div>
-
-     
-              <button
-                onClick={() => setShowAddBrand(true)}
-                className="flex items-center space-x-2 px-4 py-2 border border-green-500 rounded-md text-green-700 bg-white hover:bg-green-50"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add Brand</span>
-              </button>
-
-              <button
-                onClick={() => setShowAddCampaign(true)}
-                className="flex items-center space-x-2 px-4 py-2 border border-blue-500 rounded-md text-blue-700 bg-white hover:bg-blue-50"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add Campaign</span>
-              </button>
-            </div>
             <div className="flex items-center space-x-3">
               {dataLoading && (
                 <div className="flex items-center text-blue-600">
@@ -686,28 +658,9 @@ export default function Dashboard() {
 
       {/* Modals */}
       {selectedThread && (
-        <ThreadDetailModal 
-          threadId={selectedThread} 
-          onClose={() => setSelectedThread(null)} 
-        />
-      )}
-      {showAddBrand && (
-        <AddBrandModal 
-          onClose={() => setShowAddBrand(false)}
-          onBrandAdded={() => {
-            setShowAddBrand(false);
-            // refresh brands list
-          }}
-        />
-      )}
-      {showAddCampaign && (
-        <AddCampaignModal
-          onClose={() => setShowAddCampaign(false)}
-          onCampaignAdded={() => {
-            fetchDashboardData();
-            setShowAddCampaign(false);
-          }}
-          brandId={selectedBrand}
+        <ThreadDetailModal
+          threadId={selectedThread}
+          onClose={() => setSelectedThread(null)}
         />
       )}
     </div>

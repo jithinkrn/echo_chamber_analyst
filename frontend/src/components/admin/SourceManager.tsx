@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Plus, Globe, Settings, Trash, CheckCircle, XCircle } from 'lucide-react';
+import { AddSourceModal } from '../modals/AddSourceModal';
 
 interface Source {
   id: string;
@@ -16,6 +17,7 @@ interface Source {
 export default function SourceManager() {
   const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     // Mock data for now
@@ -41,6 +43,11 @@ export default function SourceManager() {
     setLoading(false);
   }, []);
 
+  const fetchSources = () => {
+    // Refresh sources list - this would typically reload from API
+    console.log('Refreshing sources list...');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -54,7 +61,10 @@ export default function SourceManager() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-medium text-gray-900">Content Sources</h3>
-        <button className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
           <Plus className="h-4 w-4" />
           <span>Add Source</span>
         </button>
@@ -95,6 +105,17 @@ export default function SourceManager() {
           </div>
         ))}
       </div>
+
+      {/* Add Source Modal */}
+      {showCreateModal && (
+        <AddSourceModal
+          onClose={() => setShowCreateModal(false)}
+          onSourceAdded={() => {
+            setShowCreateModal(false);
+            fetchSources();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1088,7 +1088,7 @@ def get_brand_campaign_analytics(brand_id, date_from, date_to):
 # Update the create_brand function:
 @api_view(['POST'])
 @permission_classes([AllowAny])
-async def create_brand(request):
+def create_brand(request):
     """Create a new brand and automatically trigger scout analysis."""
     try:
         data = request.data
@@ -1105,53 +1105,17 @@ async def create_brand(request):
             name=brand_name,
             description=data.get('description', ''),
             website=data.get('website', ''),
-            industry=data.get('industry', ''),
-            created_by_id=request.user.id if request.user.is_authenticated else None
+            industry=data.get('industry', '')
         )
 
         logger.info(f"✅ Brand created: {brand_name} (ID: {brand.id})")
 
-        # Handle enhanced scout configuration
-        scout_config = data.get('scout_config', {})
+        # Store keywords for later analysis
         keywords = data.get('keywords', [])
-        
-        # Use scout_keywords if provided in scout_config
-        if 'scout_keywords' in data and data['scout_keywords']:
-            scout_keywords = data.get('scout_keywords', '')
-            if isinstance(scout_keywords, str):
-                keywords = [k.strip() for k in scout_keywords.split(',') if k.strip()]
-        elif isinstance(keywords, str):
+        if isinstance(keywords, str):
             keywords = [k.strip() for k in keywords.split(',') if k.strip()]
-        
         if not keywords:
             keywords = [brand_name, 'review', 'quality', 'problems']
-
-        logger.info(f"🚀 Auto-triggering scout analysis with config: {scout_config}")
-
-        # Run scout analysis with enhanced config
-        try:
-            scout_results = await collect_real_brand_data(
-                brand_name, 
-                keywords, 
-                config=scout_config  # Pass the enhanced config
-            )
-            await _store_brand_scout_data(brand, scout_results)
-            
-            scout_summary = {
-                'communities_found': len(scout_results.get('communities', [])),
-                'threads_collected': len(scout_results.get('threads', [])),
-                'pain_points_identified': len(scout_results.get('pain_points', [])),
-                'brand_mentions': len(scout_results.get('brand_mentions', [])),
-                'analysis_status': 'completed',
-                'scout_config_used': scout_config
-            }
-            
-        except Exception as scout_error:
-            logger.error(f"❌ Scout analysis failed: {scout_error}")
-            scout_summary = {
-                'analysis_status': 'failed',
-                'error_message': str(scout_error)
-            }
 
         response_data = {
             'id': brand.id,
@@ -1160,8 +1124,8 @@ async def create_brand(request):
             'website': brand.website,
             'industry': brand.industry,
             'created_at': brand.created_at.isoformat(),
-            'scout_analysis': scout_summary,
-            'keywords_used': keywords
+            'analysis_status': 'not_started',
+            'keywords': keywords
         }
 
         return Response(response_data, status=status.HTTP_201_CREATED)
@@ -1245,6 +1209,91 @@ async def trigger_scout_analysis(request):
         logger.error(f"❌ Scout analysis failed: {e}")
         return Response(
             {'error': f'Scout analysis failed: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def control_brand_analysis(request, brand_id):
+    """Start or pause brand analysis."""
+    try:
+        action = request.data.get('action')  # 'start' or 'pause'
+
+        if action not in ['start', 'pause']:
+            return Response(
+                {'error': 'Action must be "start" or "pause"'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            brand = Brand.objects.get(id=brand_id)
+        except Brand.DoesNotExist:
+            return Response(
+                {'error': 'Brand not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if action == 'start':
+            # Generate keywords from brand name and existing data
+            keywords = [brand.name, 'review', 'quality', 'problems', 'complaint', 'feedback']
+
+            # Create enhanced scout config
+            scout_config = {
+                'focus': 'comprehensive',
+                'search_depth': 'comprehensive',
+                'target_communities': [],
+                'include_sentiment': True,
+                'include_competitors': True,
+                'focus_areas': ['pain_points', 'feedback', 'sentiment']
+            }
+
+            logger.info(f"🚀 Starting scout analysis for brand: {brand.name}")
+
+            # Run scout analysis
+            try:
+                scout_results = asyncio.run(collect_real_brand_data(
+                    brand.name,
+                    keywords,
+                    config=scout_config
+                ))
+                asyncio.run(_store_brand_scout_data(brand, scout_results))
+
+                response_data = {
+                    'brand_id': brand.id,
+                    'brand_name': brand.name,
+                    'analysis_status': 'completed',
+                    'data_collected': {
+                        'communities': len(scout_results.get('communities', [])),
+                        'threads': len(scout_results.get('threads', [])),
+                        'pain_points': len(scout_results.get('pain_points', [])),
+                        'brand_mentions': len(scout_results.get('brand_mentions', []))
+                    }
+                }
+
+            except Exception as scout_error:
+                logger.error(f"❌ Scout analysis failed: {scout_error}")
+                response_data = {
+                    'brand_id': brand.id,
+                    'brand_name': brand.name,
+                    'analysis_status': 'failed',
+                    'error_message': str(scout_error)
+                }
+
+        else:  # action == 'pause'
+            # For now, just return status - actual pause logic would need background task management
+            response_data = {
+                'brand_id': brand.id,
+                'brand_name': brand.name,
+                'analysis_status': 'paused'
+            }
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.error(f"❌ Brand analysis control failed: {e}")
+        return Response(
+            {'error': f'Brand analysis control failed: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
