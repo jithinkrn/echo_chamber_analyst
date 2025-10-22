@@ -348,6 +348,24 @@ export const apiService = {
   async deleteCustomSource(sourceId: string) {
     const response = await api.delete(`/sources/custom/${sourceId}/`);
     return response.data;
+  },
+
+  // Influencer management
+  async getBrandInfluencers(brandId: string, params?: { limit?: number; min_score?: number; campaign?: string }) {
+    const queryParams = new URLSearchParams();
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.min_score !== undefined) queryParams.append('min_score', params.min_score.toString());
+    if (params?.campaign) queryParams.append('campaign', params.campaign);
+
+    const url = `/brands/${brandId}/influencers/${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+    const response = await api.get(url);
+    return response.data;
+  },
+
+  // Enhanced Analysis - Get comprehensive analysis summary
+  async getBrandAnalysisSummary(brandId: string) {
+    const response = await api.get(`/brands/${brandId}/analysis-summary/`);
+    return response.data;
   }
 };
 

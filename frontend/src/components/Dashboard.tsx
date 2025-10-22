@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Users, MessageSquare, AlertTriangle, Building, ChevronDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Users, MessageSquare, AlertTriangle, Building, ChevronDown, Lightbulb, Target } from 'lucide-react';
+import InfluencerPulse from './InfluencerPulse';
+import { apiService } from '@/lib/api';
 
 // Simple Card components
 const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
@@ -128,6 +130,8 @@ export default function Dashboard() {
   const [selectedThread, setSelectedThread] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showBrandDropdown, setShowBrandDropdown] = useState(false);
+  const [analysisSummary, setAnalysisSummary] = useState<any>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   useEffect(() => {
     fetchBrands();
@@ -136,6 +140,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (selectedBrand) {
       fetchDashboardData();
+      fetchAnalysisSummary();
     }
   }, [selectedBrand]);
 
@@ -178,17 +183,17 @@ export default function Dashboard() {
       } else {
         setLoading(true);
       }
-      
+
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
       const url = `${API_BASE_URL}/dashboard/overview/brand/?brand_id=${selectedBrand}`;
       console.log('Fetching dashboard data from:', url);
-      
+
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch dashboard data');
       }
-      
+
       const data = await response.json();
       console.log('Received dashboard data:', data);
       setDashboardData(data);
@@ -199,6 +204,25 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
       setDataLoading(false);
+    }
+  };
+
+  const fetchAnalysisSummary = async () => {
+    if (!selectedBrand) return;
+
+    try {
+      setSummaryLoading(true);
+      const data = await apiService.getBrandAnalysisSummary(selectedBrand);
+      if (data.summary) {
+        setAnalysisSummary(data.summary);
+      } else {
+        setAnalysisSummary(null);
+      }
+    } catch (error) {
+      console.error('Error fetching analysis summary:', error);
+      setAnalysisSummary(null);
+    } finally {
+      setSummaryLoading(false);
     }
   };
 
@@ -493,65 +517,186 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Community Watchlist and Influencer Pulse */}
-      <div className="grid grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>COMMUNITY WATCHLIST</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="grid grid-cols-6 gap-2 text-xs font-medium text-gray-600 border-b pb-2">
-                <span>Rank</span>
-                <span>Echo</span>
-                <span>Δ</span>
-                <span>New Threads</span>
-                <div className="col-span-2">Key Influencer</div>
-              </div>
-              {(dashboardData.community_watchlist || []).slice(0, 3).map((community, index) => (
-                <div key={index} className="grid grid-cols-6 gap-2 text-sm items-center">
-                  <span className="font-medium">{community.rank}</span>
-                  <span className="text-gray-700">{community.echo_score.toFixed(1)}</span>
-                  <div className="flex items-center text-green-600">
-                    <TrendingUp className="h-3 w-3 mr-1" />
-                    {community.echo_change}%
-                  </div>
-                  <span className="text-gray-700">{community.new_threads}</span>
-                  <div className="col-span-2 text-gray-900 truncate">
-                    {community.key_influencer}
-                  </div>
-                </div>
-              ))}
+      {/* Community Watchlist */}
+      <Card>
+        <CardHeader>
+          <CardTitle>COMMUNITY WATCHLIST</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="grid grid-cols-6 gap-2 text-xs font-medium text-gray-600 border-b pb-2">
+              <span>Rank</span>
+              <span>Echo</span>
+              <span>Δ</span>
+              <span>New Threads</span>
+              <div className="col-span-2">Key Influencer</div>
             </div>
-          </CardContent>
-        </Card>
+            {(dashboardData.community_watchlist || []).slice(0, 3).map((community, index) => (
+              <div key={index} className="grid grid-cols-6 gap-2 text-sm items-center">
+                <span className="font-medium">{community.rank}</span>
+                <span className="text-gray-700">{community.echo_score.toFixed(1)}</span>
+                <div className="flex items-center text-green-600">
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  {community.echo_change}%
+                </div>
+                <span className="text-gray-700">{community.new_threads}</span>
+                <div className="col-span-2 text-gray-900 truncate">
+                  {community.key_influencer}
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>INFLUENCER PULSE (&lt;50k)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="grid grid-cols-4 gap-2 text-xs font-medium text-gray-600 border-b pb-2">
-                <span>Handle</span>
-                <span>Reach</span>
-                <span>Eng%</span>
-                <span>Talks about…</span>
+      {/* Enhanced Analysis Summary */}
+      {selectedBrand && analysisSummary && !summaryLoading && (
+        <div className="space-y-6">
+          {/* Key Insights Section */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Lightbulb className="h-5 w-5 text-yellow-500" />
+                <CardTitle>AI-Powered Key Insights</CardTitle>
               </div>
-              {(dashboardData.influencer_pulse || []).slice(0, 3).map((influencer, index) => (
-                <div key={index} className="grid grid-cols-4 gap-2 text-sm items-center">
-                  <span className="font-medium text-gray-900">{influencer.handle}</span>
-                  <span className="text-gray-700">{formatReach(influencer.reach)}</span>
-                  <span className="text-gray-700">{influencer.engagement_rate.toFixed(1)}</span>
-                  <span className="text-xs text-gray-600 truncate">
-                    {influencer.topics_text}
-                  </span>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {analysisSummary.key_insights?.slice(0, 6).map((insight: string, index: number) => (
+                  <div key={index} className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
+                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                      {index + 1}
+                    </div>
+                    <p className="text-sm text-gray-700">{insight}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Pain Points Analysis with Influencer Impact */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                <CardTitle>Urgent Pain Points with Influencer Reach</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-6 gap-2 text-xs font-medium text-gray-600 border-b pb-2">
+                  <span className="col-span-2">Pain Point</span>
+                  <span>Urgency</span>
+                  <span>Sentiment</span>
+                  <span>Influencers</span>
+                  <span>Est. Reach</span>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                {analysisSummary.pain_point_analysis?.urgent_pain_points?.slice(0, 5).map((pp: any, index: number) => (
+                  <div key={index} className="grid grid-cols-6 gap-2 text-sm items-center">
+                    <span className="col-span-2 font-medium text-gray-900">{pp.pain_point}</span>
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      pp.urgency_score >= 7 ? 'bg-red-100 text-red-800' :
+                      pp.urgency_score >= 5 ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-green-100 text-green-800'
+                    }`}>
+                      {pp.urgency_score}/10
+                    </span>
+                    <span className={`text-xs ${
+                      pp.sentiment_breakdown.positive > pp.sentiment_breakdown.negative
+                        ? 'text-green-600'
+                        : 'text-red-600'
+                    }`}>
+                      {pp.sentiment_breakdown.positive > pp.sentiment_breakdown.negative ? '😊' : '😞'}
+                      {' '}{pp.sentiment_breakdown.positive}/{pp.sentiment_breakdown.negative}
+                    </span>
+                    <span className="text-gray-700">{pp.influencer_count}</span>
+                    <span className="font-medium text-blue-600">
+                      {pp.estimated_reach >= 1000
+                        ? `${(pp.estimated_reach / 1000).toFixed(1)}k`
+                        : pp.estimated_reach}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Influencer Breakdown */}
+          <div className="grid grid-cols-3 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  High Influence Users
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-blue-600">
+                  {analysisSummary.influencer_breakdown?.high_influence_count || 0}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Score &gt; 70</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  Brand Advocates
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-green-600">
+                  {analysisSummary.influencer_breakdown?.advocates || 0}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Positive sentiment</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  Critics
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-red-600">
+                  {analysisSummary.influencer_breakdown?.critics || 0}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Negative sentiment</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Community Insights */}
+          {analysisSummary.community_insights?.top_communities && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Top Communities by Engagement</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {analysisSummary.community_insights.top_communities.slice(0, 4).map((community: any, index: number) => (
+                    <div key={index} className="p-3 bg-gray-50 rounded-lg">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="font-medium text-gray-900">{community.name}</span>
+                        <span className="text-xs text-gray-500">{community.platform}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                        <div>Threads: <span className="font-medium">{community.thread_count}</span></div>
+                        <div>Avg Sentiment: <span className="font-medium">{community.avg_sentiment?.toFixed(2)}</span></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Influencer Pulse - Full Width Component */}
+      {selectedBrand && (
+        <InfluencerPulse brandId={selectedBrand} />
+      )}
 
       {/* Campaign Analytics Section */}
       {selectedBrand && dashboardData?.campaign_analytics && (

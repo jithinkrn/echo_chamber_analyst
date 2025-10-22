@@ -111,6 +111,9 @@ class Campaign(BaseModel):
     daily_budget = models.DecimalField(max_digits=10, decimal_places=2, default=10.00)
     current_spend = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
+    # Analysis metadata - stores comprehensive analysis summaries
+    metadata = models.JSONField(default=dict, blank=True)
+
     class Meta:
         db_table = 'campaigns'
         ordering = ['-created_at']
@@ -265,6 +268,7 @@ class Influencer(BaseModel):
     """Identified influencers from content analysis."""
 
     campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='influencers')
+    brand = models.ForeignKey(Brand, on_delete=models.CASCADE, related_name='influencers', null=True, blank=True)
     community = models.ForeignKey('Community', on_delete=models.CASCADE, related_name='influencers', null=True, blank=True)
 
     # Influencer details
@@ -272,31 +276,58 @@ class Influencer(BaseModel):
     display_name = models.CharField(max_length=255, blank=True)
     source_type = models.CharField(max_length=20)
     profile_url = models.URLField(blank=True)
+    platform = models.CharField(max_length=50, default='reddit')  # reddit, discord, forum
 
-    # Metrics for dashboard
+    # Engagement metrics (from Reddit/forum data)
+    total_karma = models.IntegerField(default=0)
+    total_posts = models.IntegerField(default=0)
+    total_comments = models.IntegerField(default=0)
+    avg_post_score = models.FloatField(default=0.0)
+    avg_engagement_rate = models.FloatField(default=0.0)
+
+    # Influence component scores (0-100 scale)
+    reach_score = models.FloatField(default=0.0)  # Estimated audience size
+    authority_score = models.FloatField(default=0.0)  # Domain expertise
+    advocacy_score = models.FloatField(default=0.0)  # Brand promotion level
+    relevance_score = models.FloatField(default=0.0)  # Brand/topic relevance
+
+    # Overall influence score (weighted combination)
+    influence_score = models.FloatField(default=0.0)  # 0 to 100
+
+    # Brand sentiment
+    sentiment_towards_brand = models.FloatField(default=0.0)  # -1 to +1
+    brand_mention_count = models.IntegerField(default=0)
+    brand_mention_rate = models.FloatField(default=0.0)  # Percentage of posts mentioning brand
+
+    # Activity patterns
+    communities = models.JSONField(default=list)  # List of subreddits/channels
+    first_seen = models.DateTimeField(default=timezone.now)
+    last_active = models.DateTimeField(null=True, blank=True)
+    post_frequency = models.FloatField(default=0.0)  # posts per week
+
+    # Legacy metrics (for backward compatibility)
     reach = models.IntegerField(default=0)  # follower count
     engagement_rate = models.FloatField(default=0.0)
     karma_score = models.IntegerField(default=0)
     topics = models.JSONField(default=list)  # topics they talk about
-    last_active = models.DateTimeField(null=True, blank=True)
-
-    # Legacy fields
     follower_count = models.IntegerField(null=True, blank=True)
-    influence_score = models.FloatField(default=0.0)  # 0 to 1
-
-    # Activity analysis
-    post_frequency = models.FloatField(null=True, blank=True)  # Posts per day
     avg_likes = models.FloatField(null=True, blank=True)
     avg_comments = models.FloatField(null=True, blank=True)
-
-    # Content analysis
     content_topics = models.JSONField(default=list)
     sentiment_distribution = models.JSONField(default=dict)
+
+    # Sample threads for reference
+    sample_thread_ids = models.JSONField(default=list)  # Store up to 5 thread IDs
 
     class Meta:
         db_table = 'influencers'
         unique_together = ['campaign', 'username', 'source_type']
         ordering = ['-influence_score']
+        indexes = [
+            models.Index(fields=['brand', '-relevance_score']),
+            models.Index(fields=['campaign', '-influence_score']),
+            models.Index(fields=['platform', '-reach_score']),
+        ]
 
     def __str__(self):
         return f"{self.display_name or self.username} ({self.source_type})"

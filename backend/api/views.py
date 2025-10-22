@@ -1263,6 +1263,92 @@ def control_brand_analysis(request, brand_id):
                 ))
                 asyncio.run(_store_brand_scout_data(brand, scout_results))
 
+                # ========================================
+                # ENHANCED ANALYST AGENT - Comprehensive Analysis
+                # ========================================
+                logger.info(f"🧠 Starting Enhanced Analyst Agent for brand: {brand.name}")
+
+                try:
+                    from agents.analyst import (
+                        analyze_influencers_for_threads,
+                        link_pain_points_to_influencers,
+                        generate_comprehensive_analysis_summary,
+                        save_influencers_to_db
+                    )
+
+                    # Get the latest campaign for this brand
+                    latest_campaign = Campaign.objects.filter(brand=brand).order_by('-created_at').first()
+
+                    if not latest_campaign:
+                        logger.warning(f"⚠️ No campaign found for brand {brand.name}, skipping enhanced analysis")
+                        influencers = []
+                        analysis_summary = None
+                    else:
+                        # Get threads for analysis
+                        threads = Thread.objects.filter(
+                            brand=brand,
+                            campaign=latest_campaign
+                        ).select_related('community').prefetch_related('pain_points')
+
+                        # Get pain points
+                        pain_points = PainPoint.objects.filter(campaign=latest_campaign)
+
+                        logger.info(f"📊 Analyzing {threads.count()} threads and {pain_points.count()} pain points")
+
+                        # Step 1: Analyze Influencers
+                        logger.info(f"👥 Step 1/4: Identifying influencers...")
+                        influencer_list, influencer_threads_map = analyze_influencers_for_threads(
+                            threads=list(threads),
+                            brand=brand,
+                            campaign=latest_campaign,
+                            min_posts=2
+                        )
+
+                        # Step 2: Save influencers to database
+                        logger.info(f"💾 Step 2/4: Saving {len(influencer_list)} influencers to database...")
+                        saved_influencers = save_influencers_to_db(
+                            brand=brand,
+                            campaign=latest_campaign,
+                            influencers=influencer_list[:50]  # Top 50
+                        )
+
+                        # Step 3: Link pain points to influencers
+                        logger.info(f"🔗 Step 3/4: Linking pain points to influencers...")
+                        pain_point_analysis = link_pain_points_to_influencers(
+                            pain_points=list(pain_points),
+                            influencers=influencer_list,
+                            influencer_threads_map=influencer_threads_map
+                        )
+
+                        # Step 4: Generate comprehensive summary
+                        logger.info(f"📋 Step 4/4: Generating comprehensive analysis summary...")
+                        analysis_summary = generate_comprehensive_analysis_summary(
+                            brand=brand,
+                            campaign=latest_campaign,
+                            threads=list(threads),
+                            pain_points=list(pain_points),
+                            influencers=influencer_list,
+                            pain_point_analysis=pain_point_analysis
+                        )
+
+                        # Store summary in campaign metadata
+                        if latest_campaign.metadata is None:
+                            latest_campaign.metadata = {}
+                        latest_campaign.metadata['analysis_summary'] = analysis_summary
+                        latest_campaign.save()
+
+                        logger.info(f"✅ Enhanced Analyst Agent completed successfully")
+                        logger.info(f"   - {len(influencer_list)} influencers identified")
+                        logger.info(f"   - {len(pain_point_analysis)} pain points analyzed")
+                        logger.info(f"   - {len(analysis_summary['key_insights'])} key insights generated")
+
+                        influencers = influencer_list
+
+                except Exception as analyst_error:
+                    logger.error(f"❌ Enhanced Analyst Agent failed: {analyst_error}", exc_info=True)
+                    influencers = []
+                    analysis_summary = None
+
                 response_data = {
                     'brand_id': brand.id,
                     'brand_name': brand.name,
@@ -1271,8 +1357,14 @@ def control_brand_analysis(request, brand_id):
                         'communities': len(scout_results.get('communities', [])),
                         'threads': len(scout_results.get('threads', [])),
                         'pain_points': len(scout_results.get('pain_points', [])),
-                        'brand_mentions': len(scout_results.get('brand_mentions', []))
-                    }
+                        'brand_mentions': len(scout_results.get('brand_mentions', [])),
+                        'influencers': len(influencers)
+                    },
+                    'enhanced_analysis': {
+                        'summary_generated': analysis_summary is not None,
+                        'key_insights_count': len(analysis_summary['key_insights']) if analysis_summary else 0,
+                        'urgent_pain_points': len(analysis_summary['pain_point_analysis']['urgent_pain_points']) if analysis_summary else 0
+                    } if analysis_summary else None
                 }
 
             except Exception as scout_error:
@@ -1594,10 +1686,156 @@ def get_scout_results(request, brand_id):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+def get_brand_influencers(request, brand_id):
+    """Get top influencers for a brand."""
+    try:
+        brand = Brand.objects.get(id=brand_id)
+
+        # Get optional query parameters
+        limit = int(request.GET.get('limit', 20))
+        min_score = float(request.GET.get('min_score', 0.0))
+        campaign_id = request.GET.get('campaign')
+
+        # Build query
+        query = Influencer.objects.filter(brand=brand, influence_score__gte=min_score)
+
+        if campaign_id:
+            query = query.filter(campaign_id=campaign_id)
+
+        # Get influencers sorted by influence score
+        influencers = query.order_by('-influence_score')[:limit]
+
+        # Serialize influencer data
+        influencer_data = []
+        for inf in influencers:
+            influencer_data.append({
+                'id': str(inf.id),
+                'username': inf.username,
+                'display_name': inf.display_name or inf.username,
+                'platform': inf.platform,
+                'profile_url': inf.profile_url,
+
+                # Influence scores
+                'reach_score': inf.reach_score,
+                'authority_score': inf.authority_score,
+                'advocacy_score': inf.advocacy_score,
+                'relevance_score': inf.relevance_score,
+                'influence_score': inf.influence_score,
+
+                # Engagement metrics
+                'total_posts': inf.total_posts,
+                'total_karma': inf.total_karma,
+                'avg_post_score': inf.avg_post_score,
+                'total_comments': inf.total_comments,
+                'avg_engagement_rate': inf.avg_engagement_rate,
+
+                # Brand sentiment
+                'sentiment': inf.sentiment_towards_brand,
+                'brand_mention_count': inf.brand_mention_count,
+                'brand_mention_rate': inf.brand_mention_rate,
+
+                # Activity
+                'communities': inf.communities,
+                'post_frequency': inf.post_frequency,
+                'last_active': inf.last_active.isoformat() if inf.last_active else None,
+
+                # Community info
+                'community': {
+                    'id': str(inf.community.id),
+                    'name': inf.community.name,
+                    'platform': inf.community.platform
+                } if inf.community else None
+            })
+
+        return Response({
+            'brand': {
+                'id': str(brand.id),
+                'name': brand.name
+            },
+            'influencers': influencer_data,
+            'total_count': len(influencer_data),
+            'filters': {
+                'limit': limit,
+                'min_score': min_score,
+                'campaign_id': campaign_id
+            }
+        })
+
+    except Brand.DoesNotExist:
+        return Response(
+            {'error': 'Brand not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error fetching influencers: {str(e)}")
+        return Response(
+            {'error': f'Failed to fetch influencers: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_brand_analysis_summary(request, brand_id):
+    """Get comprehensive analysis summary for a brand."""
+    try:
+        brand = Brand.objects.get(id=brand_id)
+
+        # Get the latest campaign
+        latest_campaign = Campaign.objects.filter(brand=brand).order_by('-created_at').first()
+
+        if not latest_campaign:
+            return Response(
+                {'error': 'No campaign found for this brand'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get analysis summary from campaign metadata
+        analysis_summary = None
+        if latest_campaign.metadata and 'analysis_summary' in latest_campaign.metadata:
+            analysis_summary = latest_campaign.metadata['analysis_summary']
+
+        if not analysis_summary:
+            return Response(
+                {
+                    'brand': {'id': str(brand.id), 'name': brand.name},
+                    'message': 'Analysis summary not yet generated. Please run brand analysis.',
+                    'status': 'pending'
+                }
+            )
+
+        return Response({
+            'brand': {
+                'id': str(brand.id),
+                'name': brand.name
+            },
+            'campaign': {
+                'id': str(latest_campaign.id),
+                'name': latest_campaign.name
+            },
+            'summary': analysis_summary,
+            'status': 'completed'
+        })
+
+    except Brand.DoesNotExist:
+        return Response(
+            {'error': 'Brand not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error fetching analysis summary: {str(e)}")
+        return Response(
+            {'error': f'Failed to fetch analysis summary: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
 def get_communities(request):
     """Get communities, optionally filtered by brand."""
     brand_id = request.GET.get('brand')
-    
+
     try:
         if brand_id:
             brand_campaigns = Campaign.objects.filter(brand_id=brand_id)

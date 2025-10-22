@@ -1080,7 +1080,10 @@ async def _extract_insights_from_response(response_content: str, content_batch: 
 
 
 async def _extract_influencers_from_batch(content_batch: List[ContentItem]) -> List[InfluencerProfile]:
-    """Extract influencers from content batch (replace with actual analysis)."""
+    """
+    Extract influencers from content batch using enhanced analysis.
+    NOTE: This is now a simplified version. Full analysis happens in enhanced_analyst module.
+    """
     influencers = []
     for item in content_batch:
         if item.author and item.echo_score and item.echo_score > 0.7:
