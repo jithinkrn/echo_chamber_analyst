@@ -326,6 +326,28 @@ export const apiService = {
   async getCampaign(campaignId: string) {
     const response = await api.get(`/campaigns/${campaignId}/`);
     return response.data;
+  },
+
+  // Source management
+  async getSources() {
+    const response = await api.get('/sources/');
+    return response.data;
+  },
+
+  async createCustomSource(sourceData: {
+    name: string;
+    platform: string;
+    url: string;
+    description?: string;
+    category?: string;
+  }) {
+    const response = await api.post('/sources/custom/', sourceData);
+    return response.data;
+  },
+
+  async deleteCustomSource(sourceId: string) {
+    const response = await api.delete(`/sources/custom/${sourceId}/`);
+    return response.data;
   }
 };
 

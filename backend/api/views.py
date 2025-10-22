@@ -1238,17 +1238,21 @@ def control_brand_analysis(request, brand_id):
             # Generate keywords from brand name and existing data
             keywords = [brand.name, 'review', 'quality', 'problems', 'complaint', 'feedback']
 
+            # Get target communities from brand sources
+            target_communities = _get_brand_target_communities(brand)
+
             # Create enhanced scout config
             scout_config = {
                 'focus': 'comprehensive',
                 'search_depth': 'comprehensive',
-                'target_communities': [],
+                'target_communities': target_communities,
                 'include_sentiment': True,
                 'include_competitors': True,
                 'focus_areas': ['pain_points', 'feedback', 'sentiment']
             }
 
             logger.info(f"🚀 Starting scout analysis for brand: {brand.name}")
+            logger.info(f"🎯 Target communities: {target_communities if target_communities else 'Using defaults'}")
 
             # Run scout analysis
             try:
@@ -1304,9 +1308,50 @@ def _calculate_positive_sentiment_ratio(scout_results):
     threads = scout_results.get('threads', [])
     if not threads:
         return 0.0
-    
+
     positive_count = sum(1 for thread in threads if thread.get('sentiment_score', 0) > 0)
     return round(positive_count / len(threads), 2)
+
+
+def _get_brand_target_communities(brand):
+    """
+    Get target communities for a brand from multiple sources.
+
+    Returns:
+        List of subreddit/community names for targeting
+    """
+    from common.default_sources import get_reddit_subreddit_name
+
+    communities = []
+
+    # 1. Get from brand.sources field (can be source IDs or names)
+    if brand.sources:
+        logger.info(f"📋 Brand has {len(brand.sources)} configured sources")
+
+        for source_ref in brand.sources:
+            # Handle different formats
+            if isinstance(source_ref, dict):
+                # If it's a dict with id/name
+                source_name = source_ref.get('name', source_ref.get('id', ''))
+            else:
+                # If it's a string (ID or name)
+                source_name = str(source_ref)
+
+            # Clean the name
+            clean_name = get_reddit_subreddit_name(source_name)
+            if clean_name:
+                communities.append(clean_name)
+                logger.info(f"  ✓ Added: {clean_name}")
+
+    # Remove duplicates
+    communities = list(set(communities))
+
+    if communities:
+        logger.info(f"📍 Found {len(communities)} target communities for {brand.name}: {communities}")
+    else:
+        logger.info(f"⚠️  No custom communities configured for {brand.name}, will use defaults")
+
+    return communities
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -1930,3 +1975,618 @@ def get_campaign_detail(request, campaign_id):
         return Response({'error': 'Campaign not found'}, status=404)
     except Exception as e:
         return Response({'error': str(e)}, status=500)
+
+
+# Task Management and Monitoring Endpoints
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def trigger_scout_task(request):
+    """
+    Manually trigger a scout data collection task.
+
+    POST /api/v1/tasks/scout/
+    Body: {
+        "campaign_id": <optional int>,
+        "config": <optional dict>
+    }
+    """
+    try:
+        from agents.tasks import scout_reddit_task
+
+        campaign_id = request.data.get('campaign_id')
+        config = request.data.get('config', {})
+
+        # Trigger task asynchronously
+        task = scout_reddit_task.delay(campaign_id=campaign_id, config=config)
+
+        return Response({
+            'task_id': task.id,
+            'status': 'pending',
+            'message': 'Scout task triggered successfully',
+            'campaign_id': campaign_id
+        }, status=status.HTTP_202_ACCEPTED)
+
+    except Exception as e:
+        logger.error(f"Failed to trigger scout task: {e}")
+        return Response(
+            {'error': f'Failed to trigger task: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def trigger_insights_task(request):
+    """
+    Manually trigger daily insights generation task.
+
+    POST /api/v1/tasks/insights/
+    Body: {
+        "campaign_id": <optional int>
+    }
+    """
+    try:
+        from agents.tasks import generate_daily_insights_task
+
+        campaign_id = request.data.get('campaign_id')
+
+        # Trigger task asynchronously
+        task = generate_daily_insights_task.delay(campaign_id=campaign_id)
+
+        return Response({
+            'task_id': task.id,
+            'status': 'pending',
+            'message': 'Insights generation task triggered successfully',
+            'campaign_id': campaign_id
+        }, status=status.HTTP_202_ACCEPTED)
+
+    except Exception as e:
+        logger.error(f"Failed to trigger insights task: {e}")
+        return Response(
+            {'error': f'Failed to trigger task: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def trigger_cleanup_task(request):
+    """
+    Manually trigger data cleanup task.
+
+    POST /api/v1/tasks/cleanup/
+    Body: {
+        "days_to_keep": <optional int, default 90>
+    }
+    """
+    try:
+        from agents.tasks import cleanup_old_data_task
+
+        days_to_keep = request.data.get('days_to_keep', 90)
+
+        # Trigger task asynchronously
+        task = cleanup_old_data_task.delay(days_to_keep=days_to_keep)
+
+        return Response({
+            'task_id': task.id,
+            'status': 'pending',
+            'message': 'Cleanup task triggered successfully',
+            'days_to_keep': days_to_keep
+        }, status=status.HTTP_202_ACCEPTED)
+
+    except Exception as e:
+        logger.error(f"Failed to trigger cleanup task: {e}")
+        return Response(
+            {'error': f'Failed to trigger task: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def trigger_workflow_task(request):
+    """
+    Manually trigger a complete campaign analysis workflow.
+
+    POST /api/v1/tasks/workflow/
+    Body: {
+        "campaign_id": <required int>,
+        "workflow_type": <optional str, default "content_analysis">
+    }
+    """
+    try:
+        from agents.tasks import run_campaign_analysis_workflow
+
+        campaign_id = request.data.get('campaign_id')
+        workflow_type = request.data.get('workflow_type', 'content_analysis')
+
+        if not campaign_id:
+            return Response(
+                {'error': 'campaign_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Trigger task asynchronously
+        task = run_campaign_analysis_workflow.delay(
+            campaign_id=campaign_id,
+            workflow_type=workflow_type
+        )
+
+        return Response({
+            'task_id': task.id,
+            'status': 'pending',
+            'message': 'Workflow task triggered successfully',
+            'campaign_id': campaign_id,
+            'workflow_type': workflow_type
+        }, status=status.HTTP_202_ACCEPTED)
+
+    except Exception as e:
+        logger.error(f"Failed to trigger workflow task: {e}")
+        return Response(
+            {'error': f'Failed to trigger task: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def task_status(request, task_id):
+    """
+    Get the status of a Celery task.
+
+    GET /api/v1/tasks/{task_id}/status/
+    """
+    try:
+        from celery.result import AsyncResult
+
+        task = AsyncResult(task_id)
+
+        response_data = {
+            'task_id': task_id,
+            'status': task.state,
+            'info': None
+        }
+
+        if task.state == 'PENDING':
+            response_data['message'] = 'Task is waiting to be executed'
+        elif task.state == 'STARTED':
+            response_data['message'] = 'Task has started processing'
+        elif task.state == 'SUCCESS':
+            response_data['message'] = 'Task completed successfully'
+            response_data['result'] = task.result
+        elif task.state == 'FAILURE':
+            response_data['message'] = 'Task failed'
+            response_data['error'] = str(task.info)
+        elif task.state == 'RETRY':
+            response_data['message'] = 'Task is being retried'
+            response_data['info'] = str(task.info)
+
+        return Response(response_data)
+
+    except Exception as e:
+        logger.error(f"Failed to get task status: {e}")
+        return Response(
+            {'error': f'Failed to get task status: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def monitoring_dashboard(request):
+    """
+    Get comprehensive monitoring dashboard data including:
+    - Active workflows
+    - Task statistics
+    - Performance metrics
+    - Error rates
+    - Cost tracking
+
+    GET /api/v1/monitoring/dashboard/
+    """
+    try:
+        from django.core.cache import cache
+        from celery import current_app
+        from agents.monitoring import global_monitor
+
+        # Get active tasks from Celery
+        inspect = current_app.control.inspect()
+        active_tasks = inspect.active() or {}
+        scheduled_tasks = inspect.scheduled() or {}
+        reserved_tasks = inspect.reserved() or {}
+
+        # Count total active tasks across all workers
+        total_active = sum(len(tasks) for tasks in active_tasks.values())
+        total_scheduled = sum(len(tasks) for tasks in scheduled_tasks.values())
+        total_reserved = sum(len(tasks) for tasks in reserved_tasks.values())
+
+        # Get recent campaign metrics
+        recent_cutoff = timezone.now() - timedelta(hours=24)
+        recent_insights = Insight.objects.filter(
+            created_at__gte=recent_cutoff
+        ).count()
+
+        recent_content = ProcessedContent.objects.filter(
+            created_at__gte=recent_cutoff
+        ).count()
+
+        # Get monitoring events from global monitor
+        compliance_events = global_monitor.compliance_tracker.audit_events[-100:] if global_monitor.compliance_tracker.audit_events else []
+
+        # Calculate error rate from recent events
+        error_events = [e for e in compliance_events if e.get('event_type') in ['workflow_error', 'node_error']]
+        error_rate = (len(error_events) / max(len(compliance_events), 1)) * 100
+
+        # Get campaign statistics
+        active_campaigns = Campaign.objects.filter(is_active=True).count()
+        total_campaigns = Campaign.objects.count()
+
+        # Get workflow statistics from database
+        workflow_stats = {
+            'total_insights_24h': recent_insights,
+            'total_content_24h': recent_content,
+            'active_campaigns': active_campaigns,
+            'total_campaigns': total_campaigns
+        }
+
+        dashboard_data = {
+            'timestamp': timezone.now().isoformat(),
+            'celery_tasks': {
+                'active': total_active,
+                'scheduled': total_scheduled,
+                'reserved': total_reserved,
+                'workers': list(active_tasks.keys()) if active_tasks else []
+            },
+            'workflow_stats': workflow_stats,
+            'monitoring': {
+                'total_events': len(compliance_events),
+                'error_rate': round(error_rate, 2),
+                'recent_errors': error_events[-10:],
+                'langsmith_enabled': global_monitor.client is not None
+            },
+            'system_health': {
+                'database': 'connected',
+                'celery': 'healthy' if total_active >= 0 else 'unknown',
+                'monitoring': 'active'
+            }
+        }
+
+        return Response(dashboard_data)
+
+    except Exception as e:
+        logger.error(f"Failed to get monitoring dashboard: {e}")
+        return Response(
+            {'error': f'Failed to get dashboard data: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def workflow_metrics(request):
+    """
+    Get detailed workflow performance metrics.
+
+    GET /api/v1/monitoring/workflows/metrics/
+    Query params:
+        - campaign_id: Filter by campaign
+        - days: Number of days to look back (default 7)
+    """
+    try:
+        campaign_id = request.GET.get('campaign_id')
+        days = int(request.GET.get('days', 7))
+
+        cutoff_date = timezone.now() - timedelta(days=days)
+
+        # Base queryset
+        campaigns_query = Campaign.objects.all()
+        if campaign_id:
+            campaigns_query = campaigns_query.filter(id=campaign_id)
+
+        metrics_data = []
+
+        for campaign in campaigns_query:
+            # Get metrics for this campaign
+            insights_count = Insight.objects.filter(
+                campaign=campaign,
+                created_at__gte=cutoff_date
+            ).count()
+
+            content_count = ProcessedContent.objects.filter(
+                raw_content__campaign=campaign,
+                created_at__gte=cutoff_date
+            ).count()
+
+            avg_sentiment = ProcessedContent.objects.filter(
+                raw_content__campaign=campaign,
+                created_at__gte=cutoff_date
+            ).aggregate(avg_sentiment=Avg('sentiment_score'))['avg_sentiment'] or 0
+
+            pain_points_count = PainPoint.objects.filter(
+                campaign=campaign
+            ).count()
+
+            campaign_metrics = {
+                'campaign_id': campaign.id,
+                'campaign_name': campaign.name,
+                'period_days': days,
+                'insights_generated': insights_count,
+                'content_processed': content_count,
+                'average_sentiment': round(avg_sentiment, 3),
+                'pain_points_tracked': pain_points_count,
+                'last_scout_run': campaign.last_scout_run.isoformat() if hasattr(campaign, 'last_scout_run') and campaign.last_scout_run else None
+            }
+
+            metrics_data.append(campaign_metrics)
+
+        return Response({
+            'period_days': days,
+            'campaigns_count': len(metrics_data),
+            'metrics': metrics_data,
+            'timestamp': timezone.now().isoformat()
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to get workflow metrics: {e}")
+        return Response(
+            {'error': f'Failed to get metrics: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def agent_health(request):
+    """
+    Get health status of all workflow agents/nodes.
+
+    GET /api/v1/monitoring/agents/health/
+    """
+    try:
+        from agents.orchestrator import workflow_orchestrator
+
+        agent_nodes = [
+            'scout_node',
+            'cleaner_node',
+            'analyst_node',
+            'chatbot_node',
+            'monitoring_agent',
+            'workflow_orchestrator'
+        ]
+
+        health_status = {}
+
+        for agent_name in agent_nodes:
+            # Check if agent/node is operational
+            is_healthy = workflow_orchestrator.get_node_health(agent_name)
+
+            health_status[agent_name] = {
+                'status': 'healthy' if is_healthy else 'unhealthy',
+                'available': is_healthy,
+                'last_check': timezone.now().isoformat()
+            }
+
+        overall_health = all(node['status'] == 'healthy' for node in health_status.values())
+
+        return Response({
+            'overall_status': 'healthy' if overall_health else 'degraded',
+            'agents': health_status,
+            'timestamp': timezone.now().isoformat()
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to get agent health: {e}")
+        return Response(
+            {'error': f'Failed to get health status: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def restart_agent(request, agent_name):
+    """
+    Restart a specific agent/node.
+
+    POST /api/v1/monitoring/agents/{agent_name}/restart/
+    """
+    try:
+        from agents.orchestrator import workflow_orchestrator
+
+        success = workflow_orchestrator.restart_node(agent_name)
+
+        if success:
+            return Response({
+                'message': f'Agent {agent_name} restarted successfully',
+                'agent_name': agent_name,
+                'status': 'restarted',
+                'timestamp': timezone.now().isoformat()
+            })
+        else:
+            return Response({
+                'error': f'Failed to restart agent {agent_name}',
+                'agent_name': agent_name
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    except Exception as e:
+        logger.error(f"Failed to restart agent: {e}")
+        return Response(
+            {'error': f'Failed to restart agent: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# Source Management Endpoints
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_all_sources(request):
+    """
+    Get all sources (both default and custom).
+
+    GET /api/v1/sources/
+    Query params:
+        - include_defaults: true/false (default: true)
+        - platform: reddit|forum|discord|website
+        - category: fashion|technology|reviews|etc
+    """
+    try:
+        from common.models import Source
+        from common.default_sources import get_all_default_sources
+
+        include_defaults = request.GET.get('include_defaults', 'true').lower() == 'true'
+        platform = request.GET.get('platform')
+        category = request.GET.get('category')
+
+        all_sources = []
+
+        # Get default sources
+        if include_defaults:
+            default_sources = get_all_default_sources()
+
+            # Filter by platform/category if requested
+            if platform:
+                default_sources = [s for s in default_sources if s['platform'] == platform]
+            if category:
+                default_sources = [s for s in default_sources if s.get('category') == category]
+
+            all_sources.extend(default_sources)
+
+        # Get custom sources from database
+        custom_query = Source.objects.filter(is_active=True)
+
+        if platform:
+            custom_query = custom_query.filter(source_type=platform)
+        if category:
+            custom_query = custom_query.filter(category=category)
+
+        custom_sources = [
+            {
+                'id': str(source.id),
+                'name': source.name,
+                'platform': source.source_type,
+                'url': source.url,
+                'description': source.description,
+                'category': source.category,
+                'is_default': False,
+                'is_active': source.is_active,
+                'created_at': source.created_at.isoformat()
+            }
+            for source in custom_query
+        ]
+
+        all_sources.extend(custom_sources)
+
+        return Response({
+            'sources': all_sources,
+            'total': len(all_sources),
+            'default_count': len([s for s in all_sources if s.get('is_default')]),
+            'custom_count': len([s for s in all_sources if not s.get('is_default')])
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to get sources: {e}")
+        return Response(
+            {'error': f'Failed to get sources: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def create_custom_source(request):
+    """
+    Create a new custom source.
+
+    POST /api/v1/sources/custom/
+    Body: {
+        "name": "r/CustomSubreddit",
+        "platform": "reddit",
+        "url": "https://reddit.com/r/CustomSubreddit",
+        "description": "Custom subreddit description",
+        "category": "fashion"
+    }
+    """
+    try:
+        from common.models import Source
+
+        name = request.data.get('name')
+        platform = request.data.get('platform')
+        url = request.data.get('url')
+        description = request.data.get('description', '')
+        category = request.data.get('category', '')
+
+        if not all([name, platform, url]):
+            return Response(
+                {'error': 'name, platform, and url are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if source already exists
+        if Source.objects.filter(source_type=platform, url=url).exists():
+            return Response(
+                {'error': 'Source with this platform and URL already exists'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create source
+        source = Source.objects.create(
+            name=name,
+            source_type=platform,
+            url=url,
+            description=description,
+            category=category,
+            is_default=False,
+            is_active=True
+        )
+
+        return Response({
+            'id': str(source.id),
+            'name': source.name,
+            'platform': source.source_type,
+            'url': source.url,
+            'description': source.description,
+            'category': source.category,
+            'is_default': False,
+            'message': 'Custom source created successfully'
+        }, status=status.HTTP_201_CREATED)
+
+    except Exception as e:
+        logger.error(f"Failed to create custom source: {e}")
+        return Response(
+            {'error': f'Failed to create custom source: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['DELETE'])
+@permission_classes([AllowAny])
+def delete_custom_source(request, source_id):
+    """
+    Delete a custom source.
+
+    DELETE /api/v1/sources/custom/{source_id}/
+    """
+    try:
+        from common.models import Source
+
+        source = Source.objects.get(id=source_id, is_default=False)
+        source_name = source.name
+        source.delete()
+
+        return Response({
+            'message': f'Source {source_name} deleted successfully'
+        })
+
+    except Source.DoesNotExist:
+        return Response(
+            {'error': 'Custom source not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Failed to delete custom source: {e}")
+        return Response(
+            {'error': f'Failed to delete custom source: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

@@ -40,4 +40,22 @@ urlpatterns = [
     path('campaigns/', views.get_campaigns, name='get_campaigns'),
     path('campaigns/new/', views.create_campaign, name='create_campaign'),
     path('campaigns/<uuid:campaign_id>/', views.get_campaign_detail, name='get_campaign_detail'),
+
+    # Task Management and Monitoring Endpoints
+    path('tasks/scout/', views.trigger_scout_task, name='trigger_scout_task'),
+    path('tasks/insights/', views.trigger_insights_task, name='trigger_insights_task'),
+    path('tasks/cleanup/', views.trigger_cleanup_task, name='trigger_cleanup_task'),
+    path('tasks/workflow/', views.trigger_workflow_task, name='trigger_workflow_task'),
+    path('tasks/<str:task_id>/status/', views.task_status, name='task_status'),
+
+    # Monitoring Endpoints
+    path('monitoring/dashboard/', views.monitoring_dashboard, name='monitoring_dashboard'),
+    path('monitoring/workflows/metrics/', views.workflow_metrics, name='workflow_metrics'),
+    path('monitoring/agents/health/', views.agent_health, name='agent_health'),
+    path('monitoring/agents/<str:agent_name>/restart/', views.restart_agent, name='restart_agent'),
+
+    # Source Management Endpoints
+    path('sources/', views.get_all_sources, name='get_all_sources'),
+    path('sources/custom/', views.create_custom_source, name='create_custom_source'),
+    path('sources/custom/<uuid:source_id>/', views.delete_custom_source, name='delete_custom_source'),
 ]

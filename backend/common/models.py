@@ -132,10 +132,13 @@ class Source(BaseModel):
     name = models.CharField(max_length=255)
     source_type = models.CharField(max_length=20, choices=SOURCE_TYPES)
     url = models.URLField()
+    description = models.TextField(blank=True)  # Source description
 
     # Configuration
     config = models.JSONField(default=dict)  # Source-specific configuration
     is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)  # Whether this is a default source
+    category = models.CharField(max_length=50, blank=True)  # fashion, technology, reviews, etc.
 
     # Rate limiting
     rate_limit = models.IntegerField(default=60)  # Requests per minute

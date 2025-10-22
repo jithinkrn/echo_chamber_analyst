@@ -1,18 +1,20 @@
 import { useState } from 'react';
 import { X, Loader2, Globe, CheckCircle, AlertCircle } from 'lucide-react';
+import { apiService } from '../../lib/api';
 
 interface AddSourceModalProps {
   onClose: () => void;
-  onSourceAdded: () => void;
+  onSuccess?: () => void;
+  onSourceAdded?: () => void;
 }
 
-export function AddSourceModal({ onClose, onSourceAdded }: AddSourceModalProps) {
+export function AddSourceModal({ onClose, onSuccess, onSourceAdded }: AddSourceModalProps) {
   const [formData, setFormData] = useState({
     name: '',
     url: '',
-    source_type: 'website' as 'reddit' | 'website' | 'api',
+    platform: 'reddit' as 'reddit' | 'forum' | 'discord' | 'website',
     description: '',
-    is_active: true
+    category: 'fashion'
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -35,13 +37,10 @@ export function AddSourceModal({ onClose, onSourceAdded }: AddSourceModalProps) 
     setError('');
 
     try {
-      // TODO: Replace with actual API call when backend is ready
-      console.log('Creating source:', formData);
+      await apiService.createCustomSource(formData);
 
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      onSourceAdded();
+      if (onSuccess) onSuccess();
+      if (onSourceAdded) onSourceAdded();
       onClose();
 
     } catch (error: any) {
@@ -98,16 +97,17 @@ export function AddSourceModal({ onClose, onSourceAdded }: AddSourceModalProps) 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Source Type *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Platform *</label>
             <select
-              value={formData.source_type}
-              onChange={(e) => setFormData({...formData, source_type: e.target.value as any})}
+              value={formData.platform}
+              onChange={(e) => setFormData({...formData, platform: e.target.value as any})}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             >
-              <option value="website">Website</option>
               <option value="reddit">Reddit</option>
-              <option value="api">API</option>
+              <option value="forum">Forum</option>
+              <option value="discord">Discord</option>
+              <option value="website">Website</option>
             </select>
           </div>
 
@@ -123,15 +123,14 @@ export function AddSourceModal({ onClose, onSourceAdded }: AddSourceModalProps) 
           </div>
 
           <div>
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={formData.is_active}
-                onChange={(e) => setFormData({...formData, is_active: e.target.checked})}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm font-medium text-gray-700">Active (enable monitoring)</span>
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <input
+              type="text"
+              value={formData.category}
+              onChange={(e) => setFormData({...formData, category: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="e.g., fashion, technology, reviews"
+            />
           </div>
 
           {error && (
