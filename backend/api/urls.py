@@ -59,4 +59,7 @@ urlpatterns = [
     path('sources/', views.get_all_sources, name='get_all_sources'),
     path('sources/custom/', views.create_custom_source, name='create_custom_source'),
     path('sources/custom/<uuid:source_id>/', views.delete_custom_source, name='delete_custom_source'),
+
+    # System Settings Endpoint
+    path('settings/', views.system_settings, name='system_settings'),
 ]

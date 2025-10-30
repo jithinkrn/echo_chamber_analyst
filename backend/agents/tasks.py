@@ -62,11 +62,11 @@ def scout_reddit_task(self, campaign_id: Optional[int] = None, config: Optional[
     try:
         # Determine which campaigns to process
         if campaign_id:
-            campaigns = Campaign.objects.filter(id=campaign_id, is_active=True)
+            campaigns = Campaign.objects.filter(id=campaign_id, status='active')
         else:
             campaigns = Campaign.objects.filter(
-                is_active=True,
-                brands__isnull=False
+                status='active',
+                brand__isnull=False
             ).distinct()
 
         if not campaigns.exists():
@@ -91,7 +91,7 @@ def scout_reddit_task(self, campaign_id: Optional[int] = None, config: Optional[
                 logger.info(f"Processing campaign: {campaign.name} (ID: {campaign.id})")
 
                 # Get brand information
-                brand = campaign.brands.first()
+                brand = campaign.brand
                 if not brand:
                     logger.warning(f"Campaign {campaign.id} has no associated brand")
                     continue
@@ -120,9 +120,6 @@ def scout_reddit_task(self, campaign_id: Optional[int] = None, config: Optional[
                 loop.close()
 
                 # Store data in database
-                loop2 = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop2)
-
                 # Create a simple campaign context object for storage
                 class SimpleCampaign:
                     def __init__(self, campaign_obj):
@@ -131,15 +128,8 @@ def scout_reddit_task(self, campaign_id: Optional[int] = None, config: Optional[
 
                 simple_campaign = SimpleCampaign(campaign)
 
-                loop2.run_until_complete(
-                    _store_real_dashboard_data(collected_data, simple_campaign, brand.name)
-                )
-
-                loop2.close()
-
-                # Update campaign metrics
-                campaign.last_scout_run = timezone.now()
-                campaign.save(update_fields=['last_scout_run'])
+                # Call storage function directly (it's now synchronous)
+                _store_real_dashboard_data(collected_data, simple_campaign, brand.name)
 
                 # Track results
                 results["successful"] += 1
@@ -259,9 +249,9 @@ def generate_daily_insights_task(self, campaign_id: Optional[int] = None):
     try:
         # Determine which campaigns to process
         if campaign_id:
-            campaigns = Campaign.objects.filter(id=campaign_id, is_active=True)
+            campaigns = Campaign.objects.filter(id=campaign_id, status='active')
         else:
-            campaigns = Campaign.objects.filter(is_active=True)
+            campaigns = Campaign.objects.filter(status='active')
 
         if not campaigns.exists():
             logger.warning("No active campaigns found for insight generation")
@@ -361,7 +351,7 @@ def update_dashboard_metrics_task(campaign_id: Optional[int] = None):
         if campaign_id:
             campaigns = Campaign.objects.filter(id=campaign_id)
         else:
-            campaigns = Campaign.objects.filter(is_active=True)
+            campaigns = Campaign.objects.filter(status='active')
 
         results = {
             "campaigns_updated": 0,
@@ -582,3 +572,85 @@ def _generate_engagement_insights(campaign) -> List[Dict]:
         })
 
     return insights
+
+
+@shared_task(base=CallbackTask, bind=True)
+def check_and_execute_scheduled_campaigns(self):
+    """
+    Periodic task to check for campaigns that need to run based on their schedule.
+    This task runs frequently (e.g., every minute) and executes campaigns whose
+    next_run_at time has passed.
+
+    Returns:
+        Dict with execution statistics
+    """
+    logger.info("⏰ Checking for scheduled campaigns that need to run")
+
+    try:
+        now = timezone.now()
+
+        # Find campaigns that need to run:
+        # 1. Active status
+        # 2. Schedule enabled
+        # 3. Either never run before OR next_run_at has passed
+        campaigns_to_run = Campaign.objects.filter(
+            status='active',
+            schedule_enabled=True
+        ).filter(
+            Q(next_run_at__isnull=True, last_run_at__isnull=True) |  # Never run
+            Q(next_run_at__lte=now)  # Next run time has passed
+        )
+
+        if not campaigns_to_run.exists():
+            logger.debug(f"No campaigns need to run at {now}")
+            return {"status": "success", "campaigns_executed": 0, "message": "No campaigns ready to run"}
+
+        results = {
+            "campaigns_executed": 0,
+            "campaigns_failed": 0,
+            "campaign_details": []
+        }
+
+        for campaign in campaigns_to_run:
+            try:
+                logger.info(f"🚀 Executing scheduled campaign: {campaign.name} (ID: {campaign.id})")
+
+                # Calculate next run time BEFORE executing
+                next_run = now + timedelta(seconds=campaign.schedule_interval)
+
+                # Update campaign run times
+                campaign.last_run_at = now
+                campaign.next_run_at = next_run
+                campaign.save(update_fields=['last_run_at', 'next_run_at'])
+
+                # Execute the campaign by calling scout task
+                scout_reddit_task.delay(campaign_id=campaign.id)
+
+                results["campaigns_executed"] += 1
+                results["campaign_details"].append({
+                    "campaign_id": campaign.id,
+                    "campaign_name": campaign.name,
+                    "executed_at": now.isoformat(),
+                    "next_run_at": next_run.isoformat(),
+                    "interval_seconds": campaign.schedule_interval,
+                    "status": "executed"
+                })
+
+                logger.info(f"✅ Scheduled campaign {campaign.name} for execution. Next run: {next_run}")
+
+            except Exception as e:
+                logger.error(f"Failed to execute campaign {campaign.id}: {e}", exc_info=True)
+                results["campaigns_failed"] += 1
+                results["campaign_details"].append({
+                    "campaign_id": campaign.id,
+                    "campaign_name": campaign.name,
+                    "status": "failed",
+                    "error": str(e)
+                })
+
+        logger.info(f"✅ Campaign check completed - Executed: {results['campaigns_executed']}, Failed: {results['campaigns_failed']}")
+        return results
+
+    except Exception as e:
+        logger.error(f"Campaign scheduler task failed: {e}", exc_info=True)
+        return {"status": "error", "error": str(e)}

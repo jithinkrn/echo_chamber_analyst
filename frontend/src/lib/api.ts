@@ -389,6 +389,20 @@ export const apiService = {
   async getBrandAnalysisSummary(brandId: string) {
     const response = await api.get(`/brands/${brandId}/analysis-summary/`);
     return response.data;
+  },
+
+  // System Settings
+  async getSystemSettings() {
+    const response = await api.get('/settings/');
+    return response;
+  },
+
+  async updateSystemSettings(settings: {
+    custom_campaign_interval?: number;
+    auto_campaign_interval?: number;
+  }) {
+    const response = await api.put('/settings/', settings);
+    return response.data;
   }
 };
 

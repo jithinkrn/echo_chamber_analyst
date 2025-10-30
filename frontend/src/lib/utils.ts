@@ -53,20 +53,29 @@ export function formatCampaignDateTime(date: string | Date | null | undefined): 
 
 /**
  * Get frequency display text from schedule interval (in seconds)
+ * Format: "Every X mins" or "Every X hours Y mins"
  */
 export function formatScheduleFrequency(intervalSeconds: number | null | undefined): string {
   if (!intervalSeconds) return 'Not scheduled';
 
-  const hours = intervalSeconds / 3600;
-  const days = intervalSeconds / 86400;
+  const hours = Math.floor(intervalSeconds / 3600);
+  const minutes = Math.floor((intervalSeconds % 3600) / 60);
+  const seconds = intervalSeconds % 60;
 
-  if (days >= 1) {
-    return days === 1 ? 'Daily' : `Every ${Math.round(days)} days`;
+  // If less than 1 hour
+  if (hours === 0) {
+    if (minutes === 0) {
+      return `Every ${seconds} seconds`;
+    }
+    return `Every ${minutes} min${minutes !== 1 ? 's' : ''}`;
   }
-  if (hours >= 1) {
-    return hours === 1 ? 'Hourly' : `Every ${Math.round(hours)} hours`;
+
+  // If 1 hour or more
+  if (minutes === 0) {
+    return `Every ${hours} hour${hours !== 1 ? 's' : ''}`;
   }
-  return `Every ${intervalSeconds} seconds`;
+
+  return `Every ${hours} hour${hours !== 1 ? 's' : ''} ${minutes} min${minutes !== 1 ? 's' : ''}`;
 }
 
 /**

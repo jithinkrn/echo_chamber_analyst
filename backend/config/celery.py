@@ -20,9 +20,9 @@ app.autodiscover_tasks()
 
 # Configure Celery Beat Schedule for periodic tasks
 app.conf.beat_schedule = {
-    'scout-reddit-hourly': {
-        'task': 'agents.tasks.scout_reddit_task',
-        'schedule': 3600.0,  # Run every hour
+    'check-scheduled-campaigns': {
+        'task': 'agents.tasks.check_and_execute_scheduled_campaigns',
+        'schedule': 60.0,  # Run every minute to check for campaigns that need execution
     },
     'cleanup-old-data': {
         'task': 'agents.tasks.cleanup_old_data_task',

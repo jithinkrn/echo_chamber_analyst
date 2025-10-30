@@ -3,45 +3,32 @@
 import { useState } from 'react';
 import {
   Users,
-  Globe,
-  TrendingUp,
   Activity,
-  Plus,
-  Search,
-  Filter,
-  Building
+  Settings
 } from 'lucide-react';
-import CampaignManager from './admin/CampaignManager';
-import BrandManager from './admin/BrandManager';
-import SourceManager from './admin/SourceManager';
 import UserManager from './admin/UserManager';
 import AuditLogViewer from './admin/AuditLogViewer';
+import SettingsManager from './admin/SettingsManager';
 
 export default function AdminInterface() {
-  const [activeSection, setActiveSection] = useState('brands');
+  const [activeSection, setActiveSection] = useState('settings');
 
   const adminSections = [
-    { id: 'brands', label: 'Brands', icon: Building, description: 'Manage brands and competitors' },
-    { id: 'campaigns', label: 'Campaigns', icon: TrendingUp, description: 'Manage analysis campaigns' },
-    { id: 'sources', label: 'Sources', icon: Globe, description: 'Configure content sources' },
+    { id: 'settings', label: 'Settings', icon: Settings, description: 'Campaign schedule settings' },
     { id: 'users', label: 'Users', icon: Users, description: 'Manage user accounts' },
     { id: 'audit', label: 'Audit Logs', icon: Activity, description: 'System activity logs' },
   ];
 
   const renderActiveSection = () => {
     switch (activeSection) {
-      case 'brands':
-        return <BrandManager />;
-      case 'campaigns':
-        return <CampaignManager />;
-      case 'sources':
-        return <SourceManager />;
+      case 'settings':
+        return <SettingsManager />;
       case 'users':
         return <UserManager />;
       case 'audit':
         return <AuditLogViewer />;
       default:
-        return <BrandManager />;
+        return <SettingsManager />;
     }
   };
 

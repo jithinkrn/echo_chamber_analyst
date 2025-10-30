@@ -242,19 +242,7 @@ export default function CampaignManager() {
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-500">Next Run:</span>
                     <span className="text-gray-700 font-medium">
-                      {(() => {
-                        // Debug logging
-                        if (campaign.name.includes('Redit')) {
-                          console.log('Campaign debug:', {
-                            name: campaign.name,
-                            last_run_at: campaign.last_run_at,
-                            schedule_interval: campaign.schedule_interval,
-                            schedule_enabled: campaign.schedule_enabled,
-                            next_run_at: campaign.next_run_at
-                          });
-                        }
-                        return getNextScheduledRun(campaign.last_run_at, campaign.schedule_interval, campaign.schedule_enabled, campaign.next_run_at);
-                      })()}
+                      {getNextScheduledRun(campaign.last_run_at, campaign.schedule_interval, campaign.schedule_enabled, campaign.next_run_at)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">

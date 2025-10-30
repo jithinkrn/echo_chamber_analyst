@@ -8,7 +8,10 @@ import ChatInterface from '@/components/ChatInterface';
 import SystemStatus from '@/components/SystemStatus';
 import AdminInterface from '@/components/AdminInterface';
 import DashboardComponent from '@/components/Dashboard';
-import { Activity, MessageSquare, BarChart3, LogOut, User, Settings } from 'lucide-react';
+import BrandManager from '@/components/admin/BrandManager';
+import CampaignManager from '@/components/admin/CampaignManager';
+import SourceManager from '@/components/admin/SourceManager';
+import { Activity, MessageSquare, BarChart3, LogOut, User, Settings, Building, TrendingUp, Globe } from 'lucide-react';
 
 function DashboardContent() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -42,6 +45,9 @@ function DashboardContent() {
   const tabs = [
     { id: 'overview', label: 'Dashboard', icon: BarChart3 },
     { id: 'chat', label: 'AI Chat', icon: MessageSquare },
+    { id: 'brands', label: 'Brands', icon: Building },
+    { id: 'campaigns', label: 'Campaigns', icon: TrendingUp },
+    { id: 'sources', label: 'Sources', icon: Globe },
     { id: 'admin', label: 'Admin', icon: Settings },
     { id: 'status', label: 'System Status', icon: Activity },
   ];
@@ -124,6 +130,27 @@ function DashboardContent() {
         {activeTab === 'chat' && (
           <div>
             <ChatInterface />
+          </div>
+        )}
+
+        {/* Brands Tab */}
+        {activeTab === 'brands' && (
+          <div>
+            <BrandManager />
+          </div>
+        )}
+
+        {/* Campaigns Tab */}
+        {activeTab === 'campaigns' && (
+          <div>
+            <CampaignManager />
+          </div>
+        )}
+
+        {/* Sources Tab */}
+        {activeTab === 'sources' && (
+          <div>
+            <SourceManager />
           </div>
         )}
 

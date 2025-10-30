@@ -570,6 +570,38 @@ class DashboardMetrics(BaseModel):
         db_table = 'dashboard_metrics'
         unique_together = ['date', 'campaign']
         ordering = ['-date']
-    
+
     def __str__(self):
         return f"Dashboard metrics for {self.campaign.name} on {self.date}"
+
+
+class SystemSettings(models.Model):
+    """
+    System-wide settings (singleton model).
+    Only one instance should exist.
+    """
+    # Campaign schedule intervals (in seconds)
+    custom_campaign_interval = models.IntegerField(default=3600, help_text="Schedule interval for custom campaigns in seconds")
+    auto_campaign_interval = models.IntegerField(default=3600, help_text="Schedule interval for automatic brand analytics campaigns in seconds")
+
+    # Metadata
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'system_settings'
+        verbose_name = 'System Settings'
+        verbose_name_plural = 'System Settings'
+
+    def __str__(self):
+        return "System Settings"
+
+    def save(self, *args, **kwargs):
+        # Ensure only one instance exists (singleton pattern)
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_settings(cls):
+        """Get or create the singleton settings instance."""
+        obj, created = cls.objects.get_or_create(pk=1)
+        return obj

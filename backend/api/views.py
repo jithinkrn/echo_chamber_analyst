@@ -1222,6 +1222,10 @@ def control_brand_analysis(request, brand_id):
             ).exclude(status='completed').first()
 
             if not campaign:
+                # Get system settings for auto campaign interval
+                from common.models import SystemSettings
+                settings = SystemSettings.get_settings()
+
                 # Create a new automatic campaign for analysis
                 # Automatic campaigns have NO end_date (run indefinitely until stopped)
                 campaign = Campaign.objects.create(
@@ -1230,12 +1234,13 @@ def control_brand_analysis(request, brand_id):
                     owner=owner,
                     status='active',
                     schedule_enabled=True,
+                    schedule_interval=settings.auto_campaign_interval,  # Use auto campaign interval from settings
                     description=f"Automatic brand analytics campaign for {brand.name}",
                     start_date=timezone.now(),
                     end_date=None,  # No end date - runs until manually stopped
                     metadata={'is_auto_campaign': True}  # Mark as automatic
                 )
-                logger.info(f"📋 Created new automatic campaign for brand {brand.name}: {campaign.id}")
+                logger.info(f"📋 Created new automatic campaign for brand {brand.name}: {campaign.id} (interval: {settings.auto_campaign_interval}s)")
             else:
                 # Reactivate the existing automatic campaign (if paused)
                 campaign.status = 'active'
@@ -1963,6 +1968,13 @@ def get_campaigns(request):
                 except:
                     pass
 
+            # Get system settings for schedule interval
+            from common.models import SystemSettings
+            settings = SystemSettings.get_settings()
+
+            # Use custom campaign interval from settings
+            schedule_interval = settings.custom_campaign_interval  # Default from settings
+
             # Create campaign (SYNCHRONOUS - NO SCOUT)
             # Use schedule_enabled from request, default to True for automatic scheduling
             campaign = Campaign.objects.create(
@@ -1975,7 +1987,8 @@ def get_campaigns(request):
                 budget_limit=data.get('budget_limit'),  # Total budget limit
                 start_date=start_date,
                 end_date=end_date,
-                schedule_enabled=data.get('schedule_enabled', True)  # Enable scheduling by default
+                schedule_enabled=data.get('schedule_enabled', True),  # Enable scheduling by default
+                schedule_interval=schedule_interval  # Use settings interval
             )
 
             logger.info(f"✅ Campaign created: {campaign.id}")
@@ -2774,5 +2787,68 @@ def delete_custom_source(request, source_id):
         logger.error(f"Failed to delete custom source: {e}")
         return Response(
             {'error': f'Failed to delete custom source: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET', 'PUT'])
+@permission_classes([AllowAny])
+def system_settings(request):
+    """
+    Get or update system settings.
+    
+    GET /api/v1/settings/
+    PUT /api/v1/settings/
+    Body: {
+        "custom_campaign_interval": 3600,
+        "auto_campaign_interval": 3600
+    }
+    """
+    from common.models import SystemSettings
+    
+    try:
+        settings = SystemSettings.get_settings()
+        
+        if request.method == 'GET':
+            return Response({
+                'custom_campaign_interval': settings.custom_campaign_interval,
+                'auto_campaign_interval': settings.auto_campaign_interval,
+                'updated_at': settings.updated_at
+            })
+        
+        elif request.method == 'PUT':
+            # Update settings
+            if 'custom_campaign_interval' in request.data:
+                interval = int(request.data['custom_campaign_interval'])
+                if interval < 60:  # Minimum 1 minute
+                    return Response(
+                        {'error': 'Custom campaign interval must be at least 60 seconds (1 minute)'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                settings.custom_campaign_interval = interval
+
+            if 'auto_campaign_interval' in request.data:
+                interval = int(request.data['auto_campaign_interval'])
+                if interval < 60:  # Minimum 1 minute
+                    return Response(
+                        {'error': 'Auto campaign interval must be at least 60 seconds (1 minute)'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                settings.auto_campaign_interval = interval
+            
+            settings.save()
+            
+            logger.info(f"System settings updated: custom={settings.custom_campaign_interval}s, auto={settings.auto_campaign_interval}s")
+            
+            return Response({
+                'custom_campaign_interval': settings.custom_campaign_interval,
+                'auto_campaign_interval': settings.auto_campaign_interval,
+                'updated_at': settings.updated_at,
+                'message': 'Settings updated successfully'
+            })
+    
+    except Exception as e:
+        logger.error(f"Failed to handle system settings: {e}")
+        return Response(
+            {'error': f'Failed to handle system settings: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

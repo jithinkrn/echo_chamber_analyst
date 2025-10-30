@@ -202,7 +202,7 @@ async def scout_node(state: EchoChamberAnalystState) -> EchoChamberAnalystState:
     return state
 
 
-async def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_name: str) -> None:
+def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_name: str) -> None:
     """Store real collected data in Django models for dashboard display"""
     try:
         from django.utils import timezone
@@ -221,10 +221,9 @@ async def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, b
                     "echo_score_change": community_data.get("echo_score_change", 0.0),
                     "description": f"Real community data for {brand_name}",
                     "is_active": True,
-                    "last_updated": timezone.now(),
-                    "activity_level": community_data.get("activity_level", "medium"),
-                    "threads_found": community_data.get("threads_found", 0),
-                    "data_source": "real_web_scraping"
+                    "last_analyzed": timezone.now(),
+                    "category": community_data.get("category", "general"),
+                    "language": community_data.get("language", "en")
                 }
             )
             
@@ -232,14 +231,13 @@ async def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, b
                 # Update existing community with real data
                 old_echo_score = community.echo_score or 0.0
                 new_echo_score = community_data["echo_score"]
-                
+
                 community.echo_score = new_echo_score
                 community.echo_score_change = round(
                     ((new_echo_score - old_echo_score) / max(old_echo_score, 0.1)) * 100, 1
                 )
                 community.member_count = community_data["member_count"]
-                community.last_updated = timezone.now()
-                community.data_source = "real_web_scraping"
+                community.last_analyzed = timezone.now()
                 community.save()
 
         # Store real pain points extracted from actual content
@@ -258,12 +256,10 @@ async def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, b
                         "growth_percentage": pain_point_data["growth_percentage"],
                         "sentiment_score": pain_point_data["sentiment_score"],
                         "heat_level": pain_point_data["heat_level"],
-                        "severity": pain_point_data.get("severity", "medium"),
-                        "category": pain_point_data.get("category", "general"),
-                        "trend_direction": pain_point_data.get("trend_direction", "stable"),
-                        "priority_score": pain_point_data.get("priority_score", 0.0),
-                        "brand_context": pain_point_data.get("brand_context", []),
-                        "last_updated": timezone.now()
+                        "example_content": pain_point_data.get("example", "")[:500],
+                        "related_keywords": pain_point_data.get("related_keywords", []),
+                        "first_seen": timezone.now(),
+                        "last_seen": timezone.now()
                     }
                 )
 
@@ -280,17 +276,14 @@ async def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, b
                         "title": thread_data["title"],
                         "content": thread_data["content"][:2000],  # Limit content length
                         "community": community,
+                        "campaign_id": campaign.id,
                         "author": thread_data.get("author", "unknown"),
-                        "url": thread_data.get("url", ""),
+                        "comment_count": thread_data.get("reply_count", 0),
+                        "upvotes": thread_data.get("upvotes", 0),
                         "echo_score": thread_data.get("echo_score", 0.0),
                         "sentiment_score": thread_data.get("sentiment_score", 0.0),
-                        "platform": thread_data.get("platform", "unknown"),
-                        "discussion_type": thread_data.get("discussion_type", "general"),
-                        "brand_mentioned": thread_data.get("brand_mentioned", False),
-                        "reply_count": thread_data.get("reply_count", 0),
-                        "view_count": thread_data.get("view_count", 0),
-                        "created_at": thread_data.get("created_at", timezone.now()),
-                        "last_updated": timezone.now()
+                        "published_at": thread_data.get("created_at", timezone.now()),
+                        "analyzed_at": timezone.now()
                     }
                 )
 
