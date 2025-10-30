@@ -2,19 +2,20 @@
 
 import { useState } from 'react';
 import { apiService } from '@/lib/api';
-import { X, Plus, Loader2, Search, CheckCircle, AlertCircle, Building, Target, Zap } from 'lucide-react';
+import { X, Plus, Loader2, CheckCircle, AlertCircle, Building } from 'lucide-react';
 
 interface AddBrandModalProps {
   onClose: () => void;
   onBrandAdded: () => void;
+  editBrand?: any;  // Brand to edit (if provided)
 }
 
-export function AddBrandModal({ onClose, onBrandAdded }: AddBrandModalProps) {
+export function AddBrandModal({ onClose, onBrandAdded, editBrand }: AddBrandModalProps) {
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    website: '',
-    industry: ''
+    name: editBrand?.name || '',
+    description: editBrand?.description || '',
+    website: editBrand?.website || '',
+    industry: editBrand?.industry || ''
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -35,14 +36,20 @@ export function AddBrandModal({ onClose, onBrandAdded }: AddBrandModalProps) {
         industry: formData.industry
       };
 
-      await apiService.createBrand(brandData);
+      if (editBrand) {
+        // Update existing brand
+        await apiService.updateBrand(editBrand.id, brandData);
+      } else {
+        // Create new brand
+        await apiService.createBrand(brandData);
+      }
 
       onBrandAdded();
       onClose();
 
     } catch (error: any) {
-      console.error('Brand creation failed:', error);
-      setError(error.response?.data?.error || 'Failed to create brand');
+      console.error(`Brand ${editBrand ? 'update' : 'creation'} failed:`, error);
+      setError(error.response?.data?.error || `Failed to ${editBrand ? 'update' : 'create'} brand`);
     } finally {
       setIsLoading(false);
     }
@@ -61,7 +68,7 @@ export function AddBrandModal({ onClose, onBrandAdded }: AddBrandModalProps) {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-2">
             <Building className="h-5 w-5 text-blue-600" />
-            <h3 className="text-lg font-medium text-gray-900">Add New Brand</h3>
+            <h3 className="text-lg font-medium text-gray-900">{editBrand ? 'Edit Brand' : 'Add New Brand'}</h3>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600" disabled={isLoading}>
             <X className="h-6 w-6" />
@@ -149,12 +156,12 @@ export function AddBrandModal({ onClose, onBrandAdded }: AddBrandModalProps) {
               {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Creating Brand...</span>
+                  <span>{editBrand ? 'Updating Brand...' : 'Creating Brand...'}</span>
                 </>
               ) : (
                 <>
-                  <Plus className="h-4 w-4" />
-                  <span>Create Brand</span>
+                  {editBrand ? <CheckCircle className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  <span>{editBrand ? 'Update Brand' : 'Create Brand'}</span>
                 </>
               )}
             </button>

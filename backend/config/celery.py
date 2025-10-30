@@ -32,6 +32,10 @@ app.conf.beat_schedule = {
         'task': 'agents.tasks.generate_daily_insights_task',
         'schedule': 86400.0,  # Run daily
     },
+    'check-complete-campaigns': {
+        'task': 'check_and_complete_campaigns',
+        'schedule': 600.0,  # Run every 10 minutes
+    },
 }
 
 app.conf.timezone = 'UTC'

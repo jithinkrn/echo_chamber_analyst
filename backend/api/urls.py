@@ -39,8 +39,7 @@ urlpatterns = [
     path('threads/', views.get_threads, name='get_threads'),
     
     # Campaign management endpoints
-    path('campaigns/', views.get_campaigns, name='get_campaigns'),
-    path('campaigns/new/', views.create_campaign, name='create_campaign'),
+    path('campaigns/', views.get_campaigns, name='get_campaigns'),  # GET = list, POST = create
     path('campaigns/<uuid:campaign_id>/', views.get_campaign_detail, name='get_campaign_detail'),
 
     # Task Management and Monitoring Endpoints

@@ -567,28 +567,28 @@ def get_dashboard_kpis(campaign_id, date_from, date_to):
         return {
             "active_campaigns": active_campaigns,
             "high_echo_communities": high_echo_communities,
-            "high_echo_change_percent": 12.0,  # Calculate from historical data
+            "high_echo_change_percent": 0.0,  # TODO: Calculate from historical data
             "new_pain_points_above_50": new_pain_points_above_50,
-            "new_pain_points_change": 3,
-            "positivity_ratio": round(aggregated['avg_positivity'] or 61.0, 1),
-            "positivity_change_pp": -4.0,
-            "llm_tokens_used": (aggregated['total_tokens'] or 33000) // 1000,  # in thousands
-            "llm_cost_usd": round(aggregated['total_cost'] or 8.25, 2)
+            "new_pain_points_change": 0,  # TODO: Calculate actual change from previous period
+            "positivity_ratio": round(aggregated['avg_positivity'] or 0.0, 1),
+            "positivity_change_pp": 0.0,  # TODO: Calculate actual change from previous period
+            "llm_tokens_used": (aggregated['total_tokens'] or 0) // 1000 if aggregated['total_tokens'] else 0,  # in thousands
+            "llm_cost_usd": round(aggregated['total_cost'] or 0.0, 2)
         }
         
     except Exception as e:
         logger.error(f"KPI calculation error: {e}")
-        # Return mock data if calculation fails
+        # Return zeros if calculation fails
         return {
-            "active_campaigns": 3,
-            "high_echo_communities": 27,
-            "high_echo_change_percent": 12.0,
-            "new_pain_points_above_50": 8,
-            "new_pain_points_change": 3,
-            "positivity_ratio": 61.0,
-            "positivity_change_pp": -4.0,
-            "llm_tokens_used": 33,
-            "llm_cost_usd": 8.25
+            "active_campaigns": 0,
+            "high_echo_communities": 0,
+            "high_echo_change_percent": 0.0,
+            "new_pain_points_above_50": 0,
+            "new_pain_points_change": 0,
+            "positivity_ratio": 0.0,
+            "positivity_change_pp": 0.0,
+            "llm_tokens_used": 0,
+            "llm_cost_usd": 0.0
         }
 
 
@@ -606,36 +606,8 @@ def get_community_heatmap(campaign_id, date_from, date_to):
         communities = Community.objects.filter(**communities_filter).distinct()[:10]
         
         if not communities.exists():
-            # Return mock data if no communities found
-            return [
-                {
-                    "name": "r/mfa",
-                    "platform": "reddit",
-                    "echo_score": 8.2,
-                    "echo_score_change": 12.0,
-                    "pain_points": [
-                        {"keyword": "transparency", "growth_percentage": 108.0, "heat_level": 4}
-                    ]
-                },
-                {
-                    "name": "Techwear Discord",
-                    "platform": "discord", 
-                    "echo_score": 7.4,
-                    "echo_score_change": 8.0,
-                    "pain_points": [
-                        {"keyword": "collar-curl", "growth_percentage": 93.0, "heat_level": 3}
-                    ]
-                },
-                {
-                    "name": "#citycyclers",
-                    "platform": "tiktok",
-                    "echo_score": 9.1,
-                    "echo_score_change": 15.0,
-                    "pain_points": [
-                        {"keyword": "pilling", "growth_percentage": 63.0, "heat_level": 5}
-                    ]
-                }
-            ]
+            # Return empty array if no communities found
+            return []
         
         return CommunityHeatMapSerializer(communities, many=True).data
         
@@ -657,12 +629,8 @@ def get_top_pain_points(campaign_id, date_from, date_to):
         pain_points = PainPoint.objects.filter(**pain_points_filter).order_by('-growth_percentage')[:10]
         
         if not pain_points.exists():
-            # Return mock data
-            return [
-                {"keyword": "see-through under office light", "growth_percentage": 108.0, "mention_count": 45},
-                {"keyword": "collar curls up", "growth_percentage": 93.0, "mention_count": 32},
-                {"keyword": "pills at backpack strap", "growth_percentage": 63.0, "mention_count": 28}
-            ]
+            # Return empty array if no pain points found
+            return []
         
         return TopPainPointSerializer(pain_points, many=True).data
         
@@ -673,37 +641,42 @@ def get_top_pain_points(campaign_id, date_from, date_to):
 
 def get_community_watchlist(campaign_id, date_from, date_to):
     """Get community watchlist data."""
-    from common.models import Community
-    
+    from common.models import Community, Thread
+    from datetime import timedelta
+
     try:
-        # Return mock data for now - replace with real logic
-        return [
-            {
-                "rank": 1,
-                "name": "r/malefashionadvice",
-                "echo_score": 9.76,
-                "echo_change": 12.0,
-                "new_threads": 6,
-                "key_influencer": "SmartHomeGuru"
-            },
-            {
-                "rank": 2,
-                "name": "r/streetwear",
-                "echo_score": 7.34,
-                "echo_change": 6.0,
-                "new_threads": 4,
-                "key_influencer": "ZHangCycle"
-            },
-            {
-                "rank": 3,
-                "name": "TikTok Fashion",
-                "echo_score": 4.92,
-                "echo_change": 0.0,  # NEW
-                "new_threads": 5,
-                "key_influencer": "may.tan"
-            }
-        ]
-        
+        # Get communities ordered by echo score
+        communities_filter = {'is_active': True, 'echo_score__gte': 5.0}
+        if campaign_id:
+            communities_filter['threads__campaign_id'] = campaign_id
+
+        communities = Community.objects.filter(**communities_filter).distinct().order_by('-echo_score')[:5]
+
+        if not communities.exists():
+            return []
+
+        watchlist_data = []
+        for rank, community in enumerate(communities, 1):
+            # Get recent thread count for this community
+            recent_threads = Thread.objects.filter(
+                community=community,
+                created_at__gte=timezone.now() - timedelta(days=7)
+            ).count()
+
+            # Get top influencer from this community
+            top_influencer = community.influencers.order_by('-influence_score').first()
+
+            watchlist_data.append({
+                'rank': rank,
+                'name': community.name,
+                'echo_score': float(community.echo_score),
+                'echo_change': float(community.echo_score_change or 0.0),
+                'new_threads': recent_threads,
+                'key_influencer': top_influencer.handle if top_influencer else 'N/A'
+            })
+
+        return watchlist_data
+
     except Exception as e:
         logger.error(f"Community watchlist error: {e}")
         return []
@@ -725,12 +698,8 @@ def get_influencer_pulse(campaign_id, date_from, date_to):
         ).distinct()[:10]
         
         if not influencers.exists():
-            # Return mock data
-            return [
-                {"handle": "may.tan", "platform": "tiktok", "reach": 41000, "engagement_rate": 8.1, "topics_text": "transparency video"},
-                {"handle": "SmartGuru", "platform": "reddit", "reach": 23000, "engagement_rate": 12.4, "topics_text": "DIY collar fix"},
-                {"handle": "ZHangCycle", "platform": "reddit", "reach": 17000, "engagement_rate": 9.6, "topics_text": "sweat-wicking test"}
-            ]
+            # Return empty array if no influencers found
+            return []
         
         return InfluencerPulseSerializer(influencers, many=True).data
         
@@ -786,8 +755,10 @@ def brand_detail(request, brand_id):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     elif request.method == 'DELETE':
-        brand.is_active = False
-        brand.save()
+        # Hard delete - actually remove from database
+        brand_name = brand.name
+        brand.delete()
+        logger.info(f"🗑️ Deleted brand: {brand_name}")
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -900,21 +871,21 @@ def get_brand_dashboard_kpis(brand_id, date_from, date_to):
         avg_sentiment = brand_threads.aggregate(avg_sentiment=Avg('sentiment_score'))['avg_sentiment'] or 0
         positivity_ratio = max(0, min(100, (avg_sentiment + 1) * 50))
     else:
-        positivity_ratio = 61.0
-    
+        positivity_ratio = 0.0  # No data yet - return 0 instead of hardcoded value
+
     # Get LLM token usage for brand campaigns
-    brand_token_usage = brand_threads.aggregate(total_tokens=Sum('token_count'))['total_tokens'] or 33000
-    brand_cost = brand_threads.aggregate(total_cost=Sum('processing_cost'))['total_cost'] or 8.25
+    brand_token_usage = brand_threads.aggregate(total_tokens=Sum('token_count'))['total_tokens'] or 0  # No data yet - return 0
+    brand_cost = brand_threads.aggregate(total_cost=Sum('processing_cost'))['total_cost'] or 0.0  # No data yet - return 0
     
     return {
         "active_campaigns": active_campaigns_count,
         "high_echo_communities": high_echo_communities_count,
         "high_echo_change_percent": round(high_echo_change, 1),
         "new_pain_points_above_50": high_growth_pain_points,
-        "new_pain_points_change": 3,
+        "new_pain_points_change": 0,  # TODO: Calculate actual change from previous week
         "positivity_ratio": round(positivity_ratio, 1),
-        "positivity_change_pp": -4.0,
-        "llm_tokens_used": brand_token_usage // 1000,
+        "positivity_change_pp": 0.0,  # TODO: Calculate actual change from previous week
+        "llm_tokens_used": brand_token_usage // 1000 if brand_token_usage > 0 else 0,
         "llm_cost_usd": float(brand_cost)
     }
 
@@ -1216,13 +1187,13 @@ async def trigger_scout_analysis(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def control_brand_analysis(request, brand_id):
-    """Start or pause brand analysis."""
+    """Start or stop brand analysis via Celery background tasks (NON-BLOCKING)."""
     try:
-        action = request.data.get('action')  # 'start' or 'pause'
+        action = request.data.get('action')  # 'start' or 'stop'
 
-        if action not in ['start', 'pause']:
+        if action not in ['start', 'stop']:
             return Response(
-                {'error': 'Action must be "start" or "pause"'},
+                {'error': 'Action must be "start" or "stop"'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -1235,156 +1206,84 @@ def control_brand_analysis(request, brand_id):
             )
 
         if action == 'start':
-            # Generate keywords from brand name and existing data
-            keywords = [brand.name, 'review', 'quality', 'problems', 'complaint', 'feedback']
+            # Get the first user as owner
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            owner = User.objects.first()
+            if not owner:
+                owner = User.objects.create_user(username='system', email='system@echochamber.com')
 
-            # Get target communities from brand sources
-            target_communities = _get_brand_target_communities(brand)
+            # Look for the AUTOMATIC campaign for this brand (not user-created campaigns)
+            # Automatic campaigns are marked with metadata['is_auto_campaign'] = True
+            # Only look for campaigns that are NOT completed
+            campaign = Campaign.objects.filter(
+                brand=brand,
+                metadata__is_auto_campaign=True
+            ).exclude(status='completed').first()
 
-            # Create enhanced scout config
-            scout_config = {
-                'focus': 'comprehensive',
-                'search_depth': 'comprehensive',
-                'target_communities': target_communities,
-                'include_sentiment': True,
-                'include_competitors': True,
-                'focus_areas': ['pain_points', 'feedback', 'sentiment']
-            }
+            if not campaign:
+                # Create a new automatic campaign for analysis
+                # Automatic campaigns have NO end_date (run indefinitely until stopped)
+                campaign = Campaign.objects.create(
+                    name=f"{brand.name} - Brand Analytics",
+                    brand=brand,
+                    owner=owner,
+                    status='active',
+                    schedule_enabled=True,
+                    description=f"Automatic brand analytics campaign for {brand.name}",
+                    start_date=timezone.now(),
+                    end_date=None,  # No end date - runs until manually stopped
+                    metadata={'is_auto_campaign': True}  # Mark as automatic
+                )
+                logger.info(f"📋 Created new automatic campaign for brand {brand.name}: {campaign.id}")
+            else:
+                # Reactivate the existing automatic campaign (if paused)
+                campaign.status = 'active'
+                campaign.schedule_enabled = True
+                if not campaign.start_date:
+                    campaign.start_date = timezone.now()
+                campaign.save()
+                logger.info(f"📋 Reactivated automatic campaign for brand {brand.name}: {campaign.id}")
 
-            logger.info(f"🚀 Starting scout analysis for brand: {brand.name}")
-            logger.info(f"🎯 Target communities: {target_communities if target_communities else 'Using defaults'}")
+            # Schedule Celery task (NON-BLOCKING, RETURNS IMMEDIATELY)
+            from agents.tasks import scout_reddit_task
+            task_result = scout_reddit_task.delay(campaign_id=campaign.id)
 
-            # Run scout analysis
-            try:
-                scout_results = asyncio.run(collect_real_brand_data(
-                    brand.name,
-                    keywords,
-                    config=scout_config
-                ))
-                asyncio.run(_store_brand_scout_data(brand, scout_results))
+            logger.info(f"📅 Scheduled scout task for brand {brand.name}: {task_result.id}")
 
-                # ========================================
-                # ENHANCED ANALYST AGENT - Comprehensive Analysis
-                # ========================================
-                logger.info(f"🧠 Starting Enhanced Analyst Agent for brand: {brand.name}")
-
-                try:
-                    from agents.analyst import (
-                        analyze_influencers_for_threads,
-                        link_pain_points_to_influencers,
-                        generate_comprehensive_analysis_summary,
-                        save_influencers_to_db
-                    )
-
-                    # Get the latest campaign for this brand
-                    latest_campaign = Campaign.objects.filter(brand=brand).order_by('-created_at').first()
-
-                    if not latest_campaign:
-                        logger.warning(f"⚠️ No campaign found for brand {brand.name}, skipping enhanced analysis")
-                        influencers = []
-                        analysis_summary = None
-                    else:
-                        # Get threads for analysis
-                        threads = Thread.objects.filter(
-                            brand=brand,
-                            campaign=latest_campaign
-                        ).select_related('community').prefetch_related('pain_points')
-
-                        # Get pain points
-                        pain_points = PainPoint.objects.filter(campaign=latest_campaign)
-
-                        logger.info(f"📊 Analyzing {threads.count()} threads and {pain_points.count()} pain points")
-
-                        # Step 1: Analyze Influencers
-                        logger.info(f"👥 Step 1/4: Identifying influencers...")
-                        influencer_list, influencer_threads_map = analyze_influencers_for_threads(
-                            threads=list(threads),
-                            brand=brand,
-                            campaign=latest_campaign,
-                            min_posts=2
-                        )
-
-                        # Step 2: Save influencers to database
-                        logger.info(f"💾 Step 2/4: Saving {len(influencer_list)} influencers to database...")
-                        saved_influencers = save_influencers_to_db(
-                            brand=brand,
-                            campaign=latest_campaign,
-                            influencers=influencer_list[:50]  # Top 50
-                        )
-
-                        # Step 3: Link pain points to influencers
-                        logger.info(f"🔗 Step 3/4: Linking pain points to influencers...")
-                        pain_point_analysis = link_pain_points_to_influencers(
-                            pain_points=list(pain_points),
-                            influencers=influencer_list,
-                            influencer_threads_map=influencer_threads_map
-                        )
-
-                        # Step 4: Generate comprehensive summary
-                        logger.info(f"📋 Step 4/4: Generating comprehensive analysis summary...")
-                        analysis_summary = generate_comprehensive_analysis_summary(
-                            brand=brand,
-                            campaign=latest_campaign,
-                            threads=list(threads),
-                            pain_points=list(pain_points),
-                            influencers=influencer_list,
-                            pain_point_analysis=pain_point_analysis
-                        )
-
-                        # Store summary in campaign metadata
-                        if latest_campaign.metadata is None:
-                            latest_campaign.metadata = {}
-                        latest_campaign.metadata['analysis_summary'] = analysis_summary
-                        latest_campaign.save()
-
-                        logger.info(f"✅ Enhanced Analyst Agent completed successfully")
-                        logger.info(f"   - {len(influencer_list)} influencers identified")
-                        logger.info(f"   - {len(pain_point_analysis)} pain points analyzed")
-                        logger.info(f"   - {len(analysis_summary['key_insights'])} key insights generated")
-
-                        influencers = influencer_list
-
-                except Exception as analyst_error:
-                    logger.error(f"❌ Enhanced Analyst Agent failed: {analyst_error}", exc_info=True)
-                    influencers = []
-                    analysis_summary = None
-
-                response_data = {
-                    'brand_id': brand.id,
-                    'brand_name': brand.name,
-                    'analysis_status': 'completed',
-                    'data_collected': {
-                        'communities': len(scout_results.get('communities', [])),
-                        'threads': len(scout_results.get('threads', [])),
-                        'pain_points': len(scout_results.get('pain_points', [])),
-                        'brand_mentions': len(scout_results.get('brand_mentions', [])),
-                        'influencers': len(influencers)
-                    },
-                    'enhanced_analysis': {
-                        'summary_generated': analysis_summary is not None,
-                        'key_insights_count': len(analysis_summary['key_insights']) if analysis_summary else 0,
-                        'urgent_pain_points': len(analysis_summary['pain_point_analysis']['urgent_pain_points']) if analysis_summary else 0
-                    } if analysis_summary else None
-                }
-
-            except Exception as scout_error:
-                logger.error(f"❌ Scout analysis failed: {scout_error}")
-                response_data = {
-                    'brand_id': brand.id,
-                    'brand_name': brand.name,
-                    'analysis_status': 'failed',
-                    'error_message': str(scout_error)
-                }
-
-        else:  # action == 'pause'
-            # For now, just return status - actual pause logic would need background task management
             response_data = {
                 'brand_id': brand.id,
                 'brand_name': brand.name,
-                'analysis_status': 'paused'
+                'campaign_id': campaign.id,
+                'analysis_status': 'scheduled',
+                'task_id': str(task_result.id),
+                'message': 'Scout analysis scheduled in background. Use /api/v1/tasks/{task_id}/status/ to check progress.'
             }
 
-        return Response(response_data, status=status.HTTP_200_OK)
+            return Response(response_data, status=status.HTTP_202_ACCEPTED)  # 202 = Accepted (processing async)
+
+        elif action == 'stop':
+            # Stop (complete) ONLY the active automatic campaign for this brand
+            # This marks it as completed so Start Analytics will create a new one
+            updated_count = Campaign.objects.filter(
+                brand=brand,
+                metadata__is_auto_campaign=True,
+                status__in=['active', 'paused']
+            ).update(
+                status='completed',
+                schedule_enabled=False
+            )
+
+            logger.info(f"⏹️ Stopped automatic campaign for brand {brand.name} (marked {updated_count} campaign(s) as completed)")
+
+            response_data = {
+                'brand_id': brand.id,
+                'brand_name': brand.name,
+                'analysis_status': 'paused',
+                'campaigns_paused': updated_count
+            }
+
+            return Response(response_data, status=status.HTTP_200_OK)
 
     except Exception as e:
         logger.error(f"❌ Brand analysis control failed: {e}")
@@ -1454,8 +1353,12 @@ def get_brands(request):
         
         brands_data = []
         for brand in brands:
-            latest_campaign = Campaign.objects.filter(brand=brand).order_by('-created_at').first()
-            
+            # Get the AUTOMATIC campaign only (not user-created campaigns) for brand status
+            auto_campaign = Campaign.objects.filter(
+                brand=brand,
+                metadata__is_auto_campaign=True
+            ).first()
+
             brand_data = {
                 'id': brand.id,
                 'name': brand.name,
@@ -1463,11 +1366,12 @@ def get_brands(request):
                 'website': brand.website,
                 'industry': brand.industry,
                 'created_at': brand.created_at.isoformat(),
-                'last_analysis': latest_campaign.created_at.isoformat() if latest_campaign else None,
-                'analysis_status': latest_campaign.status if latest_campaign else 'never_analyzed',
+                'last_analysis': auto_campaign.created_at.isoformat() if auto_campaign else None,
+                'analysis_status': auto_campaign.status if auto_campaign else 'never_analyzed',
                 'communities_count': Community.objects.filter(brand=brand).count(),
                 'pain_points_count': PainPoint.objects.filter(brand=brand).count(),
-                'threads_count': Thread.objects.filter(brand=brand).count()
+                'threads_count': Thread.objects.filter(brand=brand).count(),
+                'campaign_count': Campaign.objects.filter(brand=brand).count()  # Total campaigns (including user-created)
             }
             brands_data.append(brand_data)
         
@@ -1929,127 +1833,13 @@ def get_threads(request):
         return Response({'error': str(e)}, status=500)
 
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
-async def create_campaign(request):
-    """Create a new campaign with optional scout analysis."""
-    try:
-        data = request.data
-        
-        # Validate required fields
-        if not data.get('name'):
-            return Response({'error': 'Campaign name is required'}, status=400)
-        
-        if not data.get('brand'):
-            return Response({'error': 'Brand ID is required'}, status=400)
-        
-        # Check if brand exists
-        try:
-            brand = Brand.objects.get(id=data.get('brand'))
-        except Brand.DoesNotExist:
-            return Response({'error': 'Brand not found'}, status=404)
-        
-        logger.info(f"🚀 Creating campaign: {data.get('name')} for brand: {brand.name}")
-        
-        # Create campaign
-        campaign = Campaign.objects.create(
-            name=data.get('name'),
-            description=data.get('description', ''),
-            brand=brand,
-            budget=data.get('budget', 0),
-            start_date=data.get('start_date') or timezone.now().date(),
-            end_date=data.get('end_date'),
-            status='active'
-        )
-        
-        logger.info(f"✅ Campaign created: {campaign.id}")
-        
-        # Initialize response
-        response_data = {
-            'id': campaign.id,
-            'name': campaign.name,
-            'description': campaign.description,
-            'brand': {
-                'id': brand.id,
-                'name': brand.name
-            },
-            'budget': campaign.budget,
-            'start_date': campaign.start_date,
-            'end_date': campaign.end_date,
-            'status': campaign.status,
-            'created_at': campaign.created_at
-        }
-        
-        # Scout analysis (if configured)
-        scout_config = data.get('scout_config')
-        keywords = data.get('keywords', [])
-        
-        if scout_config and keywords:
-            logger.info(f"🔍 Starting scout analysis for campaign: {campaign.name}")
-            
-            try:
-                # Prepare campaign-specific scout configuration
-                campaign_scout_config = {
-                    'brand_name': brand.name,
-                    'campaign_name': campaign.name,
-                    'keywords': keywords,
-                    'focus': scout_config.get('focus', 'campaign_performance'),
-                    'search_depth': scout_config.get('search_depth', 'comprehensive'),
-                    'target_communities': scout_config.get('target_communities', []),
-                    'include_sentiment': scout_config.get('include_sentiment', True),
-                    'include_competitors': scout_config.get('include_competitors', True),
-                    'focus_areas': scout_config.get('focus_areas', ['campaign_mentions', 'audience_response']),
-                    'campaign_context': {
-                        'campaign_id': str(campaign.id),
-                        'campaign_objectives': data.get('description', ''),
-                        'budget': campaign.budget,
-                        'timeline': f"{campaign.start_date} to {campaign.end_date or 'ongoing'}"
-                    }
-                }
-                
-                # Run scout analysis
-                scout_results = await collect_real_brand_data(
-                    brand_name=f"{brand.name} {campaign.name}",
-                    config=campaign_scout_config
-                )
-                
-                # Store scout results linked to campaign
-                if scout_results:
-                    await _store_campaign_scout_data(campaign, scout_results)
-                    
-                    response_data['scout_analysis'] = {
-                        'analysis_status': 'completed',
-                        'communities_found': len(scout_results.get('communities', [])),
-                        'discussions_found': len(scout_results.get('threads', [])),
-                        'pain_points_identified': len(scout_results.get('pain_points', [])),
-                        'sentiment_score': scout_results.get('sentiment_analysis', {}).get('overall_sentiment', 'neutral'),
-                        'engagement_metrics': sum(
-                            thread.get('engagement_metrics', {}).get('score', 0) 
-                            for thread in scout_results.get('threads', [])
-                        ),
-                        'collection_timestamp': scout_results.get('metadata', {}).get('collection_timestamp')
-                    }
-                    
-                    logger.info(f"✅ Scout analysis completed for campaign: {campaign.name}")
-                else:
-                    response_data['scout_analysis'] = {
-                        'analysis_status': 'no_data',
-                        'message': 'Scout analysis completed but no relevant data found'
-                    }
-                    
-            except Exception as scout_error:
-                logger.error(f"❌ Scout analysis failed for campaign {campaign.name}: {scout_error}")
-                response_data['scout_analysis'] = {
-                    'analysis_status': 'failed',
-                    'error': str(scout_error),
-                    'message': 'Campaign created successfully, but scout analysis failed'
-                }
-        
-        return Response(response_data, status=201)
-        
-    except Exception as e:
-        logger.error(f"❌ Campaign creation failed: {e}")
-        return Response({'error': str(e)}, status=500)
+# DEPRECATED: Campaign creation is now handled directly in get_campaigns() POST
+# This function is kept for reference but should not be called directly
+# @api_view(['POST'])
+# @permission_classes([AllowAny])
+# def create_campaign(request):
+#     """DEPRECATED - Use POST to /api/v1/campaigns/ instead"""
+#     pass
 
 
 async def _store_campaign_scout_data(campaign, scout_results):
@@ -2123,73 +1913,231 @@ async def _store_campaign_scout_data(campaign, scout_results):
         raise
 
 
-@api_view(['GET'])
+@api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def get_campaigns(request):
-    """Get campaigns, optionally filtered by brand."""
+    """Get campaigns (GET) or create new campaign (POST)."""
+
+    # Handle POST - create campaign
+    if request.method == 'POST':
+        try:
+            data = request.data
+
+            # Validate required fields
+            if not data.get('name'):
+                return Response({'error': 'Campaign name is required'}, status=400)
+
+            if not data.get('brand'):
+                return Response({'error': 'Brand ID is required'}, status=400)
+
+            # Check if brand exists
+            try:
+                brand = Brand.objects.get(id=data.get('brand'))
+            except Brand.DoesNotExist:
+                return Response({'error': 'Brand not found'}, status=404)
+
+            logger.info(f"🚀 Creating campaign: {data.get('name')} for brand: {brand.name}")
+
+            # Get the first user as owner (or create a default one)
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            owner = User.objects.first()
+            if not owner:
+                # Create default system user if none exists
+                owner = User.objects.create_user(username='system', email='system@echochamber.com')
+
+            # Parse dates if provided
+            from dateutil import parser as date_parser
+            start_date = None
+            end_date = None
+
+            if data.get('start_date'):
+                try:
+                    start_date = date_parser.parse(data.get('start_date'))
+                except:
+                    pass
+
+            if data.get('end_date'):
+                try:
+                    end_date = date_parser.parse(data.get('end_date'))
+                except:
+                    pass
+
+            # Create campaign (SYNCHRONOUS - NO SCOUT)
+            # Use schedule_enabled from request, default to True for automatic scheduling
+            campaign = Campaign.objects.create(
+                name=data.get('name'),
+                description=data.get('description', ''),
+                brand=brand,
+                owner=owner,
+                status=data.get('status', 'active'),  # Default to active
+                daily_budget=data.get('budget', 10.00),
+                budget_limit=data.get('budget_limit'),  # Total budget limit
+                start_date=start_date,
+                end_date=end_date,
+                schedule_enabled=data.get('schedule_enabled', True)  # Enable scheduling by default
+            )
+
+            logger.info(f"✅ Campaign created: {campaign.id}")
+
+            # Build response
+            response_data = {
+                'id': campaign.id,
+                'name': campaign.name,
+                'description': campaign.description,
+                'brand': {
+                    'id': brand.id,
+                    'name': brand.name
+                },
+                'budget': float(campaign.daily_budget),
+                'status': campaign.status,
+                'created_at': campaign.created_at
+            }
+
+            # OPTIONAL: Schedule immediate scout if user requests it
+            if data.get('run_scout_immediately', False):
+                from agents.tasks import scout_reddit_task
+                task_result = scout_reddit_task.delay(campaign_id=campaign.id)
+
+                logger.info(f"📅 Scheduled immediate scout task: {task_result.id}")
+
+                response_data['scout_analysis'] = {
+                    'status': 'scheduled',
+                    'task_id': str(task_result.id),
+                    'message': 'Scout analysis scheduled. Use /api/v1/tasks/{task_id}/status/ to check progress.'
+                }
+            else:
+                response_data['scout_analysis'] = {
+                    'status': 'will_run_hourly',
+                    'message': 'Campaign will be analyzed by scheduled hourly scout task'
+                }
+
+            return Response(response_data, status=201)
+
+        except Exception as e:
+            logger.error(f"❌ Campaign creation failed: {e}")
+            return Response({'error': str(e)}, status=500)
+
+    # Handle GET - list campaigns
     brand_id = request.GET.get('brand')
-    
+
     try:
         if brand_id:
             campaigns = Campaign.objects.filter(brand_id=brand_id)
         else:
             campaigns = Campaign.objects.all()
-        
+
         campaigns = campaigns.select_related('brand').order_by('-created_at')
-        
+
         campaigns_data = [
             {
-                'id': c.id,
+                'id': str(c.id),
                 'name': c.name,
                 'description': c.description,
-                'brand': {
-                    'id': c.brand.id,
-                    'name': c.brand.name
-                },
-                'budget': c.budget,
-                'start_date': c.start_date,
-                'end_date': c.end_date,
+                'brand': str(c.brand.id) if c.brand else None,
+                'brand_name': c.brand.name if c.brand else None,
                 'status': c.status,
-                'created_at': c.created_at
+                'keywords': c.keywords,
+                'owner': c.owner.id,
+                'schedule_enabled': c.schedule_enabled,
+                'schedule_interval': c.schedule_interval,
+                'budget_limit': float(c.budget_limit) if c.budget_limit else float(c.daily_budget),
+                'current_spend': float(c.current_spend),
+                'created_at': c.created_at.isoformat() if c.created_at else None,
+                'last_run_at': c.last_run_at.isoformat() if c.last_run_at else None,
+                'next_run_at': c.next_run_at.isoformat() if c.next_run_at else None,
+                'start_date': c.start_date.isoformat() if c.start_date else None,
+                'end_date': c.end_date.isoformat() if c.end_date else None,
+                'is_auto_campaign': c.metadata.get('is_auto_campaign', False)  # Flag for automatic campaigns
             }
             for c in campaigns
         ]
-        
+
         return Response({'campaigns': campaigns_data})
-        
+
     except Exception as e:
         return Response({'error': str(e)}, status=500)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PUT', 'DELETE'])
 @permission_classes([AllowAny])
 def get_campaign_detail(request, campaign_id):
-    """Get detailed information about a specific campaign."""
+    """Get, update or delete a specific campaign."""
     try:
         campaign = Campaign.objects.select_related('brand').get(id=campaign_id)
-        
+
+        if request.method == 'PUT':
+            # Check if this is an automatic campaign
+            is_auto = campaign.metadata.get('is_auto_campaign', False)
+
+            # Update campaign
+            data = request.data
+
+            # Update basic fields (but protect auto campaign name)
+            if 'name' in data and not is_auto:
+                campaign.name = data['name']
+            if 'description' in data:
+                campaign.description = data['description']
+            if 'budget' in data:
+                campaign.daily_budget = data['budget']
+            if 'status' in data:
+                campaign.status = data['status']
+
+            campaign.save()
+
+            return Response({
+                'id': str(campaign.id),
+                'name': campaign.name,
+                'description': campaign.description,
+                'brand': {
+                    'id': str(campaign.brand.id) if campaign.brand else None,
+                    'name': campaign.brand.name if campaign.brand else None
+                },
+                'daily_budget': float(campaign.daily_budget),
+                'status': campaign.status,
+                'created_at': campaign.created_at.isoformat() if campaign.created_at else None
+            })
+
+        elif request.method == 'DELETE':
+            # Check if this is an automatic campaign - prevent deletion
+            is_auto = campaign.metadata.get('is_auto_campaign', False)
+            if is_auto:
+                return Response(
+                    {'error': 'Cannot delete automatic brand analytics campaign. Use brand Start/Pause controls instead.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            # Hard delete - actually remove from database
+            campaign_name = campaign.name
+            campaign.delete()
+            logger.info(f"🗑️ Deleted campaign: {campaign_name}")
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        # GET - Get detailed information
         # Get related data
         pain_points = PainPoint.objects.filter(campaign=campaign)
         communities = Community.objects.filter(campaign=campaign)
-        
+
         campaign_data = {
-            'id': campaign.id,
+            'id': str(campaign.id),
             'name': campaign.name,
             'description': campaign.description,
             'brand': {
-                'id': campaign.brand.id,
-                'name': campaign.brand.name
+                'id': str(campaign.brand.id) if campaign.brand else None,
+                'name': campaign.brand.name if campaign.brand else None
             },
-            'budget': campaign.budget,
-            'start_date': campaign.start_date,
-            'end_date': campaign.end_date,
+            'daily_budget': float(campaign.daily_budget),
+            'current_spend': float(campaign.current_spend),
             'status': campaign.status,
-            'created_at': campaign.created_at,
+            'schedule_enabled': campaign.schedule_enabled,
+            'last_run_at': campaign.last_run_at.isoformat() if campaign.last_run_at else None,
+            'next_run_at': campaign.next_run_at.isoformat() if campaign.next_run_at else None,
+            'created_at': campaign.created_at.isoformat() if campaign.created_at else None,
             'pain_points_count': pain_points.count(),
             'communities_count': communities.count(),
             'pain_points': [
                 {
-                    'id': pp.id,
+                    'id': str(pp.id),
                     'keyword': pp.keyword,
                     'mention_count': pp.mention_count,
                     'heat_level': pp.heat_level
@@ -2198,7 +2146,7 @@ def get_campaign_detail(request, campaign_id):
             ],
             'communities': [
                 {
-                    'id': c.id,
+                    'id': str(c.id),
                     'name': c.name,
                     'platform': c.platform,
                     'member_count': c.member_count
@@ -2206,9 +2154,9 @@ def get_campaign_detail(request, campaign_id):
                 for c in communities[:10]  # Top 10 communities
             ]
         }
-        
+
         return Response(campaign_data)
-        
+
     except Campaign.DoesNotExist:
         return Response({'error': 'Campaign not found'}, status=404)
     except Exception as e:

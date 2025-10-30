@@ -256,6 +256,29 @@ export const apiService = {
     return response.data;
   },
 
+  // ADD: Update brand
+  async updateBrand(brandId: string, brandData: {
+    name?: string;
+    description?: string;
+    website?: string;
+    industry?: string;
+    keywords?: string[];
+  }) {
+    const response = await api.put(`/brands/${brandId}/`, brandData);
+    return response.data;
+  },
+
+  // ADD: Update campaign
+  async updateCampaign(campaignId: string, campaignData: {
+    name?: string;
+    description?: string;
+    budget?: number;
+    status?: string;
+  }) {
+    const response = await api.put(`/campaigns/${campaignId}/`, campaignData);
+    return response.data;
+  },
+
   // ADD: Get brands list
   async getBrands() {
     const response = await api.get('/brands/');
@@ -294,8 +317,8 @@ export const apiService = {
     return response.data;
   },
 
-  // ADD: Control brand analysis (start/pause)
-  async controlBrandAnalysis(brandId: string, action: 'start' | 'pause') {
+  // ADD: Control brand analysis (start/stop)
+  async controlBrandAnalysis(brandId: string, action: 'start' | 'stop') {
     const response = await api.post(`/brands/${brandId}/analysis/`, { action });
     return response.data;
   },

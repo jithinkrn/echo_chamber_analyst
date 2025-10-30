@@ -154,19 +154,15 @@ export default function Dashboard() {
         // Auto-select first brand if available and no brand is currently selected
         if (data.results && data.results.length > 0 && !selectedBrand) {
           setSelectedBrand(data.results[0].id);
+        } else if (!data.results || data.results.length === 0) {
+          // No brands available - stop loading to show empty state
+          setLoading(false);
         }
       }
     } catch (error) {
       console.error('Error fetching brands:', error);
-      // Mock brands for development
-      const mockBrands = [
-        { id: '1', name: 'BreezyCool', description: 'Sustainable cooling solutions', industry: 'Home Appliances', campaign_count: 3 },
-        { id: '2', name: 'TechFlow', description: 'Smart home automation', industry: 'Technology', campaign_count: 2 }
-      ];
-      setBrands(mockBrands);
-      if (!selectedBrand) {
-        setSelectedBrand('1');
-      }
+      setBrands([]);
+      setLoading(false);
     }
   };
 
@@ -284,8 +280,38 @@ export default function Dashboard() {
     );
   }
 
+  // Empty state when no brands exist
+  if (!loading && brands.length === 0) {
+    return (
+      <div className="p-6">
+        <div className="bg-white shadow rounded-lg p-12">
+          <div className="text-center">
+            <Building className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-lg font-medium text-gray-900">No Brands Yet</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Get started by creating your first brand to begin tracking echo chamber analytics.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty state when brand has no data
   if (!dashboardData) {
-    return <div className="p-6">No dashboard data available</div>;
+    return (
+      <div className="p-6">
+        <div className="bg-white shadow rounded-lg p-12">
+          <div className="text-center">
+            <Target className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-lg font-medium text-gray-900">No Data Available Yet</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              This brand doesn't have any analysis data yet. Create a campaign and run scout analysis to start collecting insights.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -7,12 +7,10 @@ import {
   Trash,
   Globe,
   Building,
-  Users,
   Search,
-  Filter,
   ExternalLink,
   Play,
-  Pause,
+  Square,
   Loader2
 } from 'lucide-react';
 import { AddBrandModal } from '../modals/AddBrandModal';
@@ -25,29 +23,10 @@ interface Brand {
   description: string;
   website: string;
   industry: string;
-  headquarters: string;
-  social_handles: { [key: string]: string };
-  primary_keywords: string[];
-  product_keywords: string[];
-  exclude_keywords: string[];
-  sources: string[];
-  is_active: boolean;
-  competitors: Competitor[];
   campaign_count: number;
   created_at: string;
   analysis_status?: string;
-}
-
-interface Competitor {
-  id: string;
-  name: string;
-  description: string;
-  website: string;
-  keywords: string[];
-  social_handles: { [key: string]: string };
-  market_share_estimate: number | null;
-  sentiment_comparison: number | null;
-  is_active: boolean;
+  has_active_auto_campaign?: boolean;
 }
 
 export default function BrandManager() {
@@ -68,46 +47,10 @@ export default function BrandManager() {
     try {
       setLoading(true);
       const data = await apiService.getBrands();
-      setBrands(data.results || data || []);
+      setBrands(data.results || data.brands || []);
     } catch (error) {
       console.error('Failed to fetch brands:', error);
-      // Mock data for development
-      setBrands([
-        {
-          id: '1',
-          name: 'BreezyCool',
-          description: 'Sustainable cooling solutions for modern homes',
-          website: 'https://breezycool.com',
-          industry: 'Home Appliances',
-          headquarters: 'San Francisco, CA',
-          social_handles: {
-            twitter: '@BreezyCool',
-            instagram: '@breezycool_official',
-            linkedin: 'breezycool'
-          },
-          primary_keywords: ['air conditioning', 'cooling', 'AC units'],
-          product_keywords: ['smart AC', 'eco-friendly cooling', 'energy efficient'],
-          exclude_keywords: ['heating', 'winter'],
-          sources: ['r/HomeImprovement', 'r/HVAC', 'discord:tech-reviews'],
-          is_active: true,
-          competitors: [
-            {
-              id: '1',
-              name: 'CoolTech',
-              description: 'Traditional AC manufacturer',
-              website: 'https://cooltech.com',
-              keywords: ['traditional AC', 'cooling systems'],
-              social_handles: { twitter: '@cooltech' },
-              market_share_estimate: 25.5,
-              sentiment_comparison: -8.2,
-              is_active: true
-            }
-          ],
-          campaign_count: 3,
-          created_at: '2025-09-15T10:00:00Z',
-          analysis_status: 'not_started'
-        }
-      ]);
+      setBrands([]);
     } finally {
       setLoading(false);
     }
@@ -125,26 +68,20 @@ export default function BrandManager() {
     }
   };
 
-  const handleAnalysisControl = async (brandId: string, action: 'start' | 'pause') => {
+  const handleAnalysisControl = async (brandId: string, action: 'start' | 'stop') => {
     try {
       setAnalysisOperations(prev => ({ ...prev, [brandId]: true }));
 
       await apiService.controlBrandAnalysis(brandId, action);
 
-      // Update the brand's analysis status in the local state
-      setBrands(brands.map(brand =>
-        brand.id === brandId
-          ? { ...brand, analysis_status: action === 'start' ? 'running' : 'paused' }
-          : brand
-      ));
-
-      // Refresh brands data to get updated status
+      // Refresh brands data after starting/stopping analytics
       setTimeout(() => {
         fetchBrands();
-      }, 2000);
+      }, 1500);
 
     } catch (error) {
       console.error(`Failed to ${action} analysis:`, error);
+      alert(`Failed to ${action} brand analytics. Please try again.`);
     } finally {
       setAnalysisOperations(prev => ({ ...prev, [brandId]: false }));
     }
@@ -241,21 +178,19 @@ export default function BrandManager() {
           <div key={brand.id} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
             <div className="p-6">
               {/* Brand Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <h3 className="text-lg font-medium text-gray-900 mb-1 flex items-center">
-                    <Building className="h-5 w-5 text-gray-400 mr-2" />
-                    {brand.name}
-                  </h3>
-                  <p className="text-sm text-gray-600 line-clamp-2">
-                    {brand.description}
-                  </p>
-                  {brand.industry && (
-                    <span className="inline-block mt-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                      {brand.industry}
-                    </span>
-                  )}
-                </div>
+              <div className="mb-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-1 flex items-center">
+                  <Building className="h-5 w-5 text-gray-400 mr-2" />
+                  {brand.name}
+                </h3>
+                <p className="text-sm text-gray-600 line-clamp-2">
+                  {brand.description}
+                </p>
+                {brand.industry && (
+                  <span className="inline-block mt-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                    {brand.industry}
+                  </span>
+                )}
               </div>
 
               {/* Brand Details */}
@@ -278,38 +213,53 @@ export default function BrandManager() {
                   <span className="text-gray-600">Active Campaigns</span>
                   <span className="text-gray-900 font-medium">{brand.campaign_count}</span>
                 </div>
-
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Competitors</span>
-                  <span className="text-gray-900 font-medium">{brand.competitors.length}</span>
-                </div>
-
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Monitoring Sources</span>
-                  <span className="text-gray-900 font-medium">{brand.sources.length}</span>
-                </div>
-
-                {brand.primary_keywords.length > 0 && (
-                  <div className="text-sm">
-                    <span className="text-gray-600">Keywords: </span>
-                    <span className="text-gray-900">{brand.primary_keywords.slice(0, 3).join(', ')}</span>
-                    {brand.primary_keywords.length > 3 && (
-                      <span className="text-gray-500"> +{brand.primary_keywords.length - 3} more</span>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Analysis Status</span>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getAnalysisStatusColor(brand.analysis_status)}`}>
-                    {getAnalysisStatusText(brand.analysis_status)}
-                  </span>
-                </div>
               </div>
 
               {/* Actions */}
               <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                 <div className="flex items-center space-x-2">
+                  {/* Start/Stop Analytics Button - Left Side */}
+                  {brand.has_active_auto_campaign ? (
+                    <button
+                      onClick={() => handleAnalysisControl(brand.id, 'stop')}
+                      disabled={analysisOperations[brand.id]}
+                      className="flex items-center space-x-1 px-3 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {analysisOperations[brand.id] ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span className="text-xs">Stopping...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Square className="h-4 w-4" />
+                          <span className="text-xs">Stop Analytics</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleAnalysisControl(brand.id, 'start')}
+                      disabled={analysisOperations[brand.id]}
+                      className="flex items-center space-x-1 px-3 py-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {analysisOperations[brand.id] ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span className="text-xs">Starting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-4 w-4" />
+                          <span className="text-xs">Start Analytics</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  {/* Edit and Delete - Right Side */}
                   <button
                     onClick={() => setEditingBrand(brand)}
                     className="flex items-center space-x-1 px-2 py-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
@@ -318,37 +268,6 @@ export default function BrandManager() {
                     <span className="text-xs">Edit</span>
                   </button>
 
-                  {/* Analysis Control Buttons */}
-                  {brand.analysis_status === 'not_started' || brand.analysis_status === 'paused' || brand.analysis_status === 'completed' || brand.analysis_status === 'failed' ? (
-                    <button
-                      onClick={() => handleAnalysisControl(brand.id, 'start')}
-                      disabled={analysisOperations[brand.id]}
-                      className="flex items-center space-x-1 px-2 py-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
-                    >
-                      {analysisOperations[brand.id] ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Play className="h-4 w-4" />
-                      )}
-                      <span className="text-xs">Start Analysis</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleAnalysisControl(brand.id, 'pause')}
-                      disabled={analysisOperations[brand.id]}
-                      className="flex items-center space-x-1 px-2 py-1 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50 rounded transition-colors disabled:opacity-50"
-                    >
-                      {analysisOperations[brand.id] ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Pause className="h-4 w-4" />
-                      )}
-                      <span className="text-xs">Pause Analysis</span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex items-center space-x-2">
                   <button
                     onClick={() => handleDeleteBrand(brand.id)}
                     className="flex items-center space-x-1 px-2 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
@@ -398,25 +317,16 @@ export default function BrandManager() {
         />
       )}
 
-      {/* TODO: Add Edit Brand Modal */}
+      {/* Edit Brand Modal */}
       {editingBrand && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Edit Brand: {editingBrand.name}</h3>
-            <p className="text-sm text-gray-600">Brand editing form will be implemented here.</p>
-            <div className="mt-4 flex justify-end space-x-2">
-              <button
-                onClick={() => setEditingBrand(null)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                Save Changes
-              </button>
-            </div>
-          </div>
-        </div>
+        <AddBrandModal
+          onClose={() => setEditingBrand(null)}
+          onBrandAdded={() => {
+            setEditingBrand(null);
+            fetchBrands(); // Refresh brands list after edit
+          }}
+          editBrand={editingBrand}
+        />
       )}
     </div>
   );

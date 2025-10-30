@@ -6,17 +6,19 @@ interface AddCampaignModalProps {
   onClose: () => void;
   onCampaignAdded: () => void;
   brandId: string | null;
+  editCampaign?: any;  // Campaign to edit (if provided)
 }
 
-export function AddCampaignModal({ onClose, onCampaignAdded, brandId }: AddCampaignModalProps) {
+export function AddCampaignModal({ onClose, onCampaignAdded, brandId, editCampaign }: AddCampaignModalProps) {
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    budget: '',
-    startDate: '',
-    endDate: '',
-    selectedBrandId: brandId || '',
-    campaign_keywords: '',
+    name: editCampaign?.name || '',
+    description: editCampaign?.description || '',
+    budget: editCampaign?.daily_budget?.toString() || '',
+    budget_limit: editCampaign?.budget_limit?.toString() || '',
+    startDate: editCampaign?.start_date ? editCampaign.start_date.slice(0, 16) : '',
+    endDate: editCampaign?.end_date ? editCampaign.end_date.slice(0, 16) : '',
+    selectedBrandId: editCampaign?.brand || brandId || '',
+    campaign_keywords: Array.isArray(editCampaign?.keywords) ? editCampaign.keywords.join(', ') : (editCampaign?.keywords || ''),
     target_communities: '',
     scout_focus: 'campaign_performance',
     search_depth: 'comprehensive',
@@ -77,8 +79,10 @@ export function AddCampaignModal({ onClose, onCampaignAdded, brandId }: AddCampa
         description: formData.description,
         brand: formData.selectedBrandId,
         budget: parseFloat(formData.budget) || 0,
-        start_date: formData.startDate,
-        end_date: formData.endDate,
+        budget_limit: formData.budget_limit ? parseFloat(formData.budget_limit) : null,
+        start_date: formData.startDate ? new Date(formData.startDate).toISOString() : null,
+        end_date: formData.endDate ? new Date(formData.endDate).toISOString() : null,
+        schedule_enabled: true,  // Enable scheduling by default for custom campaigns
         keywords: campaignKeywords,
         scout_config: {
           focus: formData.scout_focus,
@@ -90,14 +94,20 @@ export function AddCampaignModal({ onClose, onCampaignAdded, brandId }: AddCampa
         }
       };
 
-      const result = await apiService.createCampaign(campaignData);
+      if (editCampaign) {
+        // Update existing campaign
+        await apiService.updateCampaign(editCampaign.id, campaignData);
+      } else {
+        // Create new campaign
+        await apiService.createCampaign(campaignData);
+      }
 
       onCampaignAdded();
       onClose();
 
     } catch (error: any) {
-      console.error('Campaign creation failed:', error);
-      setError(error.response?.data?.error || 'Failed to create campaign');
+      console.error(`Campaign ${editCampaign ? 'update' : 'creation'} failed:`, error);
+      setError(error.response?.data?.error || `Failed to ${editCampaign ? 'update' : 'create'} campaign`);
     } finally {
       setIsLoading(false);
     }
@@ -116,7 +126,7 @@ export function AddCampaignModal({ onClose, onCampaignAdded, brandId }: AddCampa
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-2">
             <Target className="h-5 w-5 text-green-600" />
-            <h3 className="text-lg font-medium text-gray-900">Add New Campaign</h3>
+            <h3 className="text-lg font-medium text-gray-900">{editCampaign ? 'Edit Campaign' : 'Add New Campaign'}</h3>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600" disabled={isLoading}>
             <X className="h-6 w-6" />
@@ -167,39 +177,58 @@ export function AddCampaignModal({ onClose, onCampaignAdded, brandId }: AddCampa
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Budget (USD)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Daily Budget (USD)</label>
               <input
                 type="number"
                 value={formData.budget}
                 onChange={(e) => setFormData({...formData, budget: e.target.value})}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="10000"
+                placeholder="10.00"
                 min="0"
                 step="0.01"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Total Budget Limit (USD)
+                <span className="text-xs text-gray-500 ml-1">(optional - auto-completes when reached)</span>
+              </label>
               <input
-                type="date"
+                type="number"
+                value={formData.budget_limit}
+                onChange={(e) => setFormData({...formData, budget_limit: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="100.00"
+                min="0"
+                step="0.01"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Start Date & Time</label>
+              <input
+                type="datetime-local"
                 value={formData.startDate}
                 onChange={(e) => setFormData({...formData, startDate: e.target.value})}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">End Date *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                End Date & Time
+                <span className="text-xs text-gray-500 ml-1">(optional - auto-completes when reached)</span>
+              </label>
               <input
-                type="date"
+                type="datetime-local"
                 value={formData.endDate}
                 onChange={(e) => setFormData({...formData, endDate: e.target.value})}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                required
               />
             </div>
           </div>
@@ -233,12 +262,12 @@ export function AddCampaignModal({ onClose, onCampaignAdded, brandId }: AddCampa
               {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Creating Campaign...</span>
+                  <span>{editCampaign ? 'Updating Campaign...' : 'Creating Campaign...'}</span>
                 </>
               ) : (
                 <>
                   <CheckCircle className="h-4 w-4" />
-                  <span>Create Campaign</span>
+                  <span>{editCampaign ? 'Update Campaign' : 'Create Campaign'}</span>
                 </>
               )}
             </button>

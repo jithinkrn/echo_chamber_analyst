@@ -5,6 +5,7 @@ Core models for EchoChamber Analyst.
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from pgvector.django import VectorField
 import uuid
 import json
 
@@ -107,9 +108,14 @@ class Campaign(BaseModel):
     last_run_at = models.DateTimeField(null=True, blank=True)
     next_run_at = models.DateTimeField(null=True, blank=True)
 
+    # Campaign duration
+    start_date = models.DateTimeField(null=True, blank=True)
+    end_date = models.DateTimeField(null=True, blank=True)
+
     # Budget and limits
     daily_budget = models.DecimalField(max_digits=10, decimal_places=2, default=10.00)
     current_spend = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    budget_limit = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # Total budget limit
 
     # Analysis metadata - stores comprehensive analysis summaries
     metadata = models.JSONField(default=dict, blank=True)
@@ -214,6 +220,11 @@ class ProcessedContent(BaseModel):
     processing_version = models.CharField(max_length=50, default='1.0')
     processing_time = models.DurationField(null=True, blank=True)
 
+    # Vector embedding for semantic search
+    embedding = VectorField(dimensions=1536, null=True, blank=True)
+    embedding_model = models.CharField(max_length=100, default='text-embedding-3-small')
+    embedding_created_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         db_table = 'processed_content'
 
@@ -255,6 +266,11 @@ class Insight(BaseModel):
     is_validated = models.BooleanField(default=False)
     user_rating = models.IntegerField(null=True, blank=True)  # 1-5 stars
     user_feedback = models.TextField(blank=True)
+
+    # Vector embedding for semantic search
+    embedding = VectorField(dimensions=1536, null=True, blank=True)
+    embedding_model = models.CharField(max_length=100, default='text-embedding-3-small')
+    embedding_created_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'insights'
@@ -465,7 +481,12 @@ class PainPoint(BaseModel):
     # Time tracking
     first_seen = models.DateTimeField(auto_now_add=True)
     last_seen = models.DateTimeField(auto_now=True)
-    
+
+    # Vector embedding for semantic search
+    embedding = VectorField(dimensions=1536, null=True, blank=True)
+    embedding_model = models.CharField(max_length=100, default='text-embedding-3-small')
+    embedding_created_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         db_table = 'pain_points'
         unique_together = ['keyword', 'campaign', 'community']

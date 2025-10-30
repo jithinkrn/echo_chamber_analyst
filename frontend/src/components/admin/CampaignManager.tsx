@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { AddCampaignModal } from '../modals/AddCampaignModal';
 import api from '@/lib/api';
+import { formatCampaignDateTime, formatScheduleFrequency, getNextScheduledRun } from '@/lib/utils';
 
 interface Campaign {
   id: string;
@@ -24,16 +25,19 @@ interface Campaign {
   description: string;
   brand?: string;
   brand_name?: string;
-  status: 'active' | 'paused' | 'completed' | 'draft';
-  keywords: string;
+  status: 'active' | 'paused' | 'completed' | 'error';
+  keywords: string[] | string;  // Can be array or string
   owner: number;
   schedule_enabled: boolean;
   schedule_interval: number;
   budget_limit: number;
   current_spend: number;
   created_at: string;
+  start_date?: string;
+  end_date?: string;
   last_run_at?: string;
   next_run_at?: string;
+  is_auto_campaign?: boolean;  // Flag for automatic brand analytics campaigns
 }
 
 export default function CampaignManager() {
@@ -51,47 +55,12 @@ export default function CampaignManager() {
   const fetchCampaigns = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API call
-      // const response = await apiService.getCampaigns();
-      // setCampaigns(response.data.results);
-
-      // Mock data for now
-      setCampaigns([
-        {
-          id: '1',
-          name: 'Reddit Echo Chamber Analysis',
-          description: 'Analyzing political discourse in Reddit communities',
-          brand: '1',
-          brand_name: 'BreezyCool',
-          status: 'active',
-          keywords: 'politics, election, voting',
-          owner: 1,
-          schedule_enabled: true,
-          schedule_interval: 3600,
-          budget_limit: 100.00,
-          current_spend: 25.50,
-          created_at: '2025-09-15T10:00:00Z',
-          last_run_at: '2025-09-18T08:00:00Z',
-          next_run_at: '2025-09-18T12:00:00Z'
-        },
-        {
-          id: '2',
-          name: 'Social Media Sentiment Tracking',
-          description: 'Monitoring sentiment trends across platforms',
-          brand: '1',
-          brand_name: 'BreezyCool',
-          status: 'paused',
-          keywords: 'sentiment, emotion, social',
-          owner: 1,
-          schedule_enabled: false,
-          schedule_interval: 7200,
-          budget_limit: 50.00,
-          current_spend: 12.30,
-          created_at: '2025-09-10T14:30:00Z'
-        }
-      ]);
+      // Fetch campaigns from API
+      const response = await api.get('/campaigns/');
+      setCampaigns(response.data.campaigns || []);
     } catch (error) {
       console.error('Failed to fetch campaigns:', error);
+      setCampaigns([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
@@ -99,13 +68,18 @@ export default function CampaignManager() {
 
   const handleStatusChange = async (campaignId: string, newStatus: string) => {
     try {
-      // TODO: Replace with actual API call
-      // await apiService.updateCampaignStatus(campaignId, newStatus);
+      // Update campaign status via API
+      await api.put(`/campaigns/${campaignId}/`, {
+        status: newStatus
+      });
+
+      // Update local state after successful API call
       setCampaigns(campaigns.map(c =>
         c.id === campaignId ? { ...c, status: newStatus as any } : c
       ));
     } catch (error) {
       console.error('Failed to update campaign status:', error);
+      alert('Failed to update campaign status. Please try again.');
     }
   };
 
@@ -113,11 +87,13 @@ export default function CampaignManager() {
     if (!confirm('Are you sure you want to delete this campaign?')) return;
 
     try {
-      // TODO: Replace with actual API call
-      // await apiService.deleteCampaign(campaignId);
+      // Delete campaign via API
+      await api.delete(`/campaigns/${campaignId}/`);
+      // Remove from local state after successful deletion
       setCampaigns(campaigns.filter(c => c.id !== campaignId));
     } catch (error) {
       console.error('Failed to delete campaign:', error);
+      alert('Failed to delete campaign. Please try again.');
     }
   };
 
@@ -131,10 +107,20 @@ export default function CampaignManager() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'bg-green-100 text-green-800';
-      case 'paused': return 'bg-yellow-100 text-yellow-800';
+      case 'paused': return 'bg-gray-100 text-gray-800';
       case 'completed': return 'bg-blue-100 text-blue-800';
-      case 'draft': return 'bg-gray-100 text-gray-800';
+      case 'error': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'active': return 'Active';
+      case 'paused': return 'Inactive';
+      case 'completed': return 'Completed';
+      case 'error': return 'Error';
+      default: return 'Inactive';
     }
   };
 
@@ -172,7 +158,6 @@ export default function CampaignManager() {
             <option value="active">Active</option>
             <option value="paused">Paused</option>
             <option value="completed">Completed</option>
-            <option value="draft">Draft</option>
           </select>
         </div>
 
@@ -188,8 +173,23 @@ export default function CampaignManager() {
       {/* Campaigns Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {filteredCampaigns.map((campaign) => (
-          <div key={campaign.id} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-            <div className="p-6">
+          <div key={campaign.id} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+            {/* Ribbon Badge */}
+            {campaign.is_auto_campaign ? (
+              <div className="absolute top-0 right-0">
+                <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xs font-semibold px-3 py-1 shadow-md">
+                  AUTOMATIC
+                </div>
+              </div>
+            ) : (
+              <div className="absolute top-0 right-0">
+                <div className="bg-gradient-to-r from-green-500 to-green-600 text-white text-xs font-semibold px-3 py-1 shadow-md">
+                  CUSTOM
+                </div>
+              </div>
+            )}
+
+            <div className="p-6 pt-10">
               {/* Campaign Header */}
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
@@ -209,7 +209,7 @@ export default function CampaignManager() {
                   )}
                 </div>
                 <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(campaign.status)}`}>
-                  {campaign.status}
+                  {getStatusText(campaign.status)}
                 </span>
               </div>
 
@@ -229,15 +229,45 @@ export default function CampaignManager() {
                   ></div>
                 </div>
 
-                <div className="flex items-center justify-between text-sm text-gray-600">
-                  <span>Keywords: {campaign.keywords.split(',').length}</span>
-                  <span>Schedule: {campaign.schedule_enabled ? 'Enabled' : 'Disabled'}</span>
+                {/* Timing Information */}
+                <div className="space-y-2 pt-2 border-t border-gray-100">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Start Date:</span>
+                    <span className="text-gray-700 font-medium">{formatCampaignDateTime(campaign.start_date)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">End Date:</span>
+                    <span className="text-gray-700 font-medium">{formatCampaignDateTime(campaign.end_date)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Next Run:</span>
+                    <span className="text-gray-700 font-medium">
+                      {(() => {
+                        // Debug logging
+                        if (campaign.name.includes('Redit')) {
+                          console.log('Campaign debug:', {
+                            name: campaign.name,
+                            last_run_at: campaign.last_run_at,
+                            schedule_interval: campaign.schedule_interval,
+                            schedule_enabled: campaign.schedule_enabled,
+                            next_run_at: campaign.next_run_at
+                          });
+                        }
+                        return getNextScheduledRun(campaign.last_run_at, campaign.schedule_interval, campaign.schedule_enabled, campaign.next_run_at);
+                      })()}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Frequency:</span>
+                    <span className="text-gray-700 font-medium">{formatScheduleFrequency(campaign.schedule_interval)}</span>
+                  </div>
                 </div>
               </div>
 
               {/* Actions */}
               <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                 <div className="flex items-center space-x-2">
+                  {/* Start/Pause - Left Side */}
                   {campaign.status === 'active' ? (
                     <button
                       onClick={() => handleStatusChange(campaign.id, 'paused')}
@@ -255,24 +285,32 @@ export default function CampaignManager() {
                       <span className="text-xs">Start</span>
                     </button>
                   )}
-
-                  <button
-                    onClick={() => setEditingCampaign(campaign)}
-                    className="flex items-center space-x-1 px-2 py-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
-                  >
-                    <Edit className="h-4 w-4" />
-                    <span className="text-xs">Edit</span>
-                  </button>
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => handleDeleteCampaign(campaign.id)}
-                    className="flex items-center space-x-1 px-2 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                  >
-                    <Trash className="h-4 w-4" />
-                    <span className="text-xs">Delete</span>
-                  </button>
+                  {/* Edit and Delete - Right Side (hidden for automatic campaigns) */}
+                  {!campaign.is_auto_campaign && (
+                    <>
+                      <button
+                        onClick={() => setEditingCampaign(campaign)}
+                        className="flex items-center space-x-1 px-2 py-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                      >
+                        <Edit className="h-4 w-4" />
+                        <span className="text-xs">Edit</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteCampaign(campaign.id)}
+                        className="flex items-center space-x-1 px-2 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                      >
+                        <Trash className="h-4 w-4" />
+                        <span className="text-xs">Delete</span>
+                      </button>
+                    </>
+                  )}
+                  {campaign.is_auto_campaign && (
+                    <span className="text-xs text-gray-500 italic">Managed by Brand</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -304,7 +342,7 @@ export default function CampaignManager() {
         </div>
       )}
 
-      {/* TODO: Add Create/Edit Modal */}
+      {/* Create Campaign Modal */}
       {showCreateModal && (
         <AddCampaignModal
           onClose={() => setShowCreateModal(false)}
@@ -313,6 +351,19 @@ export default function CampaignManager() {
             fetchCampaigns(); // Refresh campaigns list after successful creation
           }}
           brandId={null} // Or pass a specific brandId if you want to pre-select one
+        />
+      )}
+
+      {/* Edit Campaign Modal */}
+      {editingCampaign && (
+        <AddCampaignModal
+          onClose={() => setEditingCampaign(null)}
+          onCampaignAdded={() => {
+            setEditingCampaign(null);
+            fetchCampaigns(); // Refresh campaigns list after edit
+          }}
+          editCampaign={editingCampaign}
+          brandId={editingCampaign.brand || null}
         />
       )}
     </div>

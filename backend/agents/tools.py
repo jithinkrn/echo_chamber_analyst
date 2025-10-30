@@ -23,6 +23,18 @@ from common.models import (
     Insight, Influencer, AuditLog
 )
 
+# Import new RAG tools
+from agents.hybrid_rag_tool import hybrid_rag_tool
+from agents.vector_tools import vector_search_tool, hybrid_search_tool
+from agents.dashboard_tools import (
+    brand_analytics_tool,
+    community_query_tool,
+    influencer_query_tool,
+    pain_point_analysis_tool,
+    campaign_analytics_tool,
+    trend_analysis_tool
+)
+
 
 class DatabaseQueryInput(BaseModel):
     """Input schema for database queries."""
@@ -392,6 +404,16 @@ LANGGRAPH_TOOLS = {
     "create_insight": InsightCreationTool(),
     "create_audit_log": AuditLogTool(),
     "get_campaign_stats": CampaignStatsTool(),
+    # New RAG tools
+    "hybrid_rag": hybrid_rag_tool,
+    "vector_search": vector_search_tool,
+    "hybrid_search": hybrid_search_tool,
+    "brand_analytics": brand_analytics_tool,
+    "community_query": community_query_tool,
+    "influencer_query": influencer_query_tool,
+    "pain_point_analysis": pain_point_analysis_tool,
+    "campaign_analytics": campaign_analytics_tool,
+    "trend_analysis": trend_analysis_tool,
 }
 
 
@@ -401,7 +423,19 @@ def get_tools_for_node(node_name: str) -> List[BaseTool]:
         "scout": ["database_query", "create_audit_log"],
         "cleaner": ["database_query", "create_audit_log"],
         "analyst": ["database_query", "content_search", "create_insight", "create_audit_log"],
-        "chatbot": ["content_search", "get_campaign_stats", "database_query"],
+        "chatbot": [
+            "hybrid_rag",  # Primary RAG tool
+            "vector_search",  # Semantic search
+            "hybrid_search",  # Combined search
+            "brand_analytics",  # Brand KPIs
+            "community_query",  # Community metrics
+            "influencer_query",  # Influencer analytics
+            "pain_point_analysis",  # Pain point trends
+            "campaign_analytics",  # Campaign performance
+            "trend_analysis",  # Temporal trends
+            "get_campaign_stats",  # Legacy support
+            "content_search",  # Legacy support
+        ],
         "orchestrator": ["database_query", "get_campaign_stats", "create_audit_log"],
     }
 

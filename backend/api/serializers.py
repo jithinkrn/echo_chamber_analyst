@@ -26,6 +26,7 @@ class BrandSerializer(serializers.ModelSerializer):
 
     competitors = serializers.SerializerMethodField()
     campaign_count = serializers.SerializerMethodField()
+    has_active_auto_campaign = serializers.SerializerMethodField()
 
     class Meta:
         model = Brand
@@ -39,6 +40,13 @@ class BrandSerializer(serializers.ModelSerializer):
     def get_campaign_count(self, obj):
         """Get active campaign count for this brand."""
         return obj.campaigns.filter(status='active').count()
+
+    def get_has_active_auto_campaign(self, obj):
+        """Check if brand has an active automatic campaign."""
+        return obj.campaigns.filter(
+            metadata__is_auto_campaign=True,
+            status__in=['active', 'paused']
+        ).exists()
 
 
 class CompetitorSerializer(serializers.ModelSerializer):

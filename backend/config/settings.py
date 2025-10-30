@@ -34,6 +34,7 @@ THIRD_PARTY_APPS = [
     'django_filters',
     'corsheaders',
     'drf_spectacular',
+    'pgvector.django',
 ]
 
 LOCAL_APPS = [

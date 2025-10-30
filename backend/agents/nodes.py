@@ -792,211 +792,159 @@ async def analyst_node(state: EchoChamberAnalystState) -> EchoChamberAnalystStat
 @monitor_node_execution(global_monitor)
 async def chatbot_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Chatbot Node - RAG-based Conversational Interface
+    Chatbot Node - Advanced Hybrid RAG System
 
-    Replaces the Chatbot Agent with sophisticated RAG system using
-    LangGraph for context retrieval and response generation.
+    Features:
+    - Intent classification for intelligent routing
+    - Multi-tool parallel execution
+    - Vector similarity search for semantic understanding
+    - Dashboard analytics integration
+    - Conversation history awareness
+    - Source attribution and citations
     """
     state["current_node"] = "chatbot_node"
 
     try:
         user_query = state.get("user_query", "")
-        logger.info(f"Chatbot node processing query: {user_query}")
+        logger.info(f"Chatbot node processing query with hybrid RAG: {user_query}")
+
+        # Get campaign context
+        campaign = state.get("campaign")
+        campaign_id = campaign.campaign_id if campaign and hasattr(campaign, 'campaign_id') and campaign.campaign_id != "chat_session" else None
+        brand_id = None
+
+        # Try to get brand_id from campaign
+        if campaign_id:
+            try:
+                from common.models import Campaign
+                campaign_obj = Campaign.objects.get(id=campaign_id)
+                brand_id = str(campaign_obj.brand_id) if campaign_obj.brand_id else None
+            except:
+                pass
 
         # Track chat query in LangSmith
         if global_monitor:
-            campaign = state.get("campaign")
-            campaign_id = campaign.campaign_id if campaign and hasattr(campaign, 'campaign_id') else None
             global_monitor.track_rag_interaction(
                 query=user_query,
                 campaign_id=campaign_id,
                 user_context={"conversation_length": len(state.get("conversation_history", []))}
             )
 
-        # Get tools for chatbot operations
-        tools = get_tools_for_node("chatbot")
+        # Get conversation history for context-aware responses
+        conversation_history = state.get("conversation_history", [])
+        formatted_history = []
+        for msg in conversation_history[-6:]:  # Last 3 exchanges
+            if hasattr(msg, 'content'):
+                formatted_history.append({
+                    "role": "assistant" if isinstance(msg, AIMessage) else "user",
+                    "content": msg.content
+                })
 
-        # Search for relevant content (primary RAG retrieval)
-        search_tool = LANGGRAPH_TOOLS["content_search"]
-        campaign = state.get("campaign")
-        campaign_id = campaign.campaign_id if campaign and hasattr(campaign, 'campaign_id') and campaign.campaign_id != "chat_session" else None
+        # Use Hybrid RAG tool for intelligent query processing
+        from agents.hybrid_rag_tool import hybrid_rag_tool
+        from agents.monitoring_integration import guardrails, langsmith_tracer
 
-        search_results = await search_tool._arun(
-            query=user_query,
-            campaign_id=campaign_id,
-            limit=10
-        )
+        # Validate query with guardrails
+        validation = guardrails.validate_query(query=user_query, user_id=campaign_id)
+        if not validation["valid"]:
+            logger.warning(f"Query failed guardrails: {validation['error']}")
+            # Return error response
+            error_response = f"I'm sorry, but I can't process this query: {validation['error']}"
 
-        # If no results, attempt secondary retrieval strategies:
-        # 1. Try matching insight titles by splitting quoted phrases or capitalized tokens
-        fallback_insights = []
-        if (not search_results.get("results")) and campaign_id:
-            try:
-                from django.db.models import Q
-                from common.models import Insight
+            conversation_history.extend([
+                HumanMessage(content=user_query),
+                AIMessage(content=error_response)
+            ])
+            state["conversation_history"] = conversation_history
 
-                # Extract candidate phrases (quoted substrings or full query)
-                import re
-                phrases = re.findall(r'"([^"]+)"', user_query)
-                if not phrases:
-                    phrases = [user_query]
+            state["rag_context"] = {
+                "error": validation["error"],
+                "error_code": validation["code"]
+            }
 
-                q_obj = Q()
-                for p in phrases:
-                    if len(p.strip()) >= 3:
-                        q_obj |= Q(title__icontains=p.strip()) | Q(description__icontains=p.strip())
+            return state
 
-                if q_obj:
-                    candidate_qs = Insight.objects.filter(q_obj, campaign__id=campaign_id)[:5]
-                    for ins in candidate_qs:
-                        fallback_insights.append({
-                            "type": "insight",
-                            "id": str(ins.id),
-                            "title": ins.title,
-                            "description": ins.description[:400],
-                            "insight_type": ins.insight_type,
-                            "confidence_score": float(ins.confidence_score) if ins.confidence_score is not None else None,
-                            "priority_score": float(ins.priority_score) if ins.priority_score is not None else None,
-                            "created_at": ins.created_at.isoformat(),
-                            "campaign": ins.campaign.name if ins.campaign else None
-                        })
-                if fallback_insights:
-                    search_results = {
-                        "success": True,
-                        "results": fallback_insights,
-                        "total_found": len(fallback_insights),
-                        "query": user_query,
-                        "fallback_strategy": "insight_lookup"
-                    }
-            except Exception as insight_err:
-                logger.warning(f"Fallback insight lookup failed: {insight_err}")
-
-        # 2. If still nothing and campaign_id present, try a lightweight processed content keyword fallback
-        if (not search_results.get("results")) and campaign_id:
-            try:
-                from common.models import ProcessedContent
-                from django.db.models import Q
-                tokens = [t for t in user_query.split() if len(t) > 3][:5]
-                if tokens:
-                    q_obj = Q()
-                    for t in tokens:
-                        q_obj |= Q(cleaned_content__icontains=t)
-                    pc_qs = ProcessedContent.objects.filter(
-                        q_obj, raw_content__campaign_id=campaign_id
-                    )[:5]
-                    fallback_content = []
-                    for pc in pc_qs:
-                        fallback_content.append({
-                            "type": "content",
-                            "id": str(pc.id),
-                            "title": pc.raw_content.title or "Untitled",
-                            "content": pc.cleaned_content[:400],
-                            "sentiment_score": float(pc.sentiment_score) if pc.sentiment_score is not None else None,
-                            "created_at": pc.created_at.isoformat(),
-                            "source": pc.raw_content.source.name if pc.raw_content.source else None
-                        })
-                    if fallback_content:
-                        search_results = {
-                            "success": True,
-                            "results": fallback_content,
-                            "total_found": len(fallback_content),
-                            "query": user_query,
-                            "fallback_strategy": "processed_content_keyword"
-                        }
-            except Exception as pc_err:
-                logger.warning(f"Fallback processed content lookup failed: {pc_err}")
-
-        # Get campaign stats if relevant
-        stats_tool = LANGGRAPH_TOOLS["get_campaign_stats"]
-        campaign_stats = None
-        if campaign_id:
-            campaign_stats = await stats_tool._arun(campaign_id)
-
-        # Create RAG prompt
-        rag_prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an intelligent assistant for the EchoChamber Analyst platform.
-            You help users analyze social media content, understand campaign performance, and explore insights.
-
-            Context Information:
-            {context}
-
-            Campaign Stats:
-            {campaign_stats}
-
-            Guidelines:
-            - Provide helpful, accurate responses based on the available data
-            - If you don't have specific information, say so clearly
-            - Offer actionable insights when possible
-            - Reference specific data points when available
-            - Be concise but thorough
-            """),
-            ("human", "{user_query}")
-        ])
-
-        # Prepare context from search results
-        context = ""
-        if search_results.get("success") and search_results.get("results"):
-            preface = "Relevant content found:" if not search_results.get("fallback_strategy") else f"Relevant content found (fallback: {search_results.get('fallback_strategy')}):"
-            context_lines = [preface]
-            for result in search_results["results"][:5]:  # Limit context
-                snippet = result.get('description') or result.get('content', '') or ''
-                snippet = snippet.replace('\n', ' ')[:200]
-                context_lines.append(f"- {result.get('title', 'Untitled')}: {snippet}...")
-            context = "\n".join(context_lines)
+        # Execute hybrid RAG with LangSmith tracing
+        if langsmith_tracer.enabled:
+            rag_result = await langsmith_tracer.trace_query(
+                query=user_query,
+                rag_tool=hybrid_rag_tool,
+                brand_id=brand_id,
+                campaign_id=campaign_id,
+                conversation_history=formatted_history,
+                min_similarity=0.7,
+                limit=10
+            )
         else:
-            context = "No specific content found for this query."
+            rag_result = await hybrid_rag_tool.run(
+                query=user_query,
+                brand_id=brand_id,
+                campaign_id=campaign_id,
+                conversation_history=formatted_history,
+                min_similarity=0.7,
+                limit=10
+            )
 
-        # Format prompt
-        formatted_prompt = rag_prompt.format_messages(
-            context=context,
-            campaign_stats=str(campaign_stats) if campaign_stats else "No campaign stats available",
-            user_query=user_query
-        )
+        # Extract response and sources
+        if rag_result.get("success"):
+            response_text = rag_result.get("answer", "I couldn't generate a response.")
+            sources = rag_result.get("sources", [])
+            metadata = rag_result.get("metadata", {})
 
-        # Generate response with LangSmith tracing
-        response = await llm.ainvoke(formatted_prompt)
+            # Sanitize output for safety
+            response_text = guardrails.sanitize_output(response_text)
+        else:
+            # Fallback to simple response on error
+            error = rag_result.get("metadata", {}).get("error", "Unknown error")
+            response_text = f"I encountered an issue processing your query. Please try rephrasing your question."
+            sources = []
+            metadata = {"error": error}
+            logger.error(f"Hybrid RAG failed: {error}")
 
         # Track response quality in LangSmith
         if global_monitor:
             global_monitor.track_response_quality(
                 query=user_query,
-                response=response.content,
-                context_sources=len(search_results.get("results", [])),
+                response=response_text,
+                context_sources=len(sources),
                 campaign_context=campaign_id
             )
 
         # Add to conversation history
-        conversation_history = state.get("conversation_history", [])
         conversation_history.extend([
             HumanMessage(content=user_query),
-            AIMessage(content=response.content)
+            AIMessage(content=response_text)
         ])
         state["conversation_history"] = conversation_history
 
-        # Store RAG context
+        # Store comprehensive RAG context
         state["rag_context"] = {
-            "search_results": search_results,
-            "campaign_stats": campaign_stats,
-            "response": response.content,
-            "sources": [r.get("id") for r in search_results.get("results", [])],
-            "fallback_used": search_results.get("fallback_strategy") if search_results.get("results") else None
+            "response": response_text,
+            "sources": sources,
+            "metadata": metadata,
+            "intent_type": metadata.get("intent_type"),
+            "tools_executed": metadata.get("tools_executed", []),
+            "execution_time": metadata.get("execution_time_seconds", 0)
         }
 
         # Update metrics
         metrics = state.get("metrics")
-        tokens_used = response.usage_metadata.get("total_tokens", 0) if hasattr(response, 'usage_metadata') else 150
+        # Estimate tokens based on execution
+        estimated_tokens = len(response_text.split()) * 1.5 + len(user_query.split()) * 1.5
+        tools_executed_count = len(metadata.get("tools_executed", []))
+        estimated_cost = 0.001 * tools_executed_count + 0.002  # Base + tool costs
+
         if isinstance(metrics, ProcessingMetrics):
-            metrics.total_tokens_used += tokens_used
-            metrics.total_cost += 0.003
-            metrics.api_calls_made += 2
+            metrics.total_tokens_used += int(estimated_tokens)
+            metrics.total_cost += estimated_cost
+            metrics.api_calls_made += tools_executed_count + 2  # Tools + intent + response
         else:
-            # Fallback to dict metrics (keeps compatibility if earlier mutated)
             if not isinstance(metrics, dict):
                 metrics = {}
             metrics.update({
-                "total_tokens_used": metrics.get("total_tokens_used", 0) + tokens_used,
-                "total_cost": metrics.get("total_cost", 0) + 0.003,
-                "api_calls_made": metrics.get("api_calls_made", 0) + 2
+                "total_tokens_used": metrics.get("total_tokens_used", 0) + int(estimated_tokens),
+                "total_cost": metrics.get("total_cost", 0) + estimated_cost,
+                "api_calls_made": metrics.get("api_calls_made", 0) + tools_executed_count + 2
             })
             state["metrics"] = metrics
 
@@ -1004,19 +952,33 @@ async def chatbot_node(state: Dict[str, Any]) -> Dict[str, Any]:
         audit_tool = LANGGRAPH_TOOLS["create_audit_log"]
         await audit_tool._arun(
             action_type="chat_interaction",
-            action_description=f"Chatbot responded to user query",
+            action_description=f"Hybrid RAG chatbot responded to user query",
             agent_name="chatbot_node",
             metadata={
                 "query": user_query,
-                "sources_found": len(search_results.get("results", [])),
-                "response_length": len(response.content)
+                "intent_type": metadata.get("intent_type"),
+                "tools_executed": metadata.get("tools_executed", []),
+                "sources_found": len(sources),
+                "response_length": len(response_text),
+                "execution_time": metadata.get("execution_time_seconds", 0)
             }
         )
 
-        logger.info(f"Chatbot node completed - generated response for query")
+        logger.info(f"Chatbot node completed with hybrid RAG - intent: {metadata.get('intent_type')}, tools: {len(metadata.get('tools_executed', []))}")
 
     except Exception as e:
-        logger.error(f"Chatbot node error: {e}")
+        logger.error(f"Chatbot node error: {e}", exc_info=True)
+
+        # Fallback error response
+        error_response = "I apologize, but I encountered an unexpected error. Please try again or rephrase your question."
+
+        conversation_history = state.get("conversation_history", [])
+        conversation_history.extend([
+            HumanMessage(content=state.get("user_query", "")),
+            AIMessage(content=error_response)
+        ])
+        state["conversation_history"] = conversation_history
+
         # Add error to state
         error_state = state.get("error_state", [])
         if not isinstance(error_state, list):

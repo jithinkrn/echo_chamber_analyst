@@ -70,6 +70,7 @@ prompt_toolkit==3.0.52
 propcache==0.4.1
 psycopg==3.2.10
 psycopg-binary==3.2.10
+pgvector==0.4.1
 pycparser==2.23
 pydantic==2.12.3
 pydantic_core==2.41.4
