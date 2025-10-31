@@ -288,6 +288,127 @@ async def _generate_and_store_campaign_insights(collected_data: Dict[str, Any], 
         # Don't raise exception to avoid breaking the workflow
 
 
+async def _generate_and_store_brand_analytics_insights(collected_data: Dict[str, Any], campaign, brand_name: str) -> None:
+    """
+    Generate AI-Powered Key Insights for Brand Analytics (automatic campaign).
+
+    This function delegates to the Analytics Agent for generating Brand Analytics insights,
+    which are displayed at the top of the dashboard.
+    """
+    try:
+        from django.utils import timezone
+        from common.models import Campaign as CampaignModel, Brand
+        from asgiref.sync import sync_to_async
+        from agents.analyst import generate_ai_powered_insights_from_brand_analytics
+
+        # Get the Campaign and Brand objects
+        campaign_obj = await sync_to_async(CampaignModel.objects.get)(id=campaign.id)
+        brand_obj = await sync_to_async(Brand.objects.get)(name=brand_name)
+
+        logger.info(f"💡 Delegating to Analytics Agent for Brand Analytics AI-Powered Insights: '{brand_obj.name}'...")
+
+        # Prepare Brand Analytics data for insight generation
+        kpis = {
+            'total_threads': len(collected_data.get('threads', [])),
+            'total_communities': len(collected_data.get('communities', [])),
+            'total_pain_points': len(collected_data.get('pain_points', [])),
+            'avg_sentiment': sum(t.get('sentiment_score', 0.0) for t in collected_data.get('threads', [])) / max(len(collected_data.get('threads', [])), 1)
+        }
+
+        communities = collected_data.get('communities', [])
+        pain_points = collected_data.get('pain_points', [])
+        influencers = collected_data.get('influencers', [])
+
+        # Call Analytics Agent to generate AI-Powered Key Insights
+        ai_insights = await sync_to_async(generate_ai_powered_insights_from_brand_analytics)(
+            brand=brand_obj,
+            kpis=kpis,
+            communities=communities,
+            pain_points=pain_points,
+            influencers=influencers
+        )
+
+        # Store insights in campaign metadata
+        if not campaign_obj.metadata:
+            campaign_obj.metadata = {}
+
+        campaign_obj.metadata['ai_insights'] = ai_insights  # 6 simple strings
+        campaign_obj.metadata['ai_insights_generated_at'] = timezone.now().isoformat()
+
+        await sync_to_async(campaign_obj.save)()
+
+        logger.info(f"✅ Analytics Agent generated {len(ai_insights)} AI-Powered Key Insights for Brand Analytics")
+
+    except Exception as e:
+        logger.error(f"❌ Error generating Brand Analytics insights: {e}")
+        # Don't raise exception to avoid breaking the workflow
+
+
+async def _generate_and_store_custom_campaign_insights(collected_data: Dict[str, Any], campaign, brand_name: str) -> None:
+    """
+    Generate Campaign AI Insights for Custom Campaigns.
+    Takes campaign objectives (from description) into account.
+
+    This function delegates to the Analytics Agent for generating Custom Campaign insights,
+    which are displayed at the bottom of the dashboard in Campaign Analytics section.
+    """
+    try:
+        from django.utils import timezone
+        from common.models import Campaign as CampaignModel, Brand
+        from asgiref.sync import sync_to_async
+        from agents.analyst import generate_campaign_ai_insights
+
+        # Get the Campaign and Brand objects
+        campaign_obj = await sync_to_async(CampaignModel.objects.get)(id=campaign.id)
+        brand_obj = await sync_to_async(Brand.objects.get)(name=brand_name)
+
+        logger.info(f"💡 Delegating to Analytics Agent for Custom Campaign AI Insights: '{campaign_obj.name}'...")
+        if campaign_obj.description:
+            logger.info(f"📋 Using Campaign Objectives: {campaign_obj.description[:200]}")
+
+        # Call Analytics Agent to generate Custom Campaign insights (with objectives context)
+        campaign_insights = await sync_to_async(generate_campaign_ai_insights)(
+            campaign=campaign_obj,
+            brand=brand_obj,
+            collected_data=collected_data
+        )
+
+        # Calculate data summary
+        num_communities = len(collected_data.get("communities", []))
+        num_threads = len(collected_data.get("threads", []))
+        num_pain_points = len(collected_data.get("pain_points", []))
+
+        threads = collected_data.get("threads", [])
+        avg_sentiment = sum(t.get('sentiment_score', 0.0) for t in threads) / len(threads) if threads else 0.0
+        sentiment_label = "positive" if avg_sentiment > 0.2 else "negative" if avg_sentiment < -0.2 else "neutral"
+
+        # Store insights in campaign metadata
+        if not campaign_obj.metadata:
+            campaign_obj.metadata = {}
+
+        campaign_obj.metadata['insights'] = campaign_insights  # Structured objects
+        campaign_obj.metadata['insights_generated_at'] = timezone.now().isoformat()
+        campaign_obj.metadata['data_summary'] = {
+            'communities': num_communities,
+            'threads': num_threads,
+            'pain_points': num_pain_points,
+            'avg_sentiment': round(avg_sentiment, 2),
+            'sentiment_label': sentiment_label
+        }
+
+        # Keep objectives in metadata
+        if campaign_obj.description:
+            campaign_obj.metadata['objectives'] = campaign_obj.description
+
+        await sync_to_async(campaign_obj.save)()
+
+        logger.info(f"✅ Analytics Agent generated {len(campaign_insights)} Custom Campaign AI Insights")
+
+    except Exception as e:
+        logger.error(f"❌ Error generating Custom Campaign insights: {e}")
+        # Don't raise exception to avoid breaking the workflow
+
+
 def _extract_and_store_influencers(collected_data: Dict[str, Any], campaign, brand_name: str) -> int:
     """
     Extract influencers from thread data and calculate their metrics.
@@ -350,7 +471,7 @@ def _extract_and_store_influencers(collected_data: Dict[str, Any], campaign, bra
         # Calculate scores for each influencer
         influencers_created = 0
         for author, stats in author_stats.items():
-            if stats['total_posts'] < 2:  # Filter out one-time posters
+            if stats['total_posts'] < 1:  # Include all posters (lowered threshold)
                 continue
 
             # Calculate metrics
@@ -393,17 +514,25 @@ def _extract_and_store_influencers(collected_data: Dict[str, Any], campaign, bra
                 relevance_score * 0.20
             )
 
-            # Get or create community for influencer
-            community = Community.objects.filter(
-                name__in=list(stats['communities'])
-            ).first()
-
-            # Get brand object
+            # Get brand object and campaign
             from common.models import Brand, Campaign as CampaignModel
             brand = Brand.objects.filter(name=brand_name).first()
-
-            # Get the actual Campaign object from the ID
             campaign_obj = CampaignModel.objects.get(id=campaign.id)
+
+            # Get primary community for influencer (most posts in)
+            # Filter by brand and campaign to ensure correct community
+            community = None
+            if stats['communities']:
+                # Find the community where this influencer is most active
+                community = Community.objects.filter(
+                    name__in=list(stats['communities']),
+                    brand=brand,
+                    campaign=campaign_obj
+                ).first()
+
+            # If no community found, skip this influencer or use None
+            if not community:
+                logger.warning(f"No community found for influencer {author}, communities: {list(stats['communities'])}")
 
             # Store influencer
             influencer, created = Influencer.objects.update_or_create(
@@ -538,7 +667,22 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
                 total_tokens += thread_tokens
 
                 # Get thread publication time and calculate week number
-                published_at = thread_data.get("created_at", timezone.now())
+                published_at_raw = thread_data.get("created_at", timezone.now())
+
+                # Ensure published_at is a datetime object (it might be a string from API)
+                if isinstance(published_at_raw, str):
+                    from dateutil import parser as date_parser
+                    try:
+                        published_at = date_parser.parse(published_at_raw)
+                        # Make timezone-aware if it's naive
+                        if published_at.tzinfo is None:
+                            published_at = timezone.make_aware(published_at)
+                    except Exception as e:
+                        logger.warning(f"Could not parse date string '{published_at_raw}': {e}, using current time")
+                        published_at = timezone.now()
+                else:
+                    published_at = published_at_raw
+
                 week_num = calculate_week_number(published_at, collection_start)
 
                 Thread.objects.update_or_create(
@@ -590,6 +734,377 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
     except Exception as e:
         logger.error(f"❌ Error storing real dashboard data: {e}")
         # Don't raise exception to avoid breaking the workflow
+
+
+def store_brand_analytics_data(collected_data: Dict[str, Any], brand, automatic_campaign) -> None:
+    """
+    Store data for Brand Analytics (automatic campaign) ONLY.
+    Links all data to brand and automatic campaign.
+
+    Args:
+        collected_data: Data collected by scout agent
+        brand: Brand object
+        automatic_campaign: Automatic campaign object
+    """
+    try:
+        from django.utils import timezone
+
+        logger.info(f"💾 Storing Brand Analytics data for brand: {brand.name}")
+
+        # Store communities (link to brand + automatic campaign)
+        for community_data in collected_data.get("communities", []):
+            community, created = Community.objects.get_or_create(
+                name=community_data["name"],
+                platform=community_data["platform"],
+                brand=brand,  # Link to brand
+                campaign=automatic_campaign,  # Link to automatic campaign
+                defaults={
+                    "url": community_data["url"],
+                    "member_count": community_data["member_count"],
+                    "echo_score": community_data["echo_score"],
+                    "echo_score_change": community_data.get("echo_score_change", 0.0),
+                    "description": f"Brand Analytics - Community for {brand.name}",
+                    "is_active": True,
+                    "last_analyzed": timezone.now(),
+                    "category": community_data.get("category", "general"),
+                    "language": community_data.get("language", "en"),
+                    "activity_score": community_data.get("activity_score", 0.0),
+                    "threads_last_4_weeks": community_data.get("threads_last_4_weeks", 0),
+                    "avg_engagement_rate": community_data.get("avg_engagement_rate", 0.0),
+                    "echo_score_delta": community_data.get("echo_score_delta", 0.0)
+                }
+            )
+
+            if not created:
+                # Update existing community with new data
+                old_echo_score = community.echo_score or 0.0
+                new_echo_score = community_data["echo_score"]
+
+                community.echo_score = new_echo_score
+                community.echo_score_change = round(
+                    ((new_echo_score - old_echo_score) / max(old_echo_score, 0.1)) * 100, 1
+                )
+                community.member_count = community_data["member_count"]
+                community.last_analyzed = timezone.now()
+                community.activity_score = community_data.get("activity_score", community.activity_score)
+                community.save()
+
+        # Store pain points extracted from threads (link each to correct community)
+        # Group threads by community to extract community-specific pain points
+        import re
+        from collections import defaultdict
+        community_threads = defaultdict(list)
+
+        for thread_data in collected_data.get("threads", []):
+            community_name = thread_data.get("community")
+            if community_name:
+                community_threads[community_name].append(thread_data)
+
+        # Extract pain points per community from their threads
+        for community_name, threads in community_threads.items():
+            community = Community.objects.filter(
+                name=community_name,
+                brand=brand,
+                campaign=automatic_campaign
+            ).first()
+
+            if not community:
+                logger.warning(f"Community '{community_name}' not found for pain point extraction")
+                continue
+
+            # Extract pain points from this community's threads
+            community_content = []
+            for thread in threads:
+                content = f"{thread.get('title', '')} {thread.get('content', '')}"
+                community_content.append(content)
+
+            # Define expanded pain point patterns (10+ patterns for better coverage)
+            pain_point_patterns = {
+                "quality_issues": r'\b(?:poor quality|cheap|flimsy|breaks|broken|defective|falls apart|low quality)\b',
+                "sizing_problems": r'\b(?:sizing|size|fit|too small|too large|runs small|runs big|doesn\'t fit|wrong size)\b',
+                "durability": r'\b(?:durability|wearing out|wears out|doesn\'t last|fading|worn|tearing|ripped)\b',
+                "customer_service": r'\b(?:customer service|support|unhelpful|slow response|rude|no reply|ignored)\b',
+                "shipping": r'\b(?:shipping|delivery|late|delayed|never arrived|lost|damaged)\b',
+                "price_value": r'\b(?:expensive|overpriced|too much|costly|not worth|waste of money|ripoff)\b',
+                "comfort": r'\b(?:uncomfortable|hurts|painful|tight|stiff|irritating|chafing)\b',
+                "design_issues": r'\b(?:design|ugly|looks bad|poorly designed|weird|strange|odd)\b',
+                "material_problems": r'\b(?:material|fabric|leather|plastic|rubber|feels bad|texture)\b',
+                "performance": r'\b(?:performance|doesn\'t work|failed|useless|ineffective|disappointing)\b'
+            }
+
+            # Extract pain points for this community
+            combined_content = " ".join(community_content).lower()
+
+            for keyword, pattern in pain_point_patterns.items():
+                matches = re.findall(pattern, combined_content, re.IGNORECASE)
+
+                if matches:
+                    mention_count = len(matches)
+                    week_num = 4  # Default to current week
+
+                    # Calculate metrics
+                    growth_percentage = min(mention_count * 10, 100)
+                    heat_level = min(mention_count // 2 + 1, 5)
+                    sentiment_score = -0.3  # Default negative for pain points
+
+                    PainPoint.objects.update_or_create(
+                        keyword=keyword.replace("_", " ").title(),
+                        campaign=automatic_campaign,
+                        brand=brand,
+                        community=community,  # Link to correct community
+                        defaults={
+                            "mention_count": mention_count,
+                            "growth_percentage": growth_percentage,
+                            "sentiment_score": sentiment_score,
+                            "heat_level": heat_level,
+                            "week_number": week_num,
+                            "example_content": matches[0][:500] if matches else "",
+                            "related_keywords": matches[:3],
+                            "first_seen": timezone.now(),
+                            "last_seen": timezone.now()
+                        }
+                    )
+
+        # Store threads (link to brand + automatic campaign)
+        from datetime import timedelta
+        from agents.scout_data_collection import calculate_week_number
+
+        collection_start = timezone.now() - timedelta(weeks=4)
+
+        for thread_data in collected_data.get("threads", []):
+            community = Community.objects.filter(
+                name=thread_data.get("community"),
+                brand=brand,
+                campaign=automatic_campaign
+            ).first()
+
+            if community:
+                thread_tokens = len(thread_data.get("content", "")) // 4
+                published_at_raw = thread_data.get("created_at", timezone.now())
+
+                # Parse published_at
+                if isinstance(published_at_raw, str):
+                    from dateutil import parser as date_parser
+                    try:
+                        published_at = date_parser.parse(published_at_raw)
+                        if published_at.tzinfo is None:
+                            published_at = timezone.make_aware(published_at)
+                    except Exception:
+                        published_at = timezone.now()
+                else:
+                    published_at = published_at_raw
+
+                week_num = calculate_week_number(published_at, collection_start)
+
+                # Use unique_together fields (thread_id, community) for lookup
+                Thread.objects.update_or_create(
+                    thread_id=thread_data["thread_id"],
+                    community=community,
+                    defaults={
+                        "title": thread_data["title"],
+                        "content": thread_data["content"][:2000],
+                        "campaign": automatic_campaign,
+                        "brand": brand,  # Link to brand
+                        "author": thread_data.get("author", "unknown"),
+                        "comment_count": thread_data.get("reply_count", 0),
+                        "upvotes": thread_data.get("upvotes", 0),
+                        "echo_score": thread_data.get("echo_score", 0.0),
+                        "sentiment_score": thread_data.get("sentiment_score", 0.0),
+                        "published_at": published_at,
+                        "analyzed_at": timezone.now(),
+                        "week_number": week_num,
+                        "token_count": thread_tokens,
+                        "processing_cost": thread_tokens * 0.00001
+                    }
+                )
+
+        # Store influencers (link to brand + automatic campaign)
+        influencer_count = _extract_and_store_influencers(collected_data, automatic_campaign, brand.name)
+
+        # Generate Brand Analytics insights using LLM
+        import asyncio
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(
+                lambda: asyncio.run(_generate_and_store_brand_analytics_insights(collected_data, automatic_campaign, brand.name))
+            )
+            future.result()
+
+        logger.info(f"✅ Brand Analytics data stored successfully for brand '{brand.name}'")
+        logger.info(f"📊 Stored: {len(collected_data.get('communities', []))} communities, "
+                   f"{len(collected_data.get('pain_points', []))} pain points, "
+                   f"{len(collected_data.get('threads', []))} threads, "
+                   f"{influencer_count} influencers")
+
+    except Exception as e:
+        logger.error(f"❌ Error storing Brand Analytics data: {e}", exc_info=True)
+
+
+def store_custom_campaign_data(collected_data: Dict[str, Any], brand, campaign) -> None:
+    """
+    Store data for Custom Campaign ONLY.
+    Links all data to the specific custom campaign.
+    Takes campaign objectives (from description) into account.
+
+    Args:
+        collected_data: Data collected by scout agent
+        brand: Brand object
+        campaign: Custom campaign object
+    """
+    try:
+        from django.utils import timezone
+
+        logger.info(f"💾 Storing Custom Campaign data for campaign: {campaign.name}")
+        logger.info(f"📋 Campaign Objectives: {campaign.description[:100] if campaign.description else 'None'}")
+
+        # Store campaign objectives in metadata for reference
+        if campaign.description:
+            if not campaign.metadata:
+                campaign.metadata = {}
+            campaign.metadata['objectives'] = campaign.description
+            campaign.save()
+
+        # Store communities (link to this campaign)
+        for community_data in collected_data.get("communities", []):
+            community, created = Community.objects.get_or_create(
+                name=community_data["name"],
+                platform=community_data["platform"],
+                brand=brand,  # Link to brand
+                campaign=campaign,  # Link to THIS campaign
+                defaults={
+                    "url": community_data["url"],
+                    "member_count": community_data["member_count"],
+                    "echo_score": community_data["echo_score"],
+                    "echo_score_change": community_data.get("echo_score_change", 0.0),
+                    "description": f"Custom Campaign: {campaign.name} - {community_data['name']}",
+                    "is_active": True,
+                    "last_analyzed": timezone.now(),
+                    "category": community_data.get("category", "custom_campaign"),
+                    "language": community_data.get("language", "en"),
+                    "activity_score": community_data.get("activity_score", 0.0),
+                    "threads_last_4_weeks": community_data.get("threads_last_4_weeks", 0),
+                    "avg_engagement_rate": community_data.get("avg_engagement_rate", 0.0),
+                    "echo_score_delta": community_data.get("echo_score_delta", 0.0)
+                }
+            )
+
+            if not created:
+                old_echo_score = community.echo_score or 0.0
+                new_echo_score = community_data["echo_score"]
+
+                community.echo_score = new_echo_score
+                community.echo_score_change = round(
+                    ((new_echo_score - old_echo_score) / max(old_echo_score, 0.1)) * 100, 1
+                )
+                community.member_count = community_data["member_count"]
+                community.last_analyzed = timezone.now()
+                community.save()
+
+        # Store pain points (link to this campaign with objectives context)
+        for pain_point_data in collected_data.get("pain_points", []):
+            community = Community.objects.filter(
+                brand=brand,
+                campaign=campaign,
+                platform__in=["reddit", "forum", "tech_forums", "review_sites"]
+            ).first()
+
+            if community:
+                week_num = pain_point_data.get("week_number", 4)
+
+                PainPoint.objects.update_or_create(
+                    keyword=pain_point_data["keyword"],
+                    campaign=campaign,
+                    brand=brand,  # Link to brand
+                    community=community,
+                    defaults={
+                        "mention_count": pain_point_data["mention_count"],
+                        "growth_percentage": pain_point_data["growth_percentage"],
+                        "sentiment_score": pain_point_data["sentiment_score"],
+                        "heat_level": pain_point_data["heat_level"],
+                        "week_number": week_num,
+                        "example_content": pain_point_data.get("example", "")[:500],
+                        "related_keywords": pain_point_data.get("related_keywords", []),
+                        "first_seen": timezone.now(),
+                        "last_seen": timezone.now()
+                    }
+                )
+
+        # Store threads (link to this campaign)
+        from datetime import timedelta
+        from agents.scout_data_collection import calculate_week_number
+
+        collection_start = timezone.now() - timedelta(weeks=4)
+
+        for thread_data in collected_data.get("threads", []):
+            community = Community.objects.filter(
+                name=thread_data.get("community"),
+                brand=brand,
+                campaign=campaign
+            ).first()
+
+            if community:
+                thread_tokens = len(thread_data.get("content", "")) // 4
+                published_at_raw = thread_data.get("created_at", timezone.now())
+
+                # Parse published_at
+                if isinstance(published_at_raw, str):
+                    from dateutil import parser as date_parser
+                    try:
+                        published_at = date_parser.parse(published_at_raw)
+                        if published_at.tzinfo is None:
+                            published_at = timezone.make_aware(published_at)
+                    except Exception:
+                        published_at = timezone.now()
+                else:
+                    published_at = published_at_raw
+
+                week_num = calculate_week_number(published_at, collection_start)
+
+                Thread.objects.update_or_create(
+                    thread_id=thread_data["thread_id"],
+                    campaign=campaign,
+                    brand=brand,  # Link to brand
+                    defaults={
+                        "title": thread_data["title"],
+                        "content": thread_data["content"][:2000],
+                        "community": community,
+                        "author": thread_data.get("author", "unknown"),
+                        "comment_count": thread_data.get("reply_count", 0),
+                        "upvotes": thread_data.get("upvotes", 0),
+                        "echo_score": thread_data.get("echo_score", 0.0),
+                        "sentiment_score": thread_data.get("sentiment_score", 0.0),
+                        "published_at": published_at,
+                        "analyzed_at": timezone.now(),
+                        "week_number": week_num,
+                        "token_count": thread_tokens,
+                        "processing_cost": thread_tokens * 0.00001
+                    }
+                )
+
+        # Store influencers (link to this campaign)
+        influencer_count = _extract_and_store_influencers(collected_data, campaign, brand.name)
+
+        # Generate Custom Campaign insights using LLM (with campaign objectives)
+        import asyncio
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(
+                lambda: asyncio.run(_generate_and_store_custom_campaign_insights(
+                    collected_data, campaign, brand.name
+                ))
+            )
+            future.result()
+
+        logger.info(f"✅ Custom Campaign data stored successfully for campaign '{campaign.name}'")
+        logger.info(f"📊 Stored: {len(collected_data.get('communities', []))} communities, "
+                   f"{len(collected_data.get('pain_points', []))} pain points, "
+                   f"{len(collected_data.get('threads', []))} threads, "
+                   f"{influencer_count} influencers")
+
+    except Exception as e:
+        logger.error(f"❌ Error storing Custom Campaign data: {e}", exc_info=True)
 
 
 # Remove all the old simulated data collection functions that were duplicated

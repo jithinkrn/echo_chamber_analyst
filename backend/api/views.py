@@ -831,62 +831,86 @@ def dashboard_overview_brand_filtered(request):
 
 
 def get_brand_dashboard_kpis(brand_id, date_from, date_to):
-    """Calculate KPI metrics for a specific brand."""
+    """Calculate KPI metrics for a specific brand - Brand Analytics ONLY."""
     from datetime import datetime, timedelta
     from django.db.models import Count, Avg, Sum
     from common.models import Campaign, Community, PainPoint, Thread
-    
-    # Get brand-specific campaigns
-    brand_campaigns = Campaign.objects.filter(brand_id=brand_id, status='active')
-    active_campaigns_count = brand_campaigns.count()
-    
-    # Get brand-specific communities
+
+    # ✅ FIX: Get automatic campaign only (Brand Analytics)
+    automatic_campaign = Campaign.objects.filter(
+        brand_id=brand_id,
+        campaign_type='automatic',
+        status='active'
+    ).first()
+
+    if not automatic_campaign:
+        # No automatic campaign - return zero metrics
+        return {
+            "active_campaigns": 0,
+            "high_echo_communities": 0,
+            "high_echo_change_percent": 0.0,
+            "new_pain_points_above_50": 0,
+            "new_pain_points_change": 0.0,
+            "positivity_ratio": 0.0,
+            "positivity_change_pp": 0.0,
+            "llm_tokens_used": 0,
+            "llm_cost_usd": 0.0
+        }
+
+    active_campaigns_count = 1  # Only the automatic campaign
+
+    # ✅ FIX: Get brand-specific communities (Brand Analytics only)
     brand_communities = Community.objects.filter(
-        # Assuming communities are linked through campaigns or threads
+        brand_id=brand_id,
+        campaign=automatic_campaign,
         echo_score__gte=7.0,
         is_active=True
     )
     high_echo_communities_count = brand_communities.count()
-    
+
     # Calculate high echo communities change
     seven_days_ago = datetime.now() - timedelta(days=7)
     previous_high_echo = brand_communities.filter(
         last_analyzed__lt=seven_days_ago
     ).count()
-    
+
     high_echo_change = 0
     if previous_high_echo > 0:
         high_echo_change = ((high_echo_communities_count - previous_high_echo) / previous_high_echo) * 100
-    
-    # Get brand-specific pain points
+
+    # ✅ FIX: Get brand-specific pain points (Brand Analytics only)
     brand_pain_points = PainPoint.objects.filter(
+        brand_id=brand_id,
+        campaign=automatic_campaign,
         growth_percentage__gte=50,
         created_at__gte=seven_days_ago
-        # Add brand filtering logic based on your data model
     )
     high_growth_pain_points = brand_pain_points.count()
-    
-    # Calculate positivity ratio from brand-related threads
+
+    # ✅ FIX: Calculate positivity ratio from brand-related threads (Brand Analytics only)
     brand_threads = Thread.objects.filter(
+        brand_id=brand_id,
+        campaign=automatic_campaign,
         analyzed_at__gte=seven_days_ago
-        # Add brand filtering logic
     )
-    
+
     if brand_threads.exists():
         avg_sentiment = brand_threads.aggregate(avg_sentiment=Avg('sentiment_score'))['avg_sentiment'] or 0
         positivity_ratio = max(0, min(100, (avg_sentiment + 1) * 50))
     else:
-        positivity_ratio = 0.0  # No data yet - return 0 instead of hardcoded value
+        positivity_ratio = 0.0
 
-    # Get LLM token usage for brand campaigns
-    brand_token_usage = brand_threads.aggregate(total_tokens=Sum('token_count'))['total_tokens'] or 0  # No data yet - return 0
-    brand_cost = brand_threads.aggregate(total_cost=Sum('processing_cost'))['total_cost'] or 0.0  # No data yet - return 0
+    # ✅ FIX: Get LLM token usage for Brand Analytics
+    brand_token_usage = brand_threads.aggregate(total_tokens=Sum('token_count'))['total_tokens'] or 0
+    brand_cost = brand_threads.aggregate(total_cost=Sum('processing_cost'))['total_cost'] or 0.0
     
     # Calculate change metrics by comparing current vs 24h ago
     twenty_four_hours_ago = datetime.now() - timedelta(hours=24)
 
-    # 1. Pain points change (current vs 24h ago)
+    # 1. Pain points change (current vs 24h ago) - Brand Analytics only
     previous_pain_points = PainPoint.objects.filter(
+        brand_id=brand_id,
+        campaign=automatic_campaign,
         growth_percentage__gte=50,
         created_at__lt=twenty_four_hours_ago,
         created_at__gte=seven_days_ago
@@ -898,8 +922,10 @@ def get_brand_dashboard_kpis(brand_id, date_from, date_to):
     elif high_growth_pain_points > 0:
         pain_points_change = 100  # If we had 0 before and now we have some, that's 100% increase
 
-    # 2. Positivity ratio change (current vs 24h ago)
+    # 2. Positivity ratio change (current vs 24h ago) - Brand Analytics only
     previous_threads = Thread.objects.filter(
+        brand_id=brand_id,
+        campaign=automatic_campaign,
         analyzed_at__gte=seven_days_ago,
         analyzed_at__lt=twenty_four_hours_ago
     )
@@ -924,18 +950,25 @@ def get_brand_dashboard_kpis(brand_id, date_from, date_to):
 
 
 def get_brand_top_pain_points(brand_id, date_from, date_to):
-    """Get top growing pain points for a specific brand."""
+    """Get top growing pain points for a specific brand - Brand Analytics ONLY."""
     from common.models import PainPoint
-    
-    # Get brand campaigns
-    brand_campaigns = Campaign.objects.filter(brand_id=brand_id)
-    
-    # Get pain points with highest growth percentage
+
+    # ✅ FIX: Get automatic campaign only (Brand Analytics)
+    automatic_campaign = Campaign.objects.filter(
+        brand_id=brand_id,
+        campaign_type='automatic'
+    ).first()
+
+    if not automatic_campaign:
+        return []
+
+    # ✅ FIX: Get pain points for Brand Analytics only
     top_pain_points = PainPoint.objects.filter(
-        campaign__in=brand_campaigns,
+        brand_id=brand_id,
+        campaign=automatic_campaign,
         growth_percentage__gt=0  # Only growing pain points
     ).order_by('-growth_percentage')[:5]
-    
+
     return [
         {
             'keyword': pp.keyword,
@@ -947,7 +980,7 @@ def get_brand_top_pain_points(brand_id, date_from, date_to):
 
 
 def get_brand_heatmap_data(brand_id, date_from, date_to):
-    """Get dual heatmap data for a specific brand.
+    """Get dual heatmap data for a specific brand - Brand Analytics ONLY.
 
     Returns:
         dict with two heat map types:
@@ -959,13 +992,23 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
     from django.db.models import Count, Avg, Sum, Q
     from collections import defaultdict
 
-    # Get brand campaigns
-    brand_campaigns = Campaign.objects.filter(brand_id=brand_id)
+    # ✅ FIX: Get automatic campaign only (Brand Analytics)
+    automatic_campaign = Campaign.objects.filter(
+        brand_id=brand_id,
+        campaign_type='automatic'
+    ).first()
 
-    # Get pain points from brand campaigns
+    if not automatic_campaign:
+        return {
+            'community_pain_point_matrix': [],
+            'time_series_pain_points': []
+        }
+
+    # ✅ FIX: Get pain points from Brand Analytics only
     all_brand_pain_points = PainPoint.objects.filter(
-        campaign__in=brand_campaigns,
-        heat_level__gte=3  # Only show significant pain points
+        brand_id=brand_id,
+        campaign=automatic_campaign
+        # Removed heat_level filter to show all pain points
     ).select_related('community').order_by('-heat_level', '-growth_percentage')
 
     # === TYPE A: Community × Pain Point Matrix (heat = mention count) ===
@@ -973,10 +1016,16 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
     community_matrix = []
     communities_processed = set()
 
-    # Get top 4 communities by activity score (prioritizing active communities)
+    # ✅ FIX: Get communities that have pain points for this brand/campaign
+    # First get community IDs that have pain points
+    community_ids_with_pain_points = all_brand_pain_points.values_list('community_id', flat=True).distinct()
+
+    # Then get the top 4 communities by activity
     top_communities = Community.objects.filter(
-        pain_points__campaign__in=brand_campaigns
-    ).distinct().order_by('-activity_score', '-echo_score')[:4]  # CHANGED: Top 4 instead of 5
+        id__in=community_ids_with_pain_points,
+        brand_id=brand_id,
+        campaign=automatic_campaign
+    ).order_by('-activity_score', '-echo_score')[:4]
 
     for community in top_communities:
         # Get top pain points for this community
@@ -1032,9 +1081,10 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
     total_mentions_series = []
     for bucket in time_buckets:
         total_count = Thread.objects.filter(
-            campaign__in=brand_campaigns,
-            created_at__gte=bucket['start'],
-            created_at__lt=bucket['end']
+            campaign=automatic_campaign,
+            brand_id=brand_id,
+            published_at__gte=bucket['start'],
+            published_at__lt=bucket['end']
         ).count()
         total_mentions_series.append({
             'label': bucket['week_label'],
@@ -1052,17 +1102,19 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
         for bucket in time_buckets:
             # Count mentions in this time bucket across all communities
             mentions_count = Thread.objects.filter(
-                campaign__in=brand_campaigns,
-                created_at__gte=bucket['start'],
-                created_at__lt=bucket['end'],
+                campaign=automatic_campaign,
+                brand_id=brand_id,
+                published_at__gte=bucket['start'],
+                published_at__lt=bucket['end'],
                 content__icontains=keyword
             ).count()
 
             # Get average sentiment for this keyword in this time period
             avg_sentiment = Thread.objects.filter(
-                campaign__in=brand_campaigns,
-                created_at__gte=bucket['start'],
-                created_at__lt=bucket['end'],
+                campaign=automatic_campaign,
+                brand_id=brand_id,
+                published_at__gte=bucket['start'],
+                published_at__lt=bucket['end'],
                 content__icontains=keyword
             ).aggregate(avg_sentiment=Avg('sentiment_score'))['avg_sentiment'] or 0.0
 
@@ -1108,32 +1160,41 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
 
 
 def get_brand_community_watchlist(brand_id):
-    """Get community watchlist for a specific brand."""
+    """Get community watchlist for a specific brand - Brand Analytics ONLY."""
     from common.models import Community, Thread
     from datetime import timedelta
-    
-    # Get communities where brand is discussed
-    brand_campaigns = Campaign.objects.filter(brand_id=brand_id)
-    
-    # Get communities with brand-related threads
+
+    # ✅ FIX: Get automatic campaign only (Brand Analytics)
+    automatic_campaign = Campaign.objects.filter(
+        brand_id=brand_id,
+        campaign_type='automatic'
+    ).first()
+
+    if not automatic_campaign:
+        return []
+
+    # ✅ FIX: Get communities for Brand Analytics only
     brand_communities = Community.objects.filter(
-        threads__campaign__in=brand_campaigns,
-        is_active=True,
-        echo_score__gte=6.0  # Only communities with significant echo
+        brand_id=brand_id,
+        campaign=automatic_campaign,
+        is_active=True
+        # Removed echo_score filter to show all communities
     ).distinct().order_by('-echo_score')[:5]
-    
+
     watchlist_data = []
     for rank, community in enumerate(brand_communities, 1):
-        # Get recent thread count for this community
+        # ✅ FIX: Get recent thread count for Brand Analytics only
         recent_threads = Thread.objects.filter(
             community=community,
-            campaign__in=brand_campaigns,
-            created_at__gte=timezone.now() - timedelta(days=7)
+            brand_id=brand_id,
+            campaign=automatic_campaign,
+            published_at__gte=timezone.now() - timedelta(days=28)  # Last 4 weeks
         ).count()
-        
-        # Get top influencer from this community
+
+        # ✅ FIX: Get top influencer for Brand Analytics only
         top_influencer = community.influencers.filter(
-            campaign__in=brand_campaigns
+            brand_id=brand_id,
+            campaign=automatic_campaign
         ).order_by('-influence_score').first()
         
         watchlist_data.append({
@@ -1154,15 +1215,22 @@ def get_brand_community_watchlist(brand_id):
 
 
 def get_brand_influencer_pulse(brand_id):
-    """Get influencer pulse for a specific brand."""
+    """Get influencer pulse for a specific brand - Brand Analytics ONLY."""
     from common.models import Influencer
-    
-    # Get brand campaigns
-    brand_campaigns = Campaign.objects.filter(brand_id=brand_id)
-    
-    # Get influencers with reach < 50k who discuss the brand
+
+    # ✅ FIX: Get automatic campaign only (Brand Analytics)
+    automatic_campaign = Campaign.objects.filter(
+        brand_id=brand_id,
+        campaign_type='automatic'
+    ).first()
+
+    if not automatic_campaign:
+        return []
+
+    # ✅ FIX: Get influencers for Brand Analytics only
     brand_influencers = Influencer.objects.filter(
-        campaign__in=brand_campaigns,
+        brand_id=brand_id,
+        campaign=automatic_campaign,
         reach__lt=50000,  # Less than 50k followers
         reach__gt=0
     ).order_by('-engagement_rate')[:5]
@@ -1184,27 +1252,31 @@ def get_brand_influencer_pulse(brand_id):
 
 
 def get_brand_campaign_analytics(brand_id, date_from, date_to):
-    """Get campaign analytics for a specific brand, including campaign insights."""
+    """Get campaign analytics for a specific brand - Custom Campaigns ONLY."""
     from datetime import datetime, timedelta
     from django.db.models import Count, Avg, Sum
 
-    brand_campaigns = Campaign.objects.filter(brand_id=brand_id)
+    # ✅ FIX: Get custom campaigns only (NOT automatic campaigns)
+    custom_campaigns = Campaign.objects.filter(
+        brand_id=brand_id,
+        campaign_type='custom'  # Only custom campaigns
+    )
 
     # Campaign performance metrics
-    total_campaigns = brand_campaigns.count()
-    active_campaigns = brand_campaigns.filter(status='active').count()
-    completed_campaigns = brand_campaigns.filter(status='completed').count()
+    total_campaigns = custom_campaigns.count()
+    active_campaigns = custom_campaigns.filter(status='active').count()
+    completed_campaigns = custom_campaigns.filter(status='completed').count()
 
     # Budget analytics
-    total_budget = brand_campaigns.aggregate(total=Sum('daily_budget'))['total'] or 0
-    total_spent = brand_campaigns.aggregate(total=Sum('current_spend'))['total'] or 0
+    total_budget = custom_campaigns.aggregate(total=Sum('daily_budget'))['total'] or 0
+    total_spent = custom_campaigns.aggregate(total=Sum('current_spend'))['total'] or 0
 
-    # Get campaign insights from the latest campaign with insights
+    # ✅ FIX: Get campaign insights from the latest CUSTOM campaign with insights
     campaign_insights = []
     campaign_data_summary = {}
 
-    # Look for campaigns with insights in metadata (most recent first)
-    campaigns_with_insights = brand_campaigns.filter(
+    # Look for custom campaigns with insights in metadata (most recent first)
+    campaigns_with_insights = custom_campaigns.filter(
         metadata__insights__isnull=False
     ).exclude(
         metadata__insights=[]
@@ -1220,12 +1292,12 @@ def get_brand_campaign_analytics(brand_id, date_from, date_to):
         'total_campaigns': total_campaigns,
         'active_campaigns': active_campaigns,
         'completed_campaigns': completed_campaigns,
-        'paused_campaigns': brand_campaigns.filter(status='paused').count(),
+        'paused_campaigns': custom_campaigns.filter(status='paused').count(),
         'total_budget': float(total_budget),
         'total_spent': float(total_spent),
         'budget_utilization': round((total_spent / total_budget * 100) if total_budget > 0 else 0, 1),
         'recent_campaigns': [],
-        'insights': campaign_insights,  # Campaign-specific insights
+        'insights': campaign_insights,  # Custom Campaign insights only
         'data_summary': campaign_data_summary  # Data summary for insights context
     }
 
@@ -1534,6 +1606,11 @@ def control_brand_analysis(request, brand_id):
                 # Get system settings for auto campaign interval
                 from common.models import SystemSettings
                 settings = SystemSettings.get_settings()
+                from datetime import timedelta
+
+                # Calculate first run times
+                now = timezone.now()
+                next_run = now + timedelta(seconds=settings.auto_campaign_interval)
 
                 # Create a new automatic campaign for analysis
                 # Automatic campaigns have NO end_date (run indefinitely until stopped)
@@ -1542,36 +1619,49 @@ def control_brand_analysis(request, brand_id):
                     brand=brand,
                     owner=owner,
                     status='active',
+                    campaign_type='automatic',  # ✅ NEW: Set campaign type
                     schedule_enabled=True,
                     schedule_interval=settings.auto_campaign_interval,  # Use auto campaign interval from settings
                     description=f"Automatic brand analytics campaign for {brand.name}",
-                    start_date=timezone.now(),
+                    start_date=now,
                     end_date=None,  # No end date - runs until manually stopped
+                    last_run_at=now,  # Mark as running now
+                    next_run_at=next_run,  # Schedule next run
                     metadata={'is_auto_campaign': True}  # Mark as automatic
                 )
                 logger.info(f"📋 Created new automatic campaign for brand {brand.name}: {campaign.id} (interval: {settings.auto_campaign_interval}s)")
+                logger.info(f"⏰ First run: NOW, Next run: {next_run}")
             else:
                 # Reactivate the existing automatic campaign (if paused)
+                from datetime import timedelta
+                now = timezone.now()
+                next_run = now + timedelta(seconds=campaign.schedule_interval)
+
                 campaign.status = 'active'
                 campaign.schedule_enabled = True
                 if not campaign.start_date:
-                    campaign.start_date = timezone.now()
+                    campaign.start_date = now
+                campaign.last_run_at = now  # Mark as running now
+                campaign.next_run_at = next_run  # Schedule next run
                 campaign.save()
                 logger.info(f"📋 Reactivated automatic campaign for brand {brand.name}: {campaign.id}")
+                logger.info(f"⏰ First run: NOW, Next run: {next_run}")
 
-            # Schedule Celery task (NON-BLOCKING, RETURNS IMMEDIATELY)
-            from agents.tasks import scout_reddit_task
-            task_result = scout_reddit_task.delay(campaign_id=campaign.id)
+            # ✅ FIX: Run immediately on start using Brand Analytics task
+            from agents.tasks import scout_brand_analytics_task
+            task_result = scout_brand_analytics_task.delay(brand_id=brand.id)
 
-            logger.info(f"📅 Scheduled scout task for brand {brand.name}: {task_result.id}")
+            logger.info(f"🚀 Running Brand Analytics immediately for brand {brand.name}: {task_result.id}")
 
             response_data = {
                 'brand_id': brand.id,
                 'brand_name': brand.name,
                 'campaign_id': campaign.id,
-                'analysis_status': 'scheduled',
+                'analysis_status': 'running',
                 'task_id': str(task_result.id),
-                'message': 'Scout analysis scheduled in background. Use /api/v1/tasks/{task_id}/status/ to check progress.'
+                'schedule_interval': campaign.schedule_interval,
+                'next_run_at': campaign.next_run_at.isoformat() if campaign.next_run_at else None,
+                'message': f'Campaign started! Running first analysis now, then automatically every {campaign.schedule_interval}s. Use /api/v1/tasks/{{task_id}}/status/ to check progress.'
             }
 
             return Response(response_data, status=status.HTTP_202_ACCEPTED)  # 202 = Accepted (processing async)
@@ -1913,12 +2003,17 @@ def get_brand_influencers(request, brand_id):
         limit = int(request.GET.get('limit', 20))
         min_score = float(request.GET.get('min_score', 0.0))
         campaign_id = request.GET.get('campaign')
+        community_name = request.GET.get('community')  # NEW: Filter by community
 
         # Build query
         query = Influencer.objects.filter(brand=brand, influence_score__gte=min_score)
 
         if campaign_id:
             query = query.filter(campaign_id=campaign_id)
+
+        # NEW: Filter by community name if provided
+        if community_name:
+            query = query.filter(community__name=community_name)
 
         # Get influencers sorted by influence score
         influencers = query.order_by('-influence_score')[:limit]
@@ -1975,7 +2070,8 @@ def get_brand_influencers(request, brand_id):
             'filters': {
                 'limit': limit,
                 'min_score': min_score,
-                'campaign_id': campaign_id
+                'campaign_id': campaign_id,
+                'community': community_name  # NEW: Include community filter
             }
         })
 
@@ -2025,21 +2121,42 @@ def get_brand_analysis_summary(request, brand_id):
                 }
             )
 
-        # Generate AI-powered insights based on Brand Analytics data
-        from agents.analyst import generate_ai_powered_insights_from_brand_analytics
+        # ✅ FIX: Get AI-powered insights from automatic campaign metadata (if already generated)
+        automatic_campaign = Campaign.objects.filter(
+            brand_id=brand_id,
+            campaign_type='automatic'
+        ).first()
 
-        try:
-            ai_insights = generate_ai_powered_insights_from_brand_analytics(
-                brand=brand,
-                kpis=brand_kpis,
-                communities=brand_communities,
-                pain_points=brand_pain_points,
-                influencers=brand_influencers
-            )
-        except Exception as insight_error:
-            logger.error(f"Error generating AI insights: {insight_error}")
-            # Fallback to empty insights if AI generation fails
-            ai_insights = []
+        ai_insights = []
+        if automatic_campaign and automatic_campaign.metadata.get('ai_insights'):
+            # Use stored insights from automatic campaign
+            ai_insights = automatic_campaign.metadata.get('ai_insights', [])
+            logger.info(f"📊 Retrieved {len(ai_insights)} stored AI insights for Brand Analytics")
+        else:
+            # Generate new AI-powered insights based on Brand Analytics data
+            from agents.analyst import generate_ai_powered_insights_from_brand_analytics
+
+            try:
+                ai_insights = generate_ai_powered_insights_from_brand_analytics(
+                    brand=brand,
+                    kpis=brand_kpis,
+                    communities=brand_communities,
+                    pain_points=brand_pain_points,
+                    influencers=brand_influencers
+                )
+
+                # Store generated insights in automatic campaign
+                if automatic_campaign:
+                    if not automatic_campaign.metadata:
+                        automatic_campaign.metadata = {}
+                    automatic_campaign.metadata['ai_insights'] = ai_insights
+                    automatic_campaign.save()
+                    logger.info(f"💾 Stored {len(ai_insights)} new AI insights in automatic campaign")
+
+            except Exception as insight_error:
+                logger.error(f"Error generating AI insights: {insight_error}")
+                # Fallback to empty insights if AI generation fails
+                ai_insights = []
 
         # Prepare summary data
         summary_data = {
@@ -2094,10 +2211,7 @@ def get_communities(request):
 
     try:
         if brand_id:
-            brand_campaigns = Campaign.objects.filter(brand_id=brand_id)
-            communities = Community.objects.filter(
-                thread__pain_points__campaign__in=brand_campaigns
-            ).distinct()
+            communities = Community.objects.filter(brand_id=brand_id).distinct()
         else:
             communities = Community.objects.all()
         
@@ -2126,8 +2240,7 @@ def get_pain_points(request):
     
     try:
         if brand_id:
-            brand_campaigns = Campaign.objects.filter(brand_id=brand_id)
-            pain_points = PainPoint.objects.filter(campaign__in=brand_campaigns)
+            pain_points = PainPoint.objects.filter(brand_id=brand_id)
         else:
             pain_points = PainPoint.objects.all()
         
@@ -2153,32 +2266,43 @@ def get_pain_points(request):
 def get_threads(request):
     """Get threads, optionally filtered by brand or community."""
     brand_id = request.GET.get('brand')
-    community_id = request.GET.get('community')
-    
+    community_param = request.GET.get('community')  # Can be ID or name
+
     try:
         threads = Thread.objects.all()
-        
+
         if brand_id:
-            brand_campaigns = Campaign.objects.filter(brand_id=brand_id)
-            threads = threads.filter(pain_points__campaign__in=brand_campaigns)
-        
-        if community_id:
-            threads = threads.filter(community_id=community_id)
-        
-        threads = threads.distinct()
-        
+            threads = threads.filter(brand_id=brand_id)
+
+        # NEW: Accept both community ID and community name
+        if community_param:
+            # Try to filter by name first (since frontend sends name)
+            threads = threads.filter(community__name=community_param)
+
+        threads = threads.distinct().order_by('-published_at')[:50]  # Limit to 50 most recent
+
+        # NEW: Return full thread data for modal display
         threads_data = [
             {
-                'id': t.id,
+                'id': str(t.id),
                 'thread_id': t.thread_id,
                 'title': t.title,
-                'echo_score': t.echo_score,
-                'sentiment_score': t.sentiment_score,
-                'platform': t.platform
+                'content': t.content,
+                'author': t.author,
+                'echo_score': float(t.echo_score),
+                'sentiment_score': float(t.sentiment_score),
+                'published_at': t.published_at.isoformat() if t.published_at else None,
+                'comment_count': t.comment_count,
+                'upvotes': t.upvotes,
+                'community': {
+                    'id': str(t.community.id),
+                    'name': t.community.name,
+                    'platform': t.community.platform
+                } if t.community else None
             }
             for t in threads
         ]
-        
+
         return Response({'threads': threads_data})
         
     except Exception as e:
@@ -2433,6 +2557,11 @@ def get_campaign_detail(request, campaign_id):
             # Update campaign
             data = request.data
 
+            # Track if status is changing from paused/inactive to active
+            old_status = campaign.status
+            new_status = data.get('status')
+            should_run_immediately = False
+
             # Update basic fields (but protect auto campaign name)
             if 'name' in data and not is_auto:
                 campaign.name = data['name']
@@ -2443,7 +2572,30 @@ def get_campaign_detail(request, campaign_id):
             if 'status' in data:
                 campaign.status = data['status']
 
+                # If reactivating a paused campaign, set it to run immediately
+                if old_status in ['paused', 'inactive'] and new_status == 'active':
+                    should_run_immediately = True
+                    now = timezone.now()
+                    next_run = now + timedelta(seconds=campaign.schedule_interval)
+
+                    campaign.schedule_enabled = True
+                    campaign.last_run_at = now
+                    campaign.next_run_at = next_run
+                    logger.info(f"📋 Reactivating campaign {campaign.name}: will run immediately")
+                    logger.info(f"⏰ First run: NOW, Next run: {next_run}")
+
             campaign.save()
+
+            # ✅ FIX: Run immediately if reactivating, using appropriate task based on campaign type
+            if should_run_immediately:
+                if campaign.campaign_type == 'automatic':
+                    from agents.tasks import scout_brand_analytics_task
+                    task_result = scout_brand_analytics_task.delay(brand_id=campaign.brand_id)
+                    logger.info(f"🚀 Running Brand Analytics immediately: {task_result.id}")
+                else:
+                    from agents.tasks import scout_custom_campaign_task
+                    task_result = scout_custom_campaign_task.delay(campaign_id=campaign.id)
+                    logger.info(f"🚀 Running Custom Campaign immediately: {task_result.id}")
 
             return Response({
                 'id': str(campaign.id),

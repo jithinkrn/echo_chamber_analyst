@@ -158,6 +158,13 @@ export default function Dashboard() {
   const [showBrandDropdown, setShowBrandDropdown] = useState(false);
   const [analysisSummary, setAnalysisSummary] = useState<any>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  // NEW: Modal states for threads and influencers
+  const [showThreadsModal, setShowThreadsModal] = useState(false);
+  const [showInfluencersModal, setShowInfluencersModal] = useState(false);
+  const [communityThreads, setCommunityThreads] = useState<any[]>([]);
+  const [communityInfluencers, setCommunityInfluencers] = useState<any[]>([]);
+  const [threadsLoading, setThreadsLoading] = useState(false);
+  const [influencersLoading, setInfluencersLoading] = useState(false);
 
   useEffect(() => {
     fetchBrands();
@@ -245,6 +252,56 @@ export default function Dashboard() {
       setAnalysisSummary(null);
     } finally {
       setSummaryLoading(false);
+    }
+  };
+
+  // NEW: Fetch threads for selected community
+  const fetchCommunityThreads = async (communityName: string) => {
+    if (!selectedBrand) return;
+
+    try {
+      setThreadsLoading(true);
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const url = `${API_BASE_URL}/api/threads/?brand=${selectedBrand}&community=${encodeURIComponent(communityName)}`;
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch threads');
+      }
+
+      const data = await response.json();
+      setCommunityThreads(data.threads || []);
+      setShowThreadsModal(true);
+    } catch (error) {
+      console.error('Error fetching community threads:', error);
+      setCommunityThreads([]);
+    } finally {
+      setThreadsLoading(false);
+    }
+  };
+
+  // NEW: Fetch influencers for selected community
+  const fetchCommunityInfluencers = async (communityName: string) => {
+    if (!selectedBrand) return;
+
+    try {
+      setInfluencersLoading(true);
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const url = `${API_BASE_URL}/api/brands/${selectedBrand}/influencers/?community=${encodeURIComponent(communityName)}`;
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch influencers');
+      }
+
+      const data = await response.json();
+      setCommunityInfluencers(data.influencers || []);
+      setShowInfluencersModal(true);
+    } catch (error) {
+      console.error('Error fetching community influencers:', error);
+      setCommunityInfluencers([]);
+    } finally {
+      setInfluencersLoading(false);
     }
   };
 
@@ -1202,13 +1259,155 @@ export default function Dashboard() {
 
               {/* Action Buttons */}
               <div className="flex gap-3">
-                <button className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
-                  View All Threads
+                <button
+                  onClick={() => fetchCommunityThreads(selectedCommunity.name)}
+                  disabled={threadsLoading}
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {threadsLoading ? 'Loading...' : 'View All Threads'}
                 </button>
-                <button className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors">
-                  View Influencers
+                <button
+                  onClick={() => fetchCommunityInfluencers(selectedCommunity.name)}
+                  disabled={influencersLoading}
+                  className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {influencersLoading ? 'Loading...' : 'View Influencers'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Threads Modal */}
+      {showThreadsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Threads from {selectedCommunity?.name}
+              </h2>
+              <button
+                onClick={() => setShowThreadsModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
+              {threadsLoading ? (
+                <div className="flex justify-center items-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                </div>
+              ) : communityThreads.length === 0 ? (
+                <p className="text-center text-gray-500 py-12">No threads found for this community</p>
+              ) : (
+                <div className="space-y-4">
+                  {communityThreads.map((thread: any, idx: number) => (
+                    <div key={idx} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-semibold text-gray-900 flex-1">{thread.title}</h3>
+                        <span className="text-xs text-gray-500 ml-4">
+                          {new Date(thread.published_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">{thread.content}</p>
+                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                        <span>By {thread.author}</span>
+                        <span>•</span>
+                        <span>Echo: {thread.echo_score?.toFixed(1)}</span>
+                        <span>•</span>
+                        <span className={thread.sentiment_score >= 0 ? 'text-green-600' : 'text-red-600'}>
+                          Sentiment: {thread.sentiment_score?.toFixed(2)}
+                        </span>
+                        <span>•</span>
+                        <span>{thread.comment_count} comments</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Influencers Modal */}
+      {showInfluencersModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Influencers in {selectedCommunity?.name}
+              </h2>
+              <button
+                onClick={() => setShowInfluencersModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
+              {influencersLoading ? (
+                <div className="flex justify-center items-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                </div>
+              ) : communityInfluencers.length === 0 ? (
+                <p className="text-center text-gray-500 py-12">No influencers found for this community</p>
+              ) : (
+                <div className="space-y-4">
+                  {communityInfluencers.map((influencer: any, idx: number) => (
+                    <div key={idx} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
+                          {influencer.display_name?.charAt(0).toUpperCase() || 'U'}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <h3 className="font-semibold text-gray-900">{influencer.display_name}</h3>
+                              <p className="text-sm text-gray-500">@{influencer.username}</p>
+                            </div>
+                            <span className="text-lg font-bold text-blue-600">
+                              {influencer.influence_score?.toFixed(1)}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-4 gap-3 mt-3">
+                            <div>
+                              <div className="text-xs text-gray-500">Posts</div>
+                              <div className="text-sm font-semibold text-gray-900">{influencer.total_posts}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500">Reach</div>
+                              <div className="text-sm font-semibold text-gray-900">{influencer.reach_score?.toFixed(0)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500">Authority</div>
+                              <div className="text-sm font-semibold text-gray-900">{influencer.authority_score?.toFixed(0)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500">Brand Mentions</div>
+                              <div className="text-sm font-semibold text-gray-900">{influencer.brand_mention_count}</div>
+                            </div>
+                          </div>
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className={`text-xs px-2 py-1 rounded ${
+                              influencer.sentiment_towards_brand >= 0.2 ? 'bg-green-100 text-green-800' :
+                              influencer.sentiment_towards_brand <= -0.2 ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              Sentiment: {influencer.sentiment_towards_brand?.toFixed(2)}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {influencer.brand_mention_rate?.toFixed(1)}% brand mention rate
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

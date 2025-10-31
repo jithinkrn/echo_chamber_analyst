@@ -91,11 +91,22 @@ class Campaign(BaseModel):
         ('error', 'Error'),
     ]
 
+    CAMPAIGN_TYPE_CHOICES = [
+        ('automatic', 'Automatic Brand Analytics'),
+        ('custom', 'Custom Campaign'),
+    ]
+
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     brand = models.ForeignKey(Brand, on_delete=models.CASCADE, related_name='campaigns', null=True, blank=True)
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='campaigns')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    campaign_type = models.CharField(
+        max_length=20,
+        choices=CAMPAIGN_TYPE_CHOICES,
+        default='custom',
+        help_text='Type of campaign: automatic (Brand Analytics) or custom (user-created)'
+    )
 
     # Target configuration
     keywords = models.JSONField(default=list)  # Keywords to search for
@@ -432,7 +443,7 @@ class AgentMetrics(BaseModel):
 
 class Community(BaseModel):
     """Online communities tracked for conversations."""
-    
+
     PLATFORM_CHOICES = [
         ('reddit', 'Reddit'),
         ('discord', 'Discord'),
@@ -440,7 +451,25 @@ class Community(BaseModel):
         ('forum', 'Forum'),
         ('twitter', 'Twitter'),
     ]
-    
+
+    # NEW: Link to brand and campaign for data separation
+    brand = models.ForeignKey(
+        Brand,
+        on_delete=models.CASCADE,
+        related_name='communities',
+        null=True,
+        blank=True,
+        help_text='Brand this community is tracked for (for Brand Analytics separation)'
+    )
+    campaign = models.ForeignKey(
+        Campaign,
+        on_delete=models.CASCADE,
+        related_name='communities',
+        null=True,
+        blank=True,
+        help_text='Campaign this community is tracked for (for data separation)'
+    )
+
     name = models.CharField(max_length=200)
     platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
     url = models.URLField()
@@ -464,7 +493,7 @@ class Community(BaseModel):
     class Meta:
         db_table = 'communities'
         verbose_name_plural = "Communities"
-        unique_together = ['platform', 'name']
+        unique_together = ['platform', 'name', 'campaign']  # UPDATED: Include campaign for separation
         ordering = ['-echo_score']
     
     def __str__(self):
@@ -477,6 +506,15 @@ class PainPoint(BaseModel):
     keyword = models.CharField(max_length=100)
     campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='pain_points')
     community = models.ForeignKey(Community, on_delete=models.CASCADE, related_name='pain_points')
+    # NEW: Link to brand for data separation
+    brand = models.ForeignKey(
+        Brand,
+        on_delete=models.CASCADE,
+        related_name='pain_points',
+        null=True,
+        blank=True,
+        help_text='Brand this pain point is tracked for (for Brand Analytics separation)'
+    )
 
     # Temporal tracking (NEW)
     week_number = models.IntegerField(null=True, blank=True)  # 1-4 for weekly bucketing
@@ -511,12 +549,21 @@ class PainPoint(BaseModel):
 
 class Thread(BaseModel):
     """Individual threads/posts from communities."""
-    
+
     thread_id = models.CharField(max_length=100)
     title = models.CharField(max_length=500)
     content = models.TextField()
     community = models.ForeignKey(Community, on_delete=models.CASCADE, related_name='threads')
     campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='threads')
+    # NEW: Link to brand for data separation
+    brand = models.ForeignKey(
+        Brand,
+        on_delete=models.CASCADE,
+        related_name='threads',
+        null=True,
+        blank=True,
+        help_text='Brand this thread is tracked for (for Brand Analytics separation)'
+    )
 
     # Temporal tracking (NEW)
     week_number = models.IntegerField(null=True, blank=True)  # 1-4 for weekly bucketing

@@ -25,6 +25,7 @@ from .orchestrator import workflow_orchestrator
 from .state import CampaignContext, create_initial_state
 from .scout_data_collection import collect_real_brand_data
 from .nodes import _store_real_dashboard_data
+from .campaign_completion import check_and_complete_campaigns  # Import to register with Celery
 
 logger = get_task_logger(__name__)
 
@@ -690,8 +691,15 @@ def check_and_execute_scheduled_campaigns(self):
                 campaign.next_run_at = next_run
                 campaign.save(update_fields=['last_run_at', 'next_run_at'])
 
-                # Execute the campaign by calling scout task
-                scout_reddit_task.delay(campaign_id=campaign.id)
+                # Execute the campaign using the appropriate task based on campaign type
+                if campaign.campaign_type == 'automatic':
+                    # Brand Analytics campaign
+                    scout_brand_analytics_task.delay(brand_id=campaign.brand_id)
+                    logger.info(f"🔍 Launched Brand Analytics task for brand {campaign.brand_id}")
+                else:
+                    # Custom Campaign
+                    scout_custom_campaign_task.delay(campaign_id=campaign.id)
+                    logger.info(f"🔍 Launched Custom Campaign task for campaign {campaign.id}")
 
                 results["campaigns_executed"] += 1
                 results["campaign_details"].append({
@@ -721,3 +729,233 @@ def check_and_execute_scheduled_campaigns(self):
     except Exception as e:
         logger.error(f"Campaign scheduler task failed: {e}", exc_info=True)
         return {"status": "error", "error": str(e)}
+
+
+@shared_task(base=CallbackTask, bind=True, max_retries=3, default_retry_delay=300)
+def scout_brand_analytics_task(self, brand_id: int):
+    """
+    Collect data for Brand Analytics (automatic campaign) ONLY.
+
+    This runs on a schedule for continuous brand monitoring.
+    Stores data linked to the brand's automatic campaign.
+
+    Args:
+        brand_id: ID of the brand to collect analytics for
+
+    Returns:
+        Dict with collection statistics
+    """
+    logger.info(f"🔍 Starting Brand Analytics data collection for brand {brand_id}")
+
+    try:
+        # Get automatic campaign for this brand
+        automatic_campaign = Campaign.objects.filter(
+            brand_id=brand_id,
+            campaign_type='automatic',
+            status='active'
+        ).first()
+
+        if not automatic_campaign:
+            logger.warning(f"No automatic campaign found for brand {brand_id}")
+            return {"status": "skipped", "reason": "no_automatic_campaign"}
+
+        brand = automatic_campaign.brand
+        logger.info(f"Processing automatic campaign: {automatic_campaign.name} (ID: {automatic_campaign.id})")
+
+        # Prepare scout configuration for Brand Analytics
+        scout_config = {
+            'search_depth': 'comprehensive',
+            'focus': 'brand_monitoring',
+            'include_sentiment': True,
+            'include_competitors': True,
+            'focus_areas': ['pain_points', 'feedback', 'sentiment', 'communities']
+        }
+
+        # Collect real brand data
+        brand_keywords = [kw.strip() for kw in brand.primary_keywords] if brand.primary_keywords else [brand.name]
+
+        # Use asyncio to run the async function
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        collected_data = loop.run_until_complete(
+            collect_real_brand_data(brand.name, brand_keywords, scout_config)
+        )
+
+        loop.close()
+
+        # Store LLM-discovered sources
+        if 'discovered_sources' in collected_data:
+            discovered = collected_data['discovered_sources']
+            focus = scout_config.get('focus', 'brand_monitoring')
+
+            # Store Reddit communities
+            for community_name in discovered.get('reddit_communities', []):
+                try:
+                    Source.objects.get_or_create(
+                        name=f"r/{community_name}",
+                        source_type='reddit',
+                        url=f"https://reddit.com/r/{community_name}",
+                        defaults={
+                            'description': f'Brand Analytics - LLM-discovered Reddit community for {brand.name}',
+                            'is_default': False,
+                            'is_active': True,
+                            'category': 'brand_analytics',
+                            'config': {
+                                'discovered_by': 'llm',
+                                'brand': brand.name,
+                                'focus': focus,
+                                'campaign_type': 'automatic',
+                                'discovered_at': discovered.get('discovered_at', timezone.now().isoformat()),
+                            },
+                            'last_accessed': timezone.now()
+                        }
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to store Reddit source r/{community_name}: {e}")
+
+        # Store data in database for Brand Analytics
+        from .nodes import store_brand_analytics_data
+        store_brand_analytics_data(collected_data, brand, automatic_campaign)
+
+        logger.info(f"✅ Successfully collected Brand Analytics data for {brand.name}")
+        logger.info(f"📊 Stored: {len(collected_data.get('communities', []))} communities, "
+                   f"{len(collected_data.get('pain_points', []))} pain points, "
+                   f"{len(collected_data.get('threads', []))} threads")
+
+        return {
+            "status": "success",
+            "brand_id": brand_id,
+            "brand_name": brand.name,
+            "campaign_id": automatic_campaign.id,
+            "campaign_type": "automatic",
+            "data_collected": {
+                "communities": len(collected_data.get("communities", [])),
+                "threads": len(collected_data.get("threads", [])),
+                "pain_points": len(collected_data.get("pain_points", []))
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Brand Analytics collection failed for brand {brand_id}: {e}", exc_info=True)
+        raise self.retry(exc=e)
+
+
+@shared_task(base=CallbackTask, bind=True, max_retries=3, default_retry_delay=300)
+def scout_custom_campaign_task(self, campaign_id: int):
+    """
+    Collect data for a specific Custom Campaign ONLY.
+
+    This runs on user-defined schedule with custom parameters.
+    Stores data linked to the specific custom campaign.
+
+    Args:
+        campaign_id: ID of the custom campaign to process
+
+    Returns:
+        Dict with collection statistics
+    """
+    logger.info(f"🔍 Starting Custom Campaign data collection for campaign {campaign_id}")
+
+    try:
+        # Get custom campaign
+        campaign = Campaign.objects.filter(
+            id=campaign_id,
+            campaign_type='custom',
+            status='active'
+        ).first()
+
+        if not campaign:
+            logger.warning(f"No custom campaign found: {campaign_id}")
+            return {"status": "skipped", "reason": "no_custom_campaign"}
+
+        brand = campaign.brand
+        if not brand:
+            logger.warning(f"Campaign {campaign_id} has no associated brand")
+            return {"status": "skipped", "reason": "no_brand"}
+
+        logger.info(f"Processing custom campaign: {campaign.name} (ID: {campaign.id})")
+        if campaign.description:
+            logger.info(f"📋 Campaign Objectives: {campaign.description[:200]}")
+
+        # Prepare scout configuration using campaign-specific parameters
+        # Include campaign objectives (from description) to guide data collection
+        scout_config = {
+            'search_depth': 'comprehensive',
+            'focus': 'custom_campaign',
+            'campaign_objectives': campaign.description if campaign.description else None,  # NEW: Pass objectives
+            'sources': campaign.sources if campaign.sources else [],
+            'exclude_keywords': campaign.exclude_keywords if campaign.exclude_keywords else [],
+            'include_sentiment': True,
+            'focus_areas': ['pain_points', 'feedback', 'sentiment', 'objectives']  # Added objectives
+        }
+
+        # Collect data using campaign-specific keywords
+        campaign_keywords = campaign.keywords if campaign.keywords else [brand.name]
+
+        # Use asyncio to run the async function
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        collected_data = loop.run_until_complete(
+            collect_real_brand_data(brand.name, campaign_keywords, scout_config)
+        )
+
+        loop.close()
+
+        # Store LLM-discovered sources (marked as custom campaign sources)
+        if 'discovered_sources' in collected_data:
+            discovered = collected_data['discovered_sources']
+
+            for community_name in discovered.get('reddit_communities', []):
+                try:
+                    Source.objects.get_or_create(
+                        name=f"r/{community_name}",
+                        source_type='reddit',
+                        url=f"https://reddit.com/r/{community_name}",
+                        defaults={
+                            'description': f'Custom Campaign - LLM-discovered for campaign {campaign.name}',
+                            'is_default': False,
+                            'is_active': True,
+                            'category': 'custom_campaign',
+                            'config': {
+                                'discovered_by': 'llm',
+                                'brand': brand.name,
+                                'campaign_id': str(campaign.id),
+                                'campaign_type': 'custom',
+                                'discovered_at': discovered.get('discovered_at', timezone.now().isoformat()),
+                            },
+                            'last_accessed': timezone.now()
+                        }
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to store Reddit source r/{community_name}: {e}")
+
+        # Store data in database for Custom Campaign
+        from .nodes import store_custom_campaign_data
+        store_custom_campaign_data(collected_data, brand, campaign)
+
+        logger.info(f"✅ Successfully collected Custom Campaign data for {campaign.name}")
+        logger.info(f"📊 Stored: {len(collected_data.get('communities', []))} communities, "
+                   f"{len(collected_data.get('pain_points', []))} pain points, "
+                   f"{len(collected_data.get('threads', []))} threads")
+
+        return {
+            "status": "success",
+            "campaign_id": campaign_id,
+            "campaign_name": campaign.name,
+            "campaign_type": "custom",
+            "brand_id": brand.id,
+            "brand_name": brand.name,
+            "data_collected": {
+                "communities": len(collected_data.get("communities", [])),
+                "threads": len(collected_data.get("threads", [])),
+                "pain_points": len(collected_data.get("pain_points", []))
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Custom Campaign collection failed for campaign {campaign_id}: {e}", exc_info=True)
+        raise self.retry(exc=e)

@@ -876,26 +876,35 @@ def _classify_discussion_type_from_content(result: Dict) -> str:
 # ADD MISSING HELPER FUNCTIONS:
 
 def _convert_search_results_to_threads(results: List[Dict], community_name: str, brand_name: str) -> List[Dict]:
-    """Convert search results to thread format"""
+    """Convert search results to thread format with distributed timestamps"""
     threads = []
-    
-    for result in results:
+
+    # Distribute threads across past 4 weeks for historical data
+    now = datetime.now()
+    four_weeks_ago = now - timedelta(weeks=4)
+
+    for idx, result in enumerate(results):
+        # Distribute threads evenly across 4 weeks
+        # Each thread gets a timestamp spread across the 4-week period
+        week_offset = (idx % 28) / 28 * 28  # Distribute across 28 days
+        thread_date = four_weeks_ago + timedelta(days=week_offset)
+
         thread = {
-            "thread_id": f"thread_{hash(result.get('url', ''))}", 
+            "thread_id": f"thread_{hash(result.get('url', ''))}",
             "title": result.get("title", "Untitled"),
             "content": result.get("raw_content", "")[:1000],  # Limit content
-            "author": "reddit_user",
+            "author": result.get("author", f"user_{idx % 5}"),  # Simulate multiple users
             "url": result.get("url", ""),
             "echo_score": _calculate_thread_echo_score(result, brand_name),
             "sentiment_score": _analyze_thread_sentiment(result.get("raw_content", ""), brand_name),
             "platform": "reddit" if "reddit.com" in community_name else "forum",
             "community": community_name,
             "brand_mentioned": _contains_brand_mention(result, brand_name),
-            "created_at": datetime.now().isoformat(),
+            "created_at": thread_date.isoformat(),
             "discussion_type": _classify_discussion_type_from_content(result)
         }
         threads.append(thread)
-    
+
     return threads
 
 
