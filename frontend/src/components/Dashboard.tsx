@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Users, MessageSquare, AlertTriangle, Building, ChevronDown, Lightbulb, Target, X } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ScatterChart, Scatter, ZAxis, Cell } from 'recharts';
-import InfluencerPulse from './InfluencerPulse';
 import { apiService } from '@/lib/api';
 
 // Simple Card components
@@ -919,36 +918,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Community Insights */}
-          {analysisSummary.community_insights?.top_communities && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Top Communities by Engagement</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {analysisSummary.community_insights.top_communities.slice(0, 4).map((community: any, index: number) => (
-                    <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="font-medium text-gray-900">{community.name}</span>
-                        <span className="text-xs text-gray-500">{community.platform}</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                        <div>Threads: <span className="font-medium">{community.thread_count}</span></div>
-                        <div>Avg Sentiment: <span className="font-medium">{community.avg_sentiment?.toFixed(2)}</span></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
-      )}
-
-      {/* Influencer Pulse - Full Width Component */}
-      {selectedBrand && (
-        <InfluencerPulse brandId={selectedBrand} />
       )}
 
       {/* Campaign Analytics Section */}
