@@ -802,68 +802,144 @@ def store_brand_analytics_data(collected_data: Dict[str, Any], brand, automatic_
 
         # Extract pain points per community from their threads
         for community_name, threads in community_threads.items():
+            # Try exact match first
             community = Community.objects.filter(
                 name=community_name,
                 brand=brand,
                 campaign=automatic_campaign
             ).first()
 
+            # If not found, try case-insensitive match
             if not community:
-                logger.warning(f"Community '{community_name}' not found for pain point extraction")
+                community = Community.objects.filter(
+                    name__iexact=community_name,
+                    brand=brand,
+                    campaign=automatic_campaign
+                ).first()
+
+            # If still not found, try removing/adding domain suffix
+            if not community and '.' in community_name:
+                base_name = community_name.split('.')[0]
+                community = Community.objects.filter(
+                    name__iexact=base_name,
+                    brand=brand,
+                    campaign=automatic_campaign
+                ).first()
+
+            if not community and '.' not in community_name:
+                for suffix in ['.com', '.org', '.net']:
+                    community = Community.objects.filter(
+                        name__iexact=f"{community_name}{suffix}",
+                        brand=brand,
+                        campaign=automatic_campaign
+                    ).first()
+                    if community:
+                        break
+
+            if not community:
+                logger.warning(f"Community '{community_name}' not found for pain point extraction (tried variations)")
                 continue
 
-            # Extract pain points from this community's threads
-            community_content = []
-            for thread in threads:
-                content = f"{thread.get('title', '')} {thread.get('content', '')}"
-                community_content.append(content)
-
-            # Define expanded pain point patterns (10+ patterns for better coverage)
+            # Define expanded pain point patterns with flexible natural language matching
             pain_point_patterns = {
-                "quality_issues": r'\b(?:poor quality|cheap|flimsy|breaks|broken|defective|falls apart|low quality)\b',
-                "sizing_problems": r'\b(?:sizing|size|fit|too small|too large|runs small|runs big|doesn\'t fit|wrong size)\b',
-                "durability": r'\b(?:durability|wearing out|wears out|doesn\'t last|fading|worn|tearing|ripped)\b',
-                "customer_service": r'\b(?:customer service|support|unhelpful|slow response|rude|no reply|ignored)\b',
-                "shipping": r'\b(?:shipping|delivery|late|delayed|never arrived|lost|damaged)\b',
-                "price_value": r'\b(?:expensive|overpriced|too much|costly|not worth|waste of money|ripoff)\b',
-                "comfort": r'\b(?:uncomfortable|hurts|painful|tight|stiff|irritating|chafing)\b',
-                "design_issues": r'\b(?:design|ugly|looks bad|poorly designed|weird|strange|odd)\b',
-                "material_problems": r'\b(?:material|fabric|leather|plastic|rubber|feels bad|texture)\b',
-                "performance": r'\b(?:performance|doesn\'t work|failed|useless|ineffective|disappointing)\b'
+                "quality_issues": r'\b(?:quality|poor|cheap|flimsy|break(?:s|ing)?|broken|defective|falls? apart|terrible|awful|bad|worse|worst|decrease|thin|weak)\b',
+                "sizing_problems": r'\b(?:siz(?:e|ing)|fit(?:s|ting)?|too (?:small|large|big|tight)|runs? (?:small|big)|doesn\'?t fit|wrong size|narrow|wide)\b',
+                "durability": r'\b(?:durability|durables?|wear(?:ing)? out|wears? out|doesn\'?t last|fading|faded|worn|tear(?:ing)?|ripped|falling apart)\b',
+                "customer_service": r'\b(?:customer service|support|unhelpful|slow response|rude|no reply|ignored|terrible service|bad service|never respond)\b',
+                "shipping": r'\b(?:shipping|delivery|late|delayed|never arrived|lost|damaged|slow shipping|took forever)\b',
+                "price_value": r'\b(?:expensive|overpriced|too (?:much|expensive)|costly|not worth|waste of money|ripoff|too pricey|price)\b',
+                "comfort": r'\b(?:uncomfortable|uncomfy|hurts?|painful|tight|stiff|irritat(?:ing|ed)|chafing|annoying|bothers?)\b',
+                "design_issues": r'\b(?:design|ugly|looks? bad|poorly designed|weird|strange|odd|hideous|unattractive)\b',
+                "material_problems": r'\b(?:material|fabric|leather|plastic|rubber|feels? bad|texture|scratchy|itchy|synthetic)\b',
+                "performance": r'\b(?:performance|doesn\'?t work|failed|useless|ineffective|disappointing|disappointed|not good|doesn\'?t help)\b'
             }
 
-            # Extract pain points for this community
-            combined_content = " ".join(community_content).lower()
+            # Group threads by week for pain point extraction
+            from datetime import datetime, timedelta
+            from dateutil import parser as date_parser
 
-            for keyword, pattern in pain_point_patterns.items():
-                matches = re.findall(pattern, combined_content, re.IGNORECASE)
+            now = timezone.now()
+            four_weeks_ago = now - timedelta(weeks=4)
 
-                if matches:
-                    mention_count = len(matches)
-                    week_num = 4  # Default to current week
+            # Group threads by week (1-4)
+            threads_by_week = {1: [], 2: [], 3: [], 4: []}
+            for thread in threads:
+                thread_date_str = thread.get('created_at')
+                if thread_date_str:
+                    try:
+                        # Parse ISO format datetime string
+                        thread_date = date_parser.parse(thread_date_str)
 
-                    # Calculate metrics
-                    growth_percentage = min(mention_count * 10, 100)
-                    heat_level = min(mention_count // 2 + 1, 5)
-                    sentiment_score = -0.3  # Default negative for pain points
+                        # Make timezone-aware if needed
+                        if thread_date.tzinfo is None:
+                            thread_date = timezone.make_aware(thread_date)
 
-                    PainPoint.objects.update_or_create(
-                        keyword=keyword.replace("_", " ").title(),
-                        campaign=automatic_campaign,
-                        brand=brand,
-                        community=community,  # Link to correct community
-                        defaults={
-                            "mention_count": mention_count,
-                            "growth_percentage": growth_percentage,
-                            "sentiment_score": sentiment_score,
-                            "heat_level": heat_level,
-                            "week_number": week_num,
-                            "example_content": matches[0][:500] if matches else "",
-                            "related_keywords": matches[:3],
-                            "first_seen": timezone.now(),
-                            "last_seen": timezone.now()
-                        }
-                    )
+                        # Calculate which week this thread belongs to (1-4)
+                        # Week 1 = oldest (3-4 weeks ago), Week 4 = newest (0-1 weeks ago)
+                        days_ago = (now - thread_date).days
+
+                        if days_ago < 0:
+                            week_num = 4  # Future date, put in current week
+                        elif days_ago < 7:
+                            week_num = 4  # This week
+                        elif days_ago < 14:
+                            week_num = 3  # Last week
+                        elif days_ago < 21:
+                            week_num = 2  # 2 weeks ago
+                        else:
+                            week_num = 1  # 3+ weeks ago
+
+                        threads_by_week[week_num].append(thread)
+                        logger.debug(f"Thread dated {thread_date} ({days_ago} days ago) → Week {week_num}")
+                    except Exception as e:
+                        logger.warning(f"Failed to parse thread date '{thread_date_str}': {e}, defaulting to week 4")
+                        threads_by_week[4].append(thread)
+                else:
+                    threads_by_week[4].append(thread)
+
+            # Extract pain points for each week separately
+            for week_num, week_threads in threads_by_week.items():
+                if not week_threads:
+                    continue
+
+                # Combine content for this week
+                week_content = []
+                for thread in week_threads:
+                    content = f"{thread.get('title', '')} {thread.get('content', '')}"
+                    week_content.append(content)
+
+                combined_content = " ".join(week_content).lower()
+
+                # Extract pain points from this week's content
+                for keyword, pattern in pain_point_patterns.items():
+                    matches = re.findall(pattern, combined_content, re.IGNORECASE)
+
+                    if matches:
+                        mention_count = len(matches)
+
+                        # Calculate metrics
+                        growth_percentage = min(mention_count * 10, 100)
+                        heat_level = min(mention_count // 2 + 1, 5)
+                        sentiment_score = -0.3  # Default negative for pain points
+
+                        # Create separate pain point record for each week
+                        PainPoint.objects.update_or_create(
+                            keyword=keyword.replace("_", " ").title(),
+                            campaign=automatic_campaign,
+                            brand=brand,
+                            community=community,
+                            week_number=week_num,  # Unique per week
+                            defaults={
+                                "mention_count": mention_count,
+                                "growth_percentage": growth_percentage,
+                                "sentiment_score": sentiment_score,
+                                "heat_level": heat_level,
+                                "example_content": matches[0][:500] if matches else "",
+                                "related_keywords": matches[:3],
+                                "first_seen": timezone.now(),
+                                "last_seen": timezone.now()
+                            }
+                        )
 
         # Store threads (link to brand + automatic campaign)
         from datetime import timedelta
@@ -872,11 +948,45 @@ def store_brand_analytics_data(collected_data: Dict[str, Any], brand, automatic_
         collection_start = timezone.now() - timedelta(weeks=4)
 
         for thread_data in collected_data.get("threads", []):
+            # Normalize community name for matching (case-insensitive, handle .com suffix)
+            thread_community_name = thread_data.get("community", "")
+
+            # Try exact match first
             community = Community.objects.filter(
-                name=thread_data.get("community"),
+                name=thread_community_name,
                 brand=brand,
                 campaign=automatic_campaign
             ).first()
+
+            # If not found, try case-insensitive match
+            if not community:
+                community = Community.objects.filter(
+                    name__iexact=thread_community_name,
+                    brand=brand,
+                    campaign=automatic_campaign
+                ).first()
+
+            # If still not found, try removing domain suffix and matching
+            if not community and '.' in thread_community_name:
+                # Extract base name (e.g., "sneakerfreaker.com" → "sneakerfreaker")
+                base_name = thread_community_name.split('.')[0]
+                community = Community.objects.filter(
+                    name__iexact=base_name,
+                    brand=brand,
+                    campaign=automatic_campaign
+                ).first()
+
+            # If still not found, try adding domain suffix
+            if not community and '.' not in thread_community_name:
+                # Try common suffixes
+                for suffix in ['.com', '.org', '.net']:
+                    community = Community.objects.filter(
+                        name__iexact=f"{thread_community_name}{suffix}",
+                        brand=brand,
+                        campaign=automatic_campaign
+                    ).first()
+                    if community:
+                        break
 
             if community:
                 thread_tokens = len(thread_data.get("content", "")) // 4

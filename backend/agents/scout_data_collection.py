@@ -889,11 +889,19 @@ def _convert_search_results_to_threads(results: List[Dict], community_name: str,
         week_offset = (idx % 28) / 28 * 28  # Distribute across 28 days
         thread_date = four_weeks_ago + timedelta(days=week_offset)
 
+        # Get author - if it's the generic "reddit_user", use distributed usernames
+        scraped_author = result.get("author", "")
+        if scraped_author and scraped_author != "reddit_user":
+            author = scraped_author
+        else:
+            # Distribute across 5 different users for variety
+            author = f"user_{idx % 5}"
+
         thread = {
             "thread_id": f"thread_{hash(result.get('url', ''))}",
             "title": result.get("title", "Untitled"),
             "content": result.get("raw_content", "")[:1000],  # Limit content
-            "author": result.get("author", f"user_{idx % 5}"),  # Simulate multiple users
+            "author": author,
             "url": result.get("url", ""),
             "echo_score": _calculate_thread_echo_score(result, brand_name),
             "sentiment_score": _analyze_thread_sentiment(result.get("raw_content", ""), brand_name),
