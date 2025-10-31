@@ -231,87 +231,44 @@ async def scout_node(state: EchoChamberAnalystState) -> EchoChamberAnalystState:
 
 async def _generate_and_store_campaign_insights(collected_data: Dict[str, Any], campaign, brand_name: str) -> None:
     """
-    Generate natural language insights about the campaign using LLM.
+    Generate campaign-specific AI insights using the Analytics Agent.
 
-    Analyzes communities, pain points, sentiment trends, and influencers
-    to create actionable insights stored in campaign metadata.
+    This function delegates to the Analytics Agent (analyst.py) for all insight generation,
+    maintaining the agentic architecture where the Analytics Agent owns all insight logic.
     """
     try:
         from django.utils import timezone
-        from common.models import Campaign as CampaignModel
+        from common.models import Campaign as CampaignModel, Brand
         from asgiref.sync import sync_to_async
+        from agents.analyst import generate_campaign_ai_insights
 
-        # Get the actual Campaign object from the ID (using sync_to_async)
+        # Get the Campaign and Brand objects
         campaign_obj = await sync_to_async(CampaignModel.objects.get)(id=campaign.id)
+        brand_obj = await sync_to_async(Brand.objects.get)(name=brand_name)
 
-        logger.info(f"💡 Generating campaign insights for '{campaign_obj.name}'...")
+        logger.info(f"💡 Delegating to Analytics Agent for Campaign AI Insights: '{campaign_obj.name}'...")
 
-        # Prepare summary data for LLM
+        # Call Analytics Agent to generate campaign insights
+        campaign_insights = await sync_to_async(generate_campaign_ai_insights)(
+            campaign=campaign_obj,
+            brand=brand_obj,
+            collected_data=collected_data
+        )
+
+        # Calculate data summary
         num_communities = len(collected_data.get("communities", []))
         num_threads = len(collected_data.get("threads", []))
         num_pain_points = len(collected_data.get("pain_points", []))
 
-        # Get top pain points
-        pain_points = collected_data.get("pain_points", [])
-        top_pain_points = sorted(pain_points, key=lambda x: x.get('mention_count', 0), reverse=True)[:5]
-
-        # Calculate average sentiment
         threads = collected_data.get("threads", [])
         avg_sentiment = sum(t.get('sentiment_score', 0.0) for t in threads) / len(threads) if threads else 0.0
         sentiment_label = "positive" if avg_sentiment > 0.2 else "negative" if avg_sentiment < -0.2 else "neutral"
-
-        # Get top communities by echo score
-        communities = collected_data.get("communities", [])
-        top_communities = sorted(communities, key=lambda x: x.get('echo_score', 0), reverse=True)[:3]
-
-        # Build prompt for LLM
-        insight_prompt = f"""Analyze this brand monitoring campaign data and provide 3-5 concise, actionable insights in natural language.
-
-Brand: {brand_name}
-Campaign: {campaign_obj.name}
-
-DATA SUMMARY:
-- {num_communities} communities monitored
-- {num_threads} discussions analyzed
-- {num_pain_points} pain points identified
-- Overall sentiment: {sentiment_label} ({avg_sentiment:.2f})
-
-TOP PAIN POINTS:
-{chr(10).join(f"- {pp['keyword']}: {pp['mention_count']} mentions (growth: {pp.get('growth_percentage', 0):.0f}%)" for pp in top_pain_points[:3])}
-
-TOP COMMUNITIES (by echo chamber score):
-{chr(10).join(f"- {c['name']} ({c['platform']}): echo score {c['echo_score']:.1f}" for c in top_communities)}
-
-Provide insights focusing on:
-1. Key conversation themes and trends
-2. Emerging pain points or concerns
-3. Community sentiment and engagement patterns
-4. Opportunities for brand engagement or concern mitigation
-5. Recommended actions based on the data
-
-Format as a JSON array of insight objects with: "category", "insight", "priority" (high/medium/low), and "action_items" (array of strings).
-Return ONLY the JSON array, no other text."""
-
-        # Call LLM to generate insights
-        response = await llm.ainvoke(insight_prompt)
-        insights_text = response.content.strip()
-
-        # Parse JSON response
-        import json
-        import re
-
-        # Extract JSON from response (in case LLM adds extra text)
-        json_match = re.search(r'\[.*\]', insights_text, re.DOTALL)
-        if json_match:
-            insights_json = json.loads(json_match.group(0))
-        else:
-            insights_json = []
 
         # Store insights in campaign metadata
         if not campaign_obj.metadata:
             campaign_obj.metadata = {}
 
-        campaign_obj.metadata['insights'] = insights_json
+        campaign_obj.metadata['insights'] = campaign_insights
         campaign_obj.metadata['insights_generated_at'] = timezone.now().isoformat()
         campaign_obj.metadata['data_summary'] = {
             'communities': num_communities,
@@ -324,10 +281,10 @@ Return ONLY the JSON array, no other text."""
         # Save using sync_to_async
         await sync_to_async(campaign_obj.save)()
 
-        logger.info(f"✅ Generated {len(insights_json)} campaign insights")
+        logger.info(f"✅ Analytics Agent generated {len(campaign_insights)} Campaign AI Insights")
 
     except Exception as e:
-        logger.error(f"❌ Error generating campaign insights: {e}")
+        logger.error(f"❌ Error delegating to Analytics Agent for campaign insights: {e}")
         # Don't raise exception to avoid breaking the workflow
 
 

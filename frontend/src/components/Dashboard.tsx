@@ -1052,14 +1052,14 @@ export default function Dashboard() {
             </div>
 
             {/* Campaign Insights Section */}
-            {analysisSummary?.insights && analysisSummary.insights.length > 0 && (
+            {dashboardData?.campaign_analytics?.insights && dashboardData.campaign_analytics.insights.length > 0 && (
               <div className="mt-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
                   <Lightbulb className="h-5 w-5 mr-2 text-yellow-600" />
                   Campaign Insights
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {analysisSummary.insights.map((insight: any, index: number) => (
+                  {dashboardData.campaign_analytics.insights.map((insight: any, index: number) => (
                     <div
                       key={index}
                       className={`p-4 rounded-lg border-l-4 ${
@@ -1093,13 +1093,13 @@ export default function Dashboard() {
                   ))}
                 </div>
 
-                {analysisSummary?.data_summary && (
+                {dashboardData?.campaign_analytics?.data_summary && (
                   <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                     <p className="text-xs text-gray-600">
-                      Insights generated from {analysisSummary.data_summary.communities} communities, {' '}
-                      {analysisSummary.data_summary.threads} threads, and {' '}
-                      {analysisSummary.data_summary.pain_points} pain points.
-                      Overall sentiment: <span className="font-medium">{analysisSummary.data_summary.sentiment_label}</span>
+                      Insights generated from {dashboardData.campaign_analytics.data_summary.communities} communities, {' '}
+                      {dashboardData.campaign_analytics.data_summary.threads} threads, and {' '}
+                      {dashboardData.campaign_analytics.data_summary.pain_points} pain points.
+                      Overall sentiment: <span className="font-medium">{dashboardData.campaign_analytics.data_summary.sentiment_label}</span>
                     </p>
                   </div>
                 )}

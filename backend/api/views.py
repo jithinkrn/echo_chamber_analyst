@@ -1184,21 +1184,38 @@ def get_brand_influencer_pulse(brand_id):
 
 
 def get_brand_campaign_analytics(brand_id, date_from, date_to):
-    """Get campaign analytics for a specific brand."""
+    """Get campaign analytics for a specific brand, including campaign insights."""
     from datetime import datetime, timedelta
     from django.db.models import Count, Avg, Sum
-    
+
     brand_campaigns = Campaign.objects.filter(brand_id=brand_id)
-    
+
     # Campaign performance metrics
     total_campaigns = brand_campaigns.count()
     active_campaigns = brand_campaigns.filter(status='active').count()
     completed_campaigns = brand_campaigns.filter(status='completed').count()
-    
+
     # Budget analytics
     total_budget = brand_campaigns.aggregate(total=Sum('daily_budget'))['total'] or 0
     total_spent = brand_campaigns.aggregate(total=Sum('current_spend'))['total'] or 0
-    
+
+    # Get campaign insights from the latest campaign with insights
+    campaign_insights = []
+    campaign_data_summary = {}
+
+    # Look for campaigns with insights in metadata (most recent first)
+    campaigns_with_insights = brand_campaigns.filter(
+        metadata__insights__isnull=False
+    ).exclude(
+        metadata__insights=[]
+    ).order_by('-created_at')
+
+    if campaigns_with_insights.exists():
+        latest_campaign = campaigns_with_insights.first()
+        if latest_campaign.metadata:
+            campaign_insights = latest_campaign.metadata.get('insights', [])
+            campaign_data_summary = latest_campaign.metadata.get('data_summary', {})
+
     return {
         'total_campaigns': total_campaigns,
         'active_campaigns': active_campaigns,
@@ -1207,8 +1224,146 @@ def get_brand_campaign_analytics(brand_id, date_from, date_to):
         'total_budget': float(total_budget),
         'total_spent': float(total_spent),
         'budget_utilization': round((total_spent / total_budget * 100) if total_budget > 0 else 0, 1),
-        'recent_campaigns': []  # Can add recent campaign details
+        'recent_campaigns': [],
+        'insights': campaign_insights,  # Campaign-specific insights
+        'data_summary': campaign_data_summary  # Data summary for insights context
     }
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def generate_ai_insights(request):
+    """Generate AI-powered insights for a brand's dashboard data using LLM."""
+    try:
+        brand_id = request.query_params.get('brand_id')
+
+        if not brand_id:
+            return Response(
+                {'error': 'brand_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get brand
+        brand = Brand.objects.filter(id=brand_id).first()
+        if not brand:
+            return Response(
+                {'error': 'Brand not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get date range (last 30 days)
+        date_to = timezone.now()
+        date_from = date_to - timedelta(days=30)
+
+        # Gather all dashboard data
+        dashboard_context = {
+            'brand_name': brand.name,
+            'kpis': get_brand_dashboard_kpis(brand_id, date_from, date_to),
+            'heatmap': get_brand_heatmap_data(brand_id, date_from, date_to),
+            'top_pain_points': get_brand_top_pain_points(brand_id, date_from, date_to),
+            'community_watchlist': get_brand_community_watchlist(brand_id),
+            'influencer_pulse': get_brand_influencer_pulse(brand_id),
+            'campaign_analytics': get_brand_campaign_analytics(brand_id, date_from, date_to)
+        }
+
+        # Generate insights using LLM
+        insights = _generate_insights_with_llm(dashboard_context)
+
+        return Response({
+            'insights': insights,
+            'generated_at': timezone.now().isoformat()
+        })
+
+    except Exception as e:
+        logger.error(f"AI insights generation error: {e}")
+        return Response(
+            {'error': f'Failed to generate insights: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+def _generate_insights_with_llm(dashboard_context):
+    """Generate insights using LLM based on dashboard data."""
+    from langchain_anthropic import ChatAnthropic
+    from langchain_core.messages import HumanMessage, SystemMessage
+    import json
+
+    # Initialize LLM
+    llm = ChatAnthropic(model="claude-3-5-sonnet-20241022", temperature=0.7)
+
+    # Prepare context summary
+    kpis = dashboard_context['kpis']
+    pain_points = dashboard_context['top_pain_points']
+    communities = dashboard_context['community_watchlist']
+    campaign_analytics = dashboard_context['campaign_analytics']
+
+    # Create prompt for LLM
+    system_prompt = """You are an expert brand analytics consultant. Analyze the provided dashboard data and generate 4-6 concise, actionable insights.
+
+Each insight should be:
+- Specific and data-driven
+- Actionable (what the brand should do)
+- Clear and concise (1-2 sentences max)
+- Focus on trends, opportunities, or risks
+
+Format: Return ONLY a JSON array of insight strings, nothing else."""
+
+    data_summary = f"""Brand: {dashboard_context['brand_name']}
+
+KEY METRICS:
+- Active Campaigns: {kpis.get('active_campaigns', 0)}
+- High-Echo Communities: {kpis.get('high_echo_communities', 0)} (Change: {kpis.get('high_echo_change_percent', 0)}%)
+- New Pain Points (>50% growth): {kpis.get('new_pain_points_above_50', 0)}
+- Positivity Ratio: {kpis.get('positivity_ratio', 0)}% (Change: {kpis.get('positivity_change_pp', 0)} pp)
+
+TOP PAIN POINTS:
+{json.dumps([{'keyword': pp['keyword'], 'growth': pp['growth_percentage'], 'mentions': pp['mention_count']} for pp in pain_points[:5]], indent=2)}
+
+COMMUNITY WATCHLIST:
+{json.dumps([{'name': c['name'], 'platform': c['platform'], 'echo_score': c['echo_score'], 'echo_change': c['echo_change'], 'activity_score': c['activity_score']} for c in communities[:3]], indent=2)}
+
+CAMPAIGN ANALYTICS:
+- Total Campaigns: {campaign_analytics.get('total_campaigns', 0)}
+- Active: {campaign_analytics.get('active_campaigns', 0)}
+- Budget Utilization: {campaign_analytics.get('budget_utilization', 0)}%
+"""
+
+    try:
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=data_summary)
+        ]
+
+        response = llm.invoke(messages)
+
+        # Parse JSON response
+        insights_text = response.content.strip()
+        # Remove markdown code blocks if present
+        if insights_text.startswith('```'):
+            insights_text = insights_text.split('```')[1]
+            if insights_text.startswith('json'):
+                insights_text = insights_text[4:]
+        insights_text = insights_text.strip()
+
+        insights = json.loads(insights_text)
+
+        # Ensure it's a list
+        if not isinstance(insights, list):
+            insights = [insights]
+
+        return insights[:6]  # Limit to 6 insights
+
+    except Exception as e:
+        logger.error(f"LLM insight generation failed: {e}")
+        # Return fallback insights
+        return [
+            f"Your brand has {kpis.get('high_echo_communities', 0)} high-echo communities with {kpis.get('high_echo_change_percent', 0):+.1f}% growth",
+            f"Top pain point '{pain_points[0]['keyword'] if pain_points else 'N/A'}' is growing at {pain_points[0]['growth_percentage'] if pain_points else 0:+.0f}%",
+            f"Community sentiment shows {kpis.get('positivity_ratio', 0):.0f}% positivity with {kpis.get('positivity_change_pp', 0):+.1f} pp change",
+            f"Monitor {kpis.get('new_pain_points_above_50', 0)} rapidly growing pain points (>50% growth)",
+            f"Campaign budget utilization at {campaign_analytics.get('budget_utilization', 0):.0f}% - {('optimize spending' if campaign_analytics.get('budget_utilization', 0) < 70 else 'on track')}"
+        ]
+
 
 # Update the create_brand function:
 @api_view(['POST'])
@@ -1840,49 +1995,81 @@ def get_brand_influencers(request, brand_id):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_brand_analysis_summary(request, brand_id):
-    """Get comprehensive analysis summary for a brand."""
+    """
+    Get comprehensive analysis summary with AI-powered insights for Brand Analytics.
+
+    This generates insights based on Brand Analytics data (not campaign-specific data).
+    """
     try:
         brand = Brand.objects.get(id=brand_id)
 
-        # Get the latest campaign
-        latest_campaign = Campaign.objects.filter(brand=brand).order_by('-created_at').first()
+        # Get Brand Analytics data
+        brand_kpis = get_brand_dashboard_kpis(brand_id, None, None)
+        brand_communities = get_brand_community_watchlist(brand_id)
+        brand_pain_points = get_brand_top_pain_points(brand_id, None, None)
+        brand_influencers = get_brand_influencer_pulse(brand_id)
 
-        if not latest_campaign:
-            return Response(
-                {'error': 'No campaign found for this brand'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        # Check if we have any data
+        has_data = (
+            brand_kpis.get('active_campaigns', 0) > 0 or
+            len(brand_communities) > 0 or
+            len(brand_pain_points) > 0
+        )
 
-        # Get insights and data summary from campaign metadata
-        insights = latest_campaign.metadata.get('insights', []) if latest_campaign.metadata else []
-        data_summary = latest_campaign.metadata.get('data_summary', {}) if latest_campaign.metadata else {}
-
-        # Also check for legacy analysis_summary key
-        legacy_summary = latest_campaign.metadata.get('analysis_summary', {}) if latest_campaign.metadata else {}
-
-        if not insights and not legacy_summary:
+        if not has_data:
             return Response(
                 {
                     'brand': {'id': str(brand.id), 'name': brand.name},
-                    'message': 'Analysis summary not yet generated. Please run brand analysis.',
+                    'message': 'No brand analytics data available yet. Please run brand analysis.',
                     'status': 'pending'
                 }
             )
+
+        # Generate AI-powered insights based on Brand Analytics data
+        from agents.analyst import generate_ai_powered_insights_from_brand_analytics
+
+        try:
+            ai_insights = generate_ai_powered_insights_from_brand_analytics(
+                brand=brand,
+                kpis=brand_kpis,
+                communities=brand_communities,
+                pain_points=brand_pain_points,
+                influencers=brand_influencers
+            )
+        except Exception as insight_error:
+            logger.error(f"Error generating AI insights: {insight_error}")
+            # Fallback to empty insights if AI generation fails
+            ai_insights = []
+
+        # Prepare summary data
+        summary_data = {
+            'key_insights': ai_insights,
+            'overview': {
+                'total_campaigns': brand_kpis.get('active_campaigns', 0),
+                'high_echo_communities': brand_kpis.get('high_echo_communities', 0),
+                'pain_points_above_50': brand_kpis.get('new_pain_points_above_50', 0),
+                'positivity_ratio': brand_kpis.get('positivity_ratio', 0),
+            },
+            'community_insights': {
+                'total_communities': len(brand_communities),
+                'top_communities': brand_communities[:5]
+            },
+            'pain_point_summary': {
+                'total_pain_points': len(brand_pain_points),
+                'top_pain_points': brand_pain_points[:5]
+            },
+            'influencer_summary': {
+                'total_influencers': len(brand_influencers),
+                'top_influencers': brand_influencers[:5]
+            }
+        }
 
         return Response({
             'brand': {
                 'id': str(brand.id),
                 'name': brand.name
             },
-            'campaign': {
-                'id': str(latest_campaign.id),
-                'name': latest_campaign.name
-            },
-            'summary': {
-                'insights': insights,
-                'data_summary': data_summary,
-                **(legacy_summary if legacy_summary else {})
-            },
+            'summary': summary_data,
             'status': 'completed'
         })
 
@@ -1892,7 +2079,7 @@ def get_brand_analysis_summary(request, brand_id):
             status=status.HTTP_404_NOT_FOUND
         )
     except Exception as e:
-        logger.error(f"Error fetching analysis summary: {str(e)}")
+        logger.error(f"Error fetching analysis summary: {str(e)}", exc_info=True)
         return Response(
             {'error': f'Failed to fetch analysis summary: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
