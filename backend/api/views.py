@@ -669,9 +669,14 @@ def get_community_watchlist(campaign_id, date_from, date_to):
             watchlist_data.append({
                 'rank': rank,
                 'name': community.name,
+                'platform': community.platform,
+                'member_count': community.member_count,
                 'echo_score': float(community.echo_score),
                 'echo_change': float(community.echo_score_change or 0.0),
                 'new_threads': recent_threads,
+                'activity_score': float(community.activity_score),
+                'threads_last_4_weeks': community.threads_last_4_weeks,
+                'avg_engagement_rate': float(community.avg_engagement_rate),
                 'key_influencer': top_influencer.handle if top_influencer else 'N/A'
             })
 
@@ -1032,9 +1037,9 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
             created_at__lt=bucket['end']
         ).count()
         total_mentions_series.append({
-            'week': bucket['week_label'],
-            'date_range': bucket['date_range'],
-            'mention_count': total_count
+            'label': bucket['week_label'],
+            'date': bucket['date_range'],
+            'total_mentions': total_count
         })
 
     # For each pain point, calculate mentions over time
@@ -1062,10 +1067,11 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
             ).aggregate(avg_sentiment=Avg('sentiment_score'))['avg_sentiment'] or 0.0
 
             pain_point_time_data['time_series'].append({
-                'week': bucket['week_label'],
-                'date_range': bucket['date_range'],
+                'label': bucket['week_label'],
+                'date': bucket['date_range'],
                 'mention_count': mentions_count,
-                'sentiment_score': float(avg_sentiment)
+                'sentiment_score': float(avg_sentiment),
+                'heat_level': 3 if mentions_count > 5 else (2 if mentions_count > 2 else 1)
             })
 
         # Calculate weekly growth rate (week 3 vs week 4 for more meaningful comparison)
@@ -1133,9 +1139,14 @@ def get_brand_community_watchlist(brand_id):
         watchlist_data.append({
             'rank': rank,
             'name': community.name,
+            'platform': community.platform,
+            'member_count': community.member_count,
             'echo_score': float(community.echo_score),
             'echo_change': float(community.echo_score_change),
             'new_threads': recent_threads,
+            'activity_score': float(community.activity_score),
+            'threads_last_4_weeks': community.threads_last_4_weeks,
+            'avg_engagement_rate': float(community.avg_engagement_rate),
             'key_influencer': top_influencer.display_name if top_influencer else 'Unknown'
         })
     

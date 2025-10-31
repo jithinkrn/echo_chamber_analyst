@@ -67,11 +67,11 @@ export function AddCampaignModal({ onClose, onCampaignAdded, brandId, editCampai
 
     try {
       const campaignKeywords = formData.campaign_keywords
-        ? formData.campaign_keywords.split(',').map(k => k.trim()).filter(k => k)
+        ? formData.campaign_keywords.split(',').map((k: string) => k.trim()).filter((k: string) => k)
         : [formData.name, 'campaign', 'marketing', 'promotion'];
 
       const targetCommunities = formData.target_communities
-        ? formData.target_communities.split(',').map(c => c.trim()).filter(c => c)
+        ? formData.target_communities.split(',').map((c: string) => c.trim()).filter((c: string) => c)
         : [];
 
       const campaignData = {

@@ -57,8 +57,8 @@ export function MonitoringDashboard() {
         api.get('/monitoring/agents/health/')
       ]);
 
-      setMonitoringData(dashboardData);
-      setAgentHealth(healthData);
+      setMonitoringData(dashboardData.data);
+      setAgentHealth(healthData.data);
       setLoading(false);
     } catch (error) {
       console.error('Failed to fetch monitoring data:', error);
@@ -77,7 +77,7 @@ export function MonitoringDashboard() {
   const triggerTask = async (taskType: string, payload: any = {}) => {
     try {
       const response = await api.post(`/tasks/${taskType}/`, payload);
-      alert(`Task triggered successfully! Task ID: ${response.task_id}`);
+      alert(`Task triggered successfully! Task ID: ${response.data.task_id}`);
       fetchMonitoringData();
     } catch (error) {
       console.error(`Failed to trigger ${taskType} task:`, error);

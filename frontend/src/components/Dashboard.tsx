@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Users, MessageSquare, AlertTriangle, Building, ChevronDown, Lightbulb, Target } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Users, MessageSquare, AlertTriangle, Building, ChevronDown, Lightbulb, Target, X } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ScatterChart, Scatter, ZAxis, Cell } from 'recharts';
 import InfluencerPulse from './InfluencerPulse';
 import { apiService } from '@/lib/api';
@@ -81,6 +81,11 @@ interface DashboardData {
         heat_level: number;
       }>;
     }>;
+    total_mentions_series?: Array<{
+      date: string;
+      label: string;
+      total_mentions: number;
+    }>;
   };
   top_pain_points: Array<{
     keyword: string;
@@ -90,9 +95,14 @@ interface DashboardData {
   community_watchlist: Array<{
     rank: number;
     name: string;
+    platform: string;
+    member_count: number;
     echo_score: number;
     echo_change: number;
     new_threads: number;
+    activity_score: number;
+    threads_last_4_weeks: number;
+    avg_engagement_rate: number;
     key_influencer: string;
   }>;
   influencer_pulse: Array<{
@@ -144,6 +154,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false); // Separate loading state for data refresh
   const [selectedThread, setSelectedThread] = useState<string | null>(null);
+  const [selectedCommunity, setSelectedCommunity] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [showBrandDropdown, setShowBrandDropdown] = useState(false);
   const [analysisSummary, setAnalysisSummary] = useState<any>(null);
@@ -543,7 +554,7 @@ export default function Dashboard() {
                           return null;
                         }} />
                       <Bar dataKey="growth_percentage" radius={[0, 4, 4, 0]}
-                        label={{ position: 'right', formatter: (value: number) => `+${value.toFixed(0)}%`,
+                        label={{ position: 'right', formatter: (value: any) => `+${Number(value).toFixed(0)}%`,
                           style: { fontSize: '11px', fontWeight: 'bold' } }}>
                         {painPoints.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={barColors[index % barColors.length]} />
@@ -689,9 +700,9 @@ export default function Dashboard() {
                       // Create chart data with week on x-axis and all pain points as separate lines
                       return weeks.map((weekData, idx) => {
                         const dataPoint: any = {
-                          week: weekData.week,
-                          dateRange: weekData.date_range,
-                          Total: totalSeries[idx]?.mention_count || 0
+                          week: weekData.label,
+                          dateRange: weekData.date,
+                          Total: totalSeries[idx]?.total_mentions || 0
                         };
 
                         // Add each pain point as a separate line
@@ -723,8 +734,8 @@ export default function Dashboard() {
                         fontSize: '12px'
                       }}
                       labelFormatter={(label) => {
-                        const dataPoint = (dashboardData.heatmap?.time_series_pain_points?.[0]?.time_series || []).find((d: any) => d.week === label);
-                        return dataPoint ? `${label} (${dataPoint.date_range})` : label;
+                        const dataPoint = (dashboardData.heatmap?.time_series_pain_points?.[0]?.time_series || []).find((d: any) => d.label === label);
+                        return dataPoint ? `${label} (${dataPoint.date})` : label;
                       }}
                     />
                     <Legend
@@ -795,28 +806,90 @@ export default function Dashboard() {
           <CardTitle>COMMUNITY WATCHLIST</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            <div className="grid grid-cols-6 gap-2 text-xs font-medium text-gray-600 border-b pb-2">
-              <span>Rank</span>
-              <span>Echo</span>
-              <span>Δ</span>
-              <span>New Threads</span>
-              <div className="col-span-2">Key Influencer</div>
-            </div>
-            {(dashboardData.community_watchlist || []).slice(0, 3).map((community, index) => (
-              <div key={index} className="grid grid-cols-6 gap-2 text-sm items-center">
-                <span className="font-medium">{community.rank}</span>
-                <span className="text-gray-700">{community.echo_score.toFixed(1)}</span>
-                <div className="flex items-center text-green-600">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  {community.echo_change}%
-                </div>
-                <span className="text-gray-700">{community.new_threads}</span>
-                <div className="col-span-2 text-gray-900 truncate">
-                  {community.key_influencer}
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-xs font-medium text-gray-600">
+                  <th className="text-left py-2 px-2">Rank</th>
+                  <th className="text-left py-2 px-2">Community</th>
+                  <th className="text-left py-2 px-2">Platform</th>
+                  <th className="text-right py-2 px-2">Members</th>
+                  <th className="text-right py-2 px-2">Echo</th>
+                  <th className="text-right py-2 px-2">Δ</th>
+                  <th className="text-right py-2 px-2">Activity</th>
+                  <th className="text-right py-2 px-2">4wk Threads</th>
+                  <th className="text-right py-2 px-2">Engagement</th>
+                  <th className="text-left py-2 px-2">Key Influencer</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(dashboardData.community_watchlist || []).map((community, index) => (
+                  <tr
+                    key={index}
+                    className="border-b hover:bg-gray-50 cursor-pointer transition-colors"
+                    onClick={() => setSelectedCommunity(community)}
+                  >
+                    <td className="py-3 px-2 font-medium">{community.rank}</td>
+                    <td className="py-3 px-2 font-medium text-gray-900">{community.name}</td>
+                    <td className="py-3 px-2">
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                        {community.platform.charAt(0).toUpperCase() + community.platform.slice(1)}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2 text-right text-gray-700">
+                      {community.member_count >= 1000000
+                        ? `${(community.member_count / 1000000).toFixed(1)}M`
+                        : community.member_count >= 1000
+                        ? `${(community.member_count / 1000).toFixed(1)}k`
+                        : community.member_count}
+                    </td>
+                    <td className="py-3 px-2 text-right font-medium text-gray-900">
+                      {community.echo_score.toFixed(1)}
+                    </td>
+                    <td className="py-3 px-2 text-right">
+                      <div className={`flex items-center justify-end ${
+                        community.echo_change >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {community.echo_change >= 0 ? (
+                          <TrendingUp className="h-3 w-3 mr-1" />
+                        ) : (
+                          <TrendingDown className="h-3 w-3 mr-1" />
+                        )}
+                        <span className="font-medium">
+                          {community.echo_change >= 0 ? '+' : ''}{community.echo_change.toFixed(1)}%
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-2 text-right">
+                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                        community.activity_score >= 7 ? 'bg-green-100 text-green-800' :
+                        community.activity_score >= 4 ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {community.activity_score.toFixed(1)}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2 text-right text-gray-700">
+                      {community.threads_last_4_weeks}
+                    </td>
+                    <td className="py-3 px-2 text-right text-gray-700">
+                      {community.avg_engagement_rate.toFixed(1)}%
+                    </td>
+                    <td className="py-3 px-2 text-gray-900 truncate max-w-[120px]">
+                      {community.key_influencer}
+                    </td>
+                  </tr>
+                ))}
+                {(!dashboardData.community_watchlist || dashboardData.community_watchlist.length === 0) && (
+                  <tr>
+                    <td colSpan={10} className="py-8 text-center text-gray-500">
+                      <p className="text-sm">No communities in watchlist</p>
+                      <p className="text-xs mt-1">Run a campaign to discover communities</p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </CardContent>
       </Card>
@@ -1135,6 +1208,133 @@ export default function Dashboard() {
           onClose={() => setSelectedThread(null)}
         />
       )}
+
+      {/* Community Detail Modal */}
+      {selectedCommunity && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full my-8 max-h-[calc(100vh-4rem)] overflow-hidden flex flex-col">
+            <div className="flex-shrink-0 bg-white border-b px-6 py-4 flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">{selectedCommunity.name}</h2>
+                <div className="flex items-center gap-3 mt-2">
+                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                    {selectedCommunity.platform.charAt(0).toUpperCase() + selectedCommunity.platform.slice(1)}
+                  </span>
+                  <span className="text-sm text-gray-600">
+                    {selectedCommunity.member_count >= 1000000
+                      ? `${(selectedCommunity.member_count / 1000000).toFixed(1)}M members`
+                      : selectedCommunity.member_count >= 1000
+                      ? `${(selectedCommunity.member_count / 1000).toFixed(1)}k members`
+                      : `${selectedCommunity.member_count} members`}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedCommunity(null)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Key Metrics Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="text-xs text-gray-600 mb-1">Echo Score</div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    {selectedCommunity.echo_score.toFixed(1)}
+                  </div>
+                  <div className={`flex items-center text-sm mt-1 ${
+                    selectedCommunity.echo_change >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {selectedCommunity.echo_change >= 0 ? (
+                      <TrendingUp className="h-3 w-3 mr-1" />
+                    ) : (
+                      <TrendingDown className="h-3 w-3 mr-1" />
+                    )}
+                    {selectedCommunity.echo_change >= 0 ? '+' : ''}{selectedCommunity.echo_change.toFixed(1)}%
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="text-xs text-gray-600 mb-1">Activity Score</div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    {selectedCommunity.activity_score.toFixed(1)}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {selectedCommunity.activity_score >= 7 ? 'Very Active' :
+                     selectedCommunity.activity_score >= 4 ? 'Moderately Active' : 'Low Activity'}
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="text-xs text-gray-600 mb-1">4-Week Threads</div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    {selectedCommunity.threads_last_4_weeks}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">Last 7 days: {selectedCommunity.new_threads}</div>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="text-xs text-gray-600 mb-1">Avg Engagement</div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    {selectedCommunity.avg_engagement_rate.toFixed(1)}%
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">Per thread</div>
+                </div>
+              </div>
+
+              {/* Key Influencer */}
+              <div className="border rounded-lg p-4">
+                <h3 className="text-sm font-medium text-gray-600 mb-2">Key Influencer</h3>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                    <span className="text-blue-600 font-bold text-lg">
+                      {selectedCommunity.key_influencer.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">{selectedCommunity.key_influencer}</div>
+                    <div className="text-xs text-gray-500">Top contributor in this community</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Top Pain Points Section */}
+              <div className="border rounded-lg p-4">
+                <h3 className="text-sm font-medium text-gray-600 mb-3">Top Pain Points</h3>
+                <div className="space-y-2">
+                  {dashboardData?.heatmap?.community_pain_point_matrix
+                    ?.find((c: any) => c.community_name === selectedCommunity.name)
+                    ?.pain_points?.slice(0, 5)
+                    .map((pp: any, idx: number) => (
+                      <div key={idx} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded">
+                        <span className="font-medium text-gray-900">{pp.keyword}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm text-gray-600">{pp.mention_count} mentions</span>
+                          <span className="text-sm text-green-600 font-medium">+{pp.growth_percentage.toFixed(0)}%</span>
+                        </div>
+                      </div>
+                    )) || (
+                    <p className="text-sm text-gray-500 text-center py-4">No pain points data available</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
+                  View All Threads
+                </button>
+                <button className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors">
+                  View Influencers
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1286,162 +1486,6 @@ function ThreadDetailModal({ threadId, onClose }: { threadId: string; onClose: (
           </div>
         </div>
       </div>
-
-      {/* High-Echo Communities Modal */}
-      {showCommunitiesModal && dashboardData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowCommunitiesModal(false)}>
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">High-Echo Communities</h2>
-              <button onClick={() => setShowCommunitiesModal(false)} className="text-gray-500 hover:text-gray-700">
-                ✕
-              </button>
-            </div>
-            <p className="text-sm text-gray-600 mb-4">
-              Communities with echo chamber score ≥ 7.0
-            </p>
-            <div className="space-y-3">
-              {(dashboardData.community_watchlist || []).map((community, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-medium text-gray-900">#{community.rank} {community.name}</h3>
-                      <p className="text-sm text-gray-600 mt-1">Key Influencer: {community.key_influencer}</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-gray-900">{community.echo_score.toFixed(1)}</div>
-                      <div className={`text-xs ${community.echo_change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {community.echo_change >= 0 ? '+' : ''}{community.echo_change.toFixed(1)}%
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-2 text-sm text-gray-700">
-                    {community.new_threads} new threads this week
-                  </div>
-                </div>
-              ))}
-              {(!dashboardData.community_watchlist || dashboardData.community_watchlist.length === 0) && (
-                <p className="text-center text-gray-500 py-8">No high-echo communities found</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Pain Points Modal */}
-      {showPainPointsModal && dashboardData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowPainPointsModal(false)}>
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">High-Growth Pain Points</h2>
-              <button onClick={() => setShowPainPointsModal(false)} className="text-gray-500 hover:text-gray-700">
-                ✕
-              </button>
-            </div>
-            <p className="text-sm text-gray-600 mb-4">
-              Pain points with growth &gt; 50% in the last week
-            </p>
-            <div className="space-y-3">
-              {(dashboardData.top_pain_points || []).map((painPoint, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">{painPoint.keyword}</h3>
-                      <p className="text-sm text-gray-600 mt-1">{painPoint.mention_count} mentions</p>
-                    </div>
-                    <div className="text-right">
-                      <div className={`text-lg font-bold ${
-                        painPoint.growth_percentage >= 100 ? 'text-red-600' :
-                        painPoint.growth_percentage >= 50 ? 'text-orange-600' :
-                        'text-yellow-600'
-                      }`}>
-                        +{painPoint.growth_percentage.toFixed(0)}%
-                      </div>
-                      <div className="text-xs text-gray-500">growth</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {(!dashboardData.top_pain_points || dashboardData.top_pain_points.length === 0) && (
-                <p className="text-center text-gray-500 py-8">No high-growth pain points found</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Sentiment Analysis Modal */}
-      {showSentimentModal && dashboardData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowSentimentModal(false)}>
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Sentiment Analysis</h2>
-              <button onClick={() => setShowSentimentModal(false)} className="text-gray-500 hover:text-gray-700">
-                ✕
-              </button>
-            </div>
-            <div className="space-y-6">
-              <div>
-                <h3 className="font-medium text-gray-900 mb-3">Overall Positivity</h3>
-                <div className="bg-gray-100 rounded-lg p-4">
-                  <div className="text-4xl font-bold text-gray-900 mb-2">
-                    {dashboardData.kpis.positivity_ratio}% 😊
-                  </div>
-                  <div className="flex items-center text-sm">
-                    <TrendingDown className="h-4 w-4 mr-1 text-red-600" />
-                    <span className="text-red-600">{dashboardData.kpis.positivity_change_pp} percentage points from yesterday</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-medium text-gray-900 mb-3">Sentiment Breakdown</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between p-3 bg-green-50 rounded">
-                    <span className="text-sm font-medium text-green-900">Positive Sentiment</span>
-                    <span className="text-sm font-bold text-green-900">
-                      {Math.max(0, dashboardData.kpis.positivity_ratio).toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                    <span className="text-sm font-medium text-gray-900">Neutral Sentiment</span>
-                    <span className="text-sm font-bold text-gray-900">
-                      {Math.min(100, Math.max(0, 100 - dashboardData.kpis.positivity_ratio - (100 - dashboardData.kpis.positivity_ratio))).toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-red-50 rounded">
-                    <span className="text-sm font-medium text-red-900">Negative Sentiment</span>
-                    <span className="text-sm font-bold text-red-900">
-                      {Math.max(0, 100 - dashboardData.kpis.positivity_ratio).toFixed(0)}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-medium text-gray-900 mb-3">Recommendations</h3>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <ul className="list-disc list-inside space-y-2 text-sm text-blue-900">
-                    {dashboardData.kpis.positivity_ratio < 50 ? (
-                      <>
-                        <li>Address negative sentiment through targeted community engagement</li>
-                        <li>Monitor pain points and respond to customer concerns</li>
-                        <li>Highlight positive customer experiences and success stories</li>
-                      </>
-                    ) : (
-                      <>
-                        <li>Maintain positive momentum through consistent engagement</li>
-                        <li>Leverage positive sentiment for marketing campaigns</li>
-                        <li>Continue monitoring for emerging pain points</li>
-                      </>
-                    )}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
