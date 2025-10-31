@@ -517,18 +517,17 @@ export default function Dashboard() {
             {(dashboardData.top_pain_points || []).length > 0 ? (
               (() => {
                 const painPoints = dashboardData.top_pain_points || [];
-                const chartHeight = Math.max(250, painPoints.length * 50);
+                const chartHeight = Math.max(350, painPoints.length * 65);
                 const barColors = [
                   '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6',
                   '#8b5cf6', '#ec4899', '#06b6d4', '#f43f5e', '#84cc16',
                 ];
                 return (
                   <ResponsiveContainer width="100%" height={chartHeight}>
-                    <BarChart data={painPoints} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+                    <BarChart data={painPoints} layout="vertical" margin={{ top: 5, right: 15, left: 5, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                      <XAxis type="number" stroke="#6b7280" style={{ fontSize: '11px' }}
-                        label={{ value: 'Growth %', position: 'insideBottom', offset: -5, style: { fontSize: '11px' } }} />
-                      <YAxis type="category" dataKey="keyword" stroke="#6b7280" style={{ fontSize: '11px' }} width={90} />
+                      <XAxis type="number" stroke="#6b7280" style={{ fontSize: '10px' }} tick={{ dy: 5 }} />
+                      <YAxis type="category" dataKey="keyword" stroke="#6b7280" style={{ fontSize: '10px' }} width={110} tick={{ dx: -5 }} />
                       <Tooltip cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
@@ -592,14 +591,14 @@ export default function Dashboard() {
                   painPointColorMap[pp] = painPointColors[idx % painPointColors.length];
                 });
                 return (
-                  <div className="space-y-4">
+                  <div className="space-y-2">
                     <ResponsiveContainer width="100%" height={400}>
-                      <ScatterChart margin={{ top: 20, right: 20, bottom: 80, left: 100 }}>
+                      <ScatterChart margin={{ top: 10, right: 10, left: 10, bottom: 60 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                         <XAxis type="category" dataKey="community" name="Community" allowDuplicatedCategory={false}
-                          stroke="#6b7280" angle={-45} textAnchor="end" height={80} interval={0} style={{ fontSize: '11px' }} />
+                          stroke="#6b7280" angle={-45} textAnchor="end" height={60} interval={0} style={{ fontSize: '11px' }} />
                         <YAxis type="category" dataKey="painPoint" name="Pain Point" allowDuplicatedCategory={false}
-                          stroke="#6b7280" style={{ fontSize: '11px' }} width={90} />
+                          stroke="#6b7280" style={{ fontSize: '11px' }} width={100} />
                         <ZAxis type="number" dataKey="mentions" range={[200, 2000]} name="Mentions" />
                         <Tooltip cursor={{ strokeDasharray: '3 3' }}
                           content={({ active, payload }) => {
@@ -617,11 +616,11 @@ export default function Dashboard() {
                             }
                             return null;
                           }} />
-                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
+                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '5px' }}
                           content={() => (
-                            <div className="flex flex-wrap justify-center gap-3 mt-4">
+                            <div className="flex flex-wrap justify-center gap-2 mt-2">
                               {painPointsList.map((pp, idx) => (
-                                <div key={idx} className="flex items-center gap-2">
+                                <div key={idx} className="flex items-center gap-1">
                                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: painPointColorMap[pp] }} />
                                   <span className="text-xs text-gray-700">{pp}</span>
                                 </div>
