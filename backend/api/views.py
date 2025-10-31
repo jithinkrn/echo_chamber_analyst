@@ -877,14 +877,42 @@ def get_brand_dashboard_kpis(brand_id, date_from, date_to):
     brand_token_usage = brand_threads.aggregate(total_tokens=Sum('token_count'))['total_tokens'] or 0  # No data yet - return 0
     brand_cost = brand_threads.aggregate(total_cost=Sum('processing_cost'))['total_cost'] or 0.0  # No data yet - return 0
     
+    # Calculate change metrics by comparing current vs 24h ago
+    twenty_four_hours_ago = datetime.now() - timedelta(hours=24)
+
+    # 1. Pain points change (current vs 24h ago)
+    previous_pain_points = PainPoint.objects.filter(
+        growth_percentage__gte=50,
+        created_at__lt=twenty_four_hours_ago,
+        created_at__gte=seven_days_ago
+    ).count()
+
+    pain_points_change = 0
+    if previous_pain_points > 0:
+        pain_points_change = ((high_growth_pain_points - previous_pain_points) / previous_pain_points) * 100
+    elif high_growth_pain_points > 0:
+        pain_points_change = 100  # If we had 0 before and now we have some, that's 100% increase
+
+    # 2. Positivity ratio change (current vs 24h ago)
+    previous_threads = Thread.objects.filter(
+        analyzed_at__gte=seven_days_ago,
+        analyzed_at__lt=twenty_four_hours_ago
+    )
+
+    positivity_change_pp = 0.0
+    if previous_threads.exists():
+        prev_avg_sentiment = previous_threads.aggregate(avg_sentiment=Avg('sentiment_score'))['avg_sentiment'] or 0
+        prev_positivity_ratio = max(0, min(100, (prev_avg_sentiment + 1) * 50))
+        positivity_change_pp = positivity_ratio - prev_positivity_ratio  # Percentage point change
+
     return {
         "active_campaigns": active_campaigns_count,
         "high_echo_communities": high_echo_communities_count,
         "high_echo_change_percent": round(high_echo_change, 1),
         "new_pain_points_above_50": high_growth_pain_points,
-        "new_pain_points_change": 0,  # TODO: Calculate actual change from previous week
+        "new_pain_points_change": round(pain_points_change, 1),
         "positivity_ratio": round(positivity_ratio, 1),
-        "positivity_change_pp": 0.0,  # TODO: Calculate actual change from previous week
+        "positivity_change_pp": round(positivity_change_pp, 1),
         "llm_tokens_used": brand_token_usage // 1000 if brand_token_usage > 0 else 0,
         "llm_cost_usd": float(brand_cost)
     }
@@ -914,48 +942,159 @@ def get_brand_top_pain_points(brand_id, date_from, date_to):
 
 
 def get_brand_heatmap_data(brand_id, date_from, date_to):
-    """Get heatmap data for a specific brand."""
-    from common.models import PainPoint, Community
-    
+    """Get dual heatmap data for a specific brand.
+
+    Returns:
+        dict with two heat map types:
+        - community_pain_point_matrix: Communities (Y) × Pain Points (X) with heat = mention count
+        - time_series_pain_points: Time periods (X) × Pain Points (Y) with heat = growth rate
+    """
+    from common.models import PainPoint, Community, Thread
+    from datetime import timedelta
+    from django.db.models import Count, Avg, Sum, Q
+    from collections import defaultdict
+
     # Get brand campaigns
     brand_campaigns = Campaign.objects.filter(brand_id=brand_id)
-    
+
     # Get pain points from brand campaigns
     all_brand_pain_points = PainPoint.objects.filter(
         campaign__in=brand_campaigns,
         heat_level__gte=3  # Only show significant pain points
     ).select_related('community').order_by('-heat_level', '-growth_percentage')
-    
-    # Group by community and format for heatmap
-    heatmap_data = []
+
+    # === TYPE A: Community × Pain Point Matrix (heat = mention count) ===
+    community_matrix = []
     communities_processed = set()
-    
-    for pain_point in all_brand_pain_points:
-        if pain_point.community.name not in communities_processed:
-            # Get all pain points for this community (before slicing)
-            community_pain_points = all_brand_pain_points.filter(community=pain_point.community)[:3]
-            
-            heatmap_data.append({
-                'name': pain_point.community.name,
-                'platform': pain_point.community.platform,
-                'echo_score': float(pain_point.community.echo_score),
-                'echo_score_change': float(pain_point.community.echo_score_change),
+
+    # Get top communities by echo score
+    top_communities = Community.objects.filter(
+        pain_points__campaign__in=brand_campaigns
+    ).distinct().order_by('-echo_score')[:5]
+
+    for community in top_communities:
+        # Get top pain points for this community
+        community_pain_points = all_brand_pain_points.filter(
+            community=community
+        ).order_by('-mention_count', '-heat_level')[:5]
+
+        if community_pain_points.exists():
+            community_matrix.append({
+                'community_name': community.name,
+                'platform': community.platform,
+                'echo_score': float(community.echo_score),
                 'pain_points': [
                     {
                         'keyword': pp.keyword,
-                        'growth_percentage': float(pp.growth_percentage),
-                        'heat_level': pp.heat_level
+                        'mention_count': pp.mention_count,
+                        'heat_level': pp.heat_level,
+                        'sentiment_score': float(pp.sentiment_score),
+                        'growth_percentage': float(pp.growth_percentage)
                     }
-                    for pp in community_pain_points  # Top 3 pain points per community
+                    for pp in community_pain_points
                 ]
             })
-            communities_processed.add(pain_point.community.name)
-            
-            # Limit to 5 communities total
-            if len(heatmap_data) >= 5:
-                break
-    
-    return heatmap_data
+
+    # === TYPE B: Time Series Line Chart - Weekly Pain Points (4 weeks) ===
+    time_series_matrix = []
+
+    # Get all unique pain points across brand (top 5 most mentioned)
+    # Use set to ensure uniqueness, then take first 5
+    all_pain_point_keywords = list(set(
+        all_brand_pain_points.values_list('keyword', flat=True)
+    ))[:5]
+
+    # Generate time buckets for last 4 weeks
+    now = timezone.now()
+    time_buckets = []
+    for i in range(3, -1, -1):  # Last 4 weeks
+        week_end = (now - timedelta(weeks=i)).replace(hour=23, minute=59, second=59, microsecond=999999)
+        week_start = week_end - timedelta(days=6)
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        time_buckets.append({
+            'week_label': f'Week {4-i}',
+            'date_range': f"{week_start.strftime('%m/%d')}-{week_end.strftime('%m/%d')}",
+            'start': week_start,
+            'end': week_end
+        })
+
+    # Calculate total mentions across all pain points for each week
+    total_mentions_series = []
+    for bucket in time_buckets:
+        total_count = Thread.objects.filter(
+            campaign__in=brand_campaigns,
+            created_at__gte=bucket['start'],
+            created_at__lt=bucket['end']
+        ).count()
+        total_mentions_series.append({
+            'week': bucket['week_label'],
+            'date_range': bucket['date_range'],
+            'mention_count': total_count
+        })
+
+    # For each pain point, calculate mentions over time
+    for keyword in all_pain_point_keywords:
+        pain_point_time_data = {
+            'keyword': keyword,
+            'time_series': []
+        }
+
+        for bucket in time_buckets:
+            # Count mentions in this time bucket across all communities
+            mentions_count = Thread.objects.filter(
+                campaign__in=brand_campaigns,
+                created_at__gte=bucket['start'],
+                created_at__lt=bucket['end'],
+                content__icontains=keyword
+            ).count()
+
+            # Get average sentiment for this keyword in this time period
+            avg_sentiment = Thread.objects.filter(
+                campaign__in=brand_campaigns,
+                created_at__gte=bucket['start'],
+                created_at__lt=bucket['end'],
+                content__icontains=keyword
+            ).aggregate(avg_sentiment=Avg('sentiment_score'))['avg_sentiment'] or 0.0
+
+            pain_point_time_data['time_series'].append({
+                'week': bucket['week_label'],
+                'date_range': bucket['date_range'],
+                'mention_count': mentions_count,
+                'sentiment_score': float(avg_sentiment)
+            })
+
+        # Calculate weekly growth rate (week 3 vs week 4 for more meaningful comparison)
+        # This shows if the issue is trending up or down recently
+        time_series = pain_point_time_data['time_series']
+
+        # Compare last week to second-to-last week
+        if len(time_series) >= 2:
+            previous_week = time_series[-2]['mention_count']
+            current_week = time_series[-1]['mention_count']
+
+            if previous_week > 0:
+                growth_rate = ((current_week - previous_week) / previous_week * 100)
+            elif current_week > 0:
+                growth_rate = 100.0  # New mentions appeared
+            else:
+                growth_rate = 0.0
+        else:
+            growth_rate = 0.0
+
+        pain_point_time_data['growth_rate'] = round(growth_rate, 1)
+        pain_point_time_data['total_mentions'] = sum(tp['mention_count'] for tp in pain_point_time_data['time_series'])
+
+        time_series_matrix.append(pain_point_time_data)
+
+    # Sort time series by total mentions (most mentioned first)
+    time_series_matrix = sorted(time_series_matrix, key=lambda x: x['total_mentions'], reverse=True)
+
+    return {
+        'community_pain_point_matrix': community_matrix,
+        'time_series_pain_points': time_series_matrix,
+        'total_mentions_series': total_mentions_series
+    }
 
 
 def get_brand_community_watchlist(brand_id):
@@ -1699,12 +1838,14 @@ def get_brand_analysis_summary(request, brand_id):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Get analysis summary from campaign metadata
-        analysis_summary = None
-        if latest_campaign.metadata and 'analysis_summary' in latest_campaign.metadata:
-            analysis_summary = latest_campaign.metadata['analysis_summary']
+        # Get insights and data summary from campaign metadata
+        insights = latest_campaign.metadata.get('insights', []) if latest_campaign.metadata else []
+        data_summary = latest_campaign.metadata.get('data_summary', {}) if latest_campaign.metadata else {}
 
-        if not analysis_summary:
+        # Also check for legacy analysis_summary key
+        legacy_summary = latest_campaign.metadata.get('analysis_summary', {}) if latest_campaign.metadata else {}
+
+        if not insights and not legacy_summary:
             return Response(
                 {
                     'brand': {'id': str(brand.id), 'name': brand.name},
@@ -1722,7 +1863,11 @@ def get_brand_analysis_summary(request, brand_id):
                 'id': str(latest_campaign.id),
                 'name': latest_campaign.name
             },
-            'summary': analysis_summary,
+            'summary': {
+                'insights': insights,
+                'data_summary': data_summary,
+                **(legacy_summary if legacy_summary else {})
+            },
             'status': 'completed'
         })
 

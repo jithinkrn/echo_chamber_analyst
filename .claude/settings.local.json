@@ -9,7 +9,8 @@
       "Bash(python /tmp/check_sources.py:*)",
       "Bash(pkill:*)",
       "Bash(python:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Read(//Users/jithinkrishnan/Documents/Study/**)"
     ],
     "deny": [],
     "ask": []

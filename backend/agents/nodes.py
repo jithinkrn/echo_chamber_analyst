@@ -202,11 +202,272 @@ async def scout_node(state: EchoChamberAnalystState) -> EchoChamberAnalystState:
     return state
 
 
+async def _generate_and_store_campaign_insights(collected_data: Dict[str, Any], campaign, brand_name: str) -> None:
+    """
+    Generate natural language insights about the campaign using LLM.
+
+    Analyzes communities, pain points, sentiment trends, and influencers
+    to create actionable insights stored in campaign metadata.
+    """
+    try:
+        from django.utils import timezone
+        from common.models import Campaign as CampaignModel
+        from asgiref.sync import sync_to_async
+
+        # Get the actual Campaign object from the ID (using sync_to_async)
+        campaign_obj = await sync_to_async(CampaignModel.objects.get)(id=campaign.id)
+
+        logger.info(f"💡 Generating campaign insights for '{campaign_obj.name}'...")
+
+        # Prepare summary data for LLM
+        num_communities = len(collected_data.get("communities", []))
+        num_threads = len(collected_data.get("threads", []))
+        num_pain_points = len(collected_data.get("pain_points", []))
+
+        # Get top pain points
+        pain_points = collected_data.get("pain_points", [])
+        top_pain_points = sorted(pain_points, key=lambda x: x.get('mention_count', 0), reverse=True)[:5]
+
+        # Calculate average sentiment
+        threads = collected_data.get("threads", [])
+        avg_sentiment = sum(t.get('sentiment_score', 0.0) for t in threads) / len(threads) if threads else 0.0
+        sentiment_label = "positive" if avg_sentiment > 0.2 else "negative" if avg_sentiment < -0.2 else "neutral"
+
+        # Get top communities by echo score
+        communities = collected_data.get("communities", [])
+        top_communities = sorted(communities, key=lambda x: x.get('echo_score', 0), reverse=True)[:3]
+
+        # Build prompt for LLM
+        insight_prompt = f"""Analyze this brand monitoring campaign data and provide 3-5 concise, actionable insights in natural language.
+
+Brand: {brand_name}
+Campaign: {campaign_obj.name}
+
+DATA SUMMARY:
+- {num_communities} communities monitored
+- {num_threads} discussions analyzed
+- {num_pain_points} pain points identified
+- Overall sentiment: {sentiment_label} ({avg_sentiment:.2f})
+
+TOP PAIN POINTS:
+{chr(10).join(f"- {pp['keyword']}: {pp['mention_count']} mentions (growth: {pp.get('growth_percentage', 0):.0f}%)" for pp in top_pain_points[:3])}
+
+TOP COMMUNITIES (by echo chamber score):
+{chr(10).join(f"- {c['name']} ({c['platform']}): echo score {c['echo_score']:.1f}" for c in top_communities)}
+
+Provide insights focusing on:
+1. Key conversation themes and trends
+2. Emerging pain points or concerns
+3. Community sentiment and engagement patterns
+4. Opportunities for brand engagement or concern mitigation
+5. Recommended actions based on the data
+
+Format as a JSON array of insight objects with: "category", "insight", "priority" (high/medium/low), and "action_items" (array of strings).
+Return ONLY the JSON array, no other text."""
+
+        # Call LLM to generate insights
+        response = await llm.ainvoke(insight_prompt)
+        insights_text = response.content.strip()
+
+        # Parse JSON response
+        import json
+        import re
+
+        # Extract JSON from response (in case LLM adds extra text)
+        json_match = re.search(r'\[.*\]', insights_text, re.DOTALL)
+        if json_match:
+            insights_json = json.loads(json_match.group(0))
+        else:
+            insights_json = []
+
+        # Store insights in campaign metadata
+        if not campaign_obj.metadata:
+            campaign_obj.metadata = {}
+
+        campaign_obj.metadata['insights'] = insights_json
+        campaign_obj.metadata['insights_generated_at'] = timezone.now().isoformat()
+        campaign_obj.metadata['data_summary'] = {
+            'communities': num_communities,
+            'threads': num_threads,
+            'pain_points': num_pain_points,
+            'avg_sentiment': round(avg_sentiment, 2),
+            'sentiment_label': sentiment_label
+        }
+
+        # Save using sync_to_async
+        await sync_to_async(campaign_obj.save)()
+
+        logger.info(f"✅ Generated {len(insights_json)} campaign insights")
+
+    except Exception as e:
+        logger.error(f"❌ Error generating campaign insights: {e}")
+        # Don't raise exception to avoid breaking the workflow
+
+
+def _extract_and_store_influencers(collected_data: Dict[str, Any], campaign, brand_name: str) -> int:
+    """
+    Extract influencers from thread data and calculate their metrics.
+
+    Uses a 4-component scoring model:
+    - Reach Score (0-100): Post volume + engagement + community diversity
+    - Authority Score (0-100): Posting consistency + content quality + engagement ratio
+    - Advocacy Score (0-100): Brand mention rate + sentiment towards brand
+    - Relevance Score (0-100): Brand mention frequency + post volume + community relevance
+    """
+    try:
+        from django.utils import timezone
+        from collections import defaultdict
+
+        logger.info(f"👤 Extracting influencer data from threads...")
+
+        threads = collected_data.get("threads", [])
+        if not threads:
+            logger.info("No threads to extract influencers from")
+            return 0
+
+        # Aggregate data per author
+        author_stats = defaultdict(lambda: {
+            'username': '',
+            'display_name': '',
+            'platform': 'reddit',
+            'total_posts': 0,
+            'total_upvotes': 0,
+            'total_comments': 0,
+            'communities': set(),
+            'brand_mentions': 0,
+            'sentiment_scores': [],
+            'thread_ids': [],
+            'total_echo_score': 0.0
+        })
+
+        # Aggregate thread data by author
+        for thread in threads:
+            author = thread.get('author', 'unknown')
+            if author == 'unknown' or author == '[deleted]':
+                continue
+
+            stats = author_stats[author]
+            stats['username'] = author
+            stats['display_name'] = author
+            stats['platform'] = thread.get('platform', 'reddit')
+            stats['total_posts'] += 1
+            stats['total_upvotes'] += thread.get('upvotes', 0)
+            stats['total_comments'] += thread.get('reply_count', 0)
+            stats['communities'].add(thread.get('community', 'unknown'))
+            stats['thread_ids'].append(thread.get('thread_id', ''))
+            stats['total_echo_score'] += thread.get('echo_score', 0.0)
+
+            # Check for brand mentions
+            content = (thread.get('title', '') + ' ' + thread.get('content', '')).lower()
+            if brand_name.lower() in content:
+                stats['brand_mentions'] += 1
+                stats['sentiment_scores'].append(thread.get('sentiment_score', 0.0))
+
+        # Calculate scores for each influencer
+        influencers_created = 0
+        for author, stats in author_stats.items():
+            if stats['total_posts'] < 2:  # Filter out one-time posters
+                continue
+
+            # Calculate metrics
+            avg_post_score = stats['total_upvotes'] / max(stats['total_posts'], 1)
+            avg_engagement_rate = stats['total_comments'] / max(stats['total_posts'], 1)
+            brand_mention_rate = (stats['brand_mentions'] / max(stats['total_posts'], 1)) * 100
+            avg_sentiment = sum(stats['sentiment_scores']) / len(stats['sentiment_scores']) if stats['sentiment_scores'] else 0.0
+            avg_echo_score = stats['total_echo_score'] / max(stats['total_posts'], 1)
+
+            # Calculate 4-component scores (0-100 scale)
+
+            # 1. Reach Score: Based on post volume, engagement, and community diversity
+            reach_volume = min(stats['total_posts'] / 10 * 50, 50)  # Max 50 points for 10+ posts
+            reach_engagement = min(stats['total_comments'] / 20 * 30, 30)  # Max 30 points for 20+ comments
+            reach_diversity = min(len(stats['communities']) / 3 * 20, 20)  # Max 20 points for 3+ communities
+            reach_score = reach_volume + reach_engagement + reach_diversity
+
+            # 2. Authority Score: Based on consistency, quality, and engagement ratio
+            authority_consistency = min(stats['total_posts'] / 5 * 30, 30)  # Max 30 for 5+ posts
+            authority_quality = min(avg_post_score / 10 * 40, 40)  # Max 40 for 10+ avg score
+            authority_engagement = min(avg_engagement_rate / 5 * 30, 30)  # Max 30 for 5+ avg engagement
+            authority_score = authority_consistency + authority_quality + authority_engagement
+
+            # 3. Advocacy Score: Based on brand mention rate and sentiment
+            advocacy_mentions = min(brand_mention_rate / 50 * 70, 70)  # Max 70 for 50%+ brand mentions
+            advocacy_sentiment = ((avg_sentiment + 1) / 2) * 30  # Convert -1 to 1 range to 0-30 points
+            advocacy_score = advocacy_mentions + advocacy_sentiment
+
+            # 4. Relevance Score: Based on brand mention frequency, post volume, and echo score
+            relevance_frequency = min(stats['brand_mentions'] / 3 * 40, 40)  # Max 40 for 3+ brand mentions
+            relevance_volume = min(stats['total_posts'] / 10 * 30, 30)  # Max 30 for 10+ posts
+            relevance_echo = min(avg_echo_score * 10 * 30, 30)  # Max 30 for 3.0+ avg echo
+            relevance_score = relevance_frequency + relevance_volume + relevance_echo
+
+            # Overall influence score (weighted combination: 30% reach, 30% authority, 20% advocacy, 20% relevance)
+            influence_score = (
+                reach_score * 0.30 +
+                authority_score * 0.30 +
+                advocacy_score * 0.20 +
+                relevance_score * 0.20
+            )
+
+            # Get or create community for influencer
+            community = Community.objects.filter(
+                name__in=list(stats['communities'])
+            ).first()
+
+            # Get brand object
+            from common.models import Brand, Campaign as CampaignModel
+            brand = Brand.objects.filter(name=brand_name).first()
+
+            # Get the actual Campaign object from the ID
+            campaign_obj = CampaignModel.objects.get(id=campaign.id)
+
+            # Store influencer
+            influencer, created = Influencer.objects.update_or_create(
+                campaign=campaign_obj,
+                username=stats['username'],
+                platform=stats['platform'],
+                defaults={
+                    'brand': brand,
+                    'community': community,
+                    'display_name': stats['display_name'],
+                    'profile_url': f"https://reddit.com/user/{stats['username']}" if stats['platform'] == 'reddit' else '',
+                    'total_posts': stats['total_posts'],
+                    'total_comments': stats['total_comments'],
+                    'total_karma': stats['total_upvotes'],
+                    'avg_post_score': round(avg_post_score, 2),
+                    'avg_engagement_rate': round(avg_engagement_rate, 2),
+                    'reach_score': round(reach_score, 2),
+                    'authority_score': round(authority_score, 2),
+                    'advocacy_score': round(advocacy_score, 2),
+                    'relevance_score': round(relevance_score, 2),
+                    'influence_score': round(influence_score, 2),
+                    'sentiment_towards_brand': round(avg_sentiment, 2),
+                    'brand_mention_count': stats['brand_mentions'],
+                    'brand_mention_rate': round(brand_mention_rate, 2),
+                    'communities': list(stats['communities']),
+                    'last_active': timezone.now()
+                }
+            )
+
+            if created:
+                influencers_created += 1
+                logger.debug(f"Created influencer: {stats['username']} (influence: {influence_score:.1f})")
+            else:
+                logger.debug(f"Updated influencer: {stats['username']} (influence: {influence_score:.1f})")
+
+        logger.info(f"✅ Extracted {influencers_created} new influencers, updated {len(author_stats) - influencers_created}")
+        return len(author_stats)
+
+    except Exception as e:
+        logger.error(f"❌ Error extracting influencers: {e}")
+        return 0
+
+
 def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_name: str) -> None:
     """Store real collected data in Django models for dashboard display"""
     try:
         from django.utils import timezone
-        
+
         logger.info(f"💾 Storing real dashboard data for brand: {brand_name}")
         
         # Store real communities with authentic data
@@ -263,13 +524,26 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
                     }
                 )
 
+        # Track total tokens and costs from LLM operations
+        total_tokens = 0
+        total_cost = 0.0
+
+        # Get token tracking from discovered sources if available
+        if 'discovered_sources' in collected_data:
+            total_tokens += collected_data['discovered_sources'].get('token_count', 0)
+            total_cost += collected_data['discovered_sources'].get('processing_cost', 0.0)
+
         # Store real threads from actual forums/Reddit
         for thread_data in collected_data.get("threads", []):
             community = Community.objects.filter(
                 name=thread_data.get("community")
             ).first()
-            
+
             if community:
+                # Calculate token estimate for this thread (rough approximation: ~1 token per 4 chars)
+                thread_tokens = len(thread_data.get("content", "")) // 4
+                total_tokens += thread_tokens
+
                 Thread.objects.update_or_create(
                     thread_id=thread_data["thread_id"],
                     defaults={
@@ -283,7 +557,9 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
                         "echo_score": thread_data.get("echo_score", 0.0),
                         "sentiment_score": thread_data.get("sentiment_score", 0.0),
                         "published_at": thread_data.get("created_at", timezone.now()),
-                        "analyzed_at": timezone.now()
+                        "analyzed_at": timezone.now(),
+                        "token_count": thread_tokens,
+                        "processing_cost": thread_tokens * 0.00001  # Estimate: $0.01 per 1K tokens
                     }
                 )
 
@@ -292,10 +568,26 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
             # Could store in a separate BrandMention model if needed
             logger.debug(f"Brand mention: {mention_data.get('title', 'No title')}")
 
+        # Extract and store influencer data from threads
+        influencer_count = _extract_and_store_influencers(collected_data, campaign, brand_name)
+
+        # Generate campaign insights using LLM (run async function in sync context)
+        import asyncio
+        import concurrent.futures
+
+        # Always run in a separate thread to avoid event loop conflicts
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(
+                lambda: asyncio.run(_generate_and_store_campaign_insights(collected_data, campaign, brand_name))
+            )
+            future.result()
+
         logger.info(f"✅ Real dashboard data stored successfully for brand '{brand_name}'")
         logger.info(f"📊 Stored: {len(collected_data.get('communities', []))} communities, "
                    f"{len(collected_data.get('pain_points', []))} pain points, "
-                   f"{len(collected_data.get('threads', []))} threads")
+                   f"{len(collected_data.get('threads', []))} threads, "
+                   f"{influencer_count} influencers")
+        logger.info(f"💰 Total LLM Usage - Tokens: {total_tokens:,}, Cost: ${total_cost:.4f}")
 
     except Exception as e:
         logger.error(f"❌ Error storing real dashboard data: {e}")

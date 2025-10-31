@@ -108,9 +108,23 @@ Return your response as a JSON object with this exact structure:
 }}"""
 
     try:
-        # Get LLM recommendations
+        # Get LLM recommendations and track tokens
         response = await llm.ainvoke(prompt)
         response_text = response.content.strip()
+
+        # Track token usage
+        token_count = 0
+        cost = 0.0
+        if hasattr(response, 'response_metadata'):
+            usage = response.response_metadata.get('token_usage', {})
+            prompt_tokens = usage.get('prompt_tokens', 0)
+            completion_tokens = usage.get('completion_tokens', 0)
+            token_count = usage.get('total_tokens', prompt_tokens + completion_tokens)
+
+            # GPT-4 pricing: $0.03/1K prompt tokens, $0.06/1K completion tokens
+            cost = (prompt_tokens * 0.03 / 1000) + (completion_tokens * 0.06 / 1000)
+
+            logger.info(f"💰 LLM Source Discovery - Tokens: {token_count}, Cost: ${cost:.4f}")
 
         # Clean up response if it contains markdown code blocks
         if response_text.startswith("```"):
@@ -122,6 +136,10 @@ Return your response as a JSON object with this exact structure:
 
         # Parse JSON response
         sources = json.loads(response_text)
+
+        # Add token tracking to response
+        sources['token_count'] = token_count
+        sources['processing_cost'] = cost
 
         # Validate response structure
         if not isinstance(sources.get("reddit_communities"), list):

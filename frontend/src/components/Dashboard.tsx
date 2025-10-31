@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Users, MessageSquare, AlertTriangle, Building, ChevronDown, Lightbulb, Target } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import InfluencerPulse from './InfluencerPulse';
 import { apiService } from '@/lib/api';
 
@@ -55,17 +56,32 @@ interface DashboardData {
     llm_tokens_used: number;
     llm_cost_usd: number;
   };
-  heatmap: Array<{
-    name: string;
-    platform: string;
-    echo_score: number;
-    echo_score_change: number;
-    pain_points: Array<{
-      keyword: string;
-      growth_percentage: number;
-      heat_level: number;
+  heatmap: {
+    community_pain_point_matrix?: Array<{
+      community_name: string;
+      platform: string;
+      echo_score: number;
+      pain_points: Array<{
+        keyword: string;
+        mention_count: number;
+        heat_level: number;
+        sentiment_score: number;
+        growth_percentage: number;
+      }>;
     }>;
-  }>;
+    time_series_pain_points?: Array<{
+      keyword: string;
+      growth_rate: number;
+      total_mentions: number;
+      time_series: Array<{
+        date: string;
+        label: string;
+        mention_count: number;
+        sentiment_score: number;
+        heat_level: number;
+      }>;
+    }>;
+  };
   top_pain_points: Array<{
     keyword: string;
     growth_percentage: number;
@@ -132,6 +148,9 @@ export default function Dashboard() {
   const [showBrandDropdown, setShowBrandDropdown] = useState(false);
   const [analysisSummary, setAnalysisSummary] = useState<any>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [showCommunitiesModal, setShowCommunitiesModal] = useState(false);
+  const [showPainPointsModal, setShowPainPointsModal] = useState(false);
+  const [showSentimentModal, setShowSentimentModal] = useState(false);
 
   useEffect(() => {
     fetchBrands();
@@ -401,7 +420,10 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => setShowCommunitiesModal(true)}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
               High‑Echo Communities
@@ -415,10 +437,16 @@ export default function Dashboard() {
               <TrendingUp className="h-4 w-4 mr-1" />
               +{dashboardData.kpis.high_echo_change_percent}%
             </div>
+            <div className="mt-2 text-xs text-blue-600">
+              Click to view details →
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => setShowPainPointsModal(true)}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
               New Pain‑pts &gt; +50%
@@ -432,10 +460,16 @@ export default function Dashboard() {
               <TrendingUp className="h-4 w-4 mr-1" />
               +{dashboardData.kpis.new_pain_points_change}
             </div>
+            <div className="mt-2 text-xs text-blue-600">
+              Click to view details →
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => setShowSentimentModal(true)}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
               Positivity Ratio
@@ -448,6 +482,9 @@ export default function Dashboard() {
             <div className="flex items-center text-sm text-red-600">
               <TrendingDown className="h-4 w-4 mr-1" />
               {dashboardData.kpis.positivity_change_pp} pp
+            </div>
+            <div className="mt-2 text-xs text-blue-600">
+              Click to view details →
             </div>
           </CardContent>
         </Card>
@@ -472,22 +509,23 @@ export default function Dashboard() {
 
       {/* Heat Map and Top Pain Points */}
       <div className="grid grid-cols-2 gap-6">
-        {/* Community Heat Map */}
+        {/* Community × Pain Point Heat Map (Type A) */}
         <Card>
           <CardHeader>
-            <CardTitle>HEAT‑MAP: Where the talk is</CardTitle>
+            <CardTitle>HEAT‑MAP A: Communities × Pain Points</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4 text-xs font-medium text-gray-600 border-b pb-2">
                 <span>Community ▼</span>
-                <span>Pain Point ▲</span>
+                <span>Top Pain Point (by mentions) ▲</span>
               </div>
-              {(dashboardData.heatmap || []).length > 0 ? (
-                (dashboardData.heatmap || []).slice(0, 4).map((community, index) => (
+              {(dashboardData.heatmap?.community_pain_point_matrix || []).length > 0 ? (
+                (dashboardData.heatmap?.community_pain_point_matrix || []).slice(0, 4).map((community, index) => (
                   <div key={index} className="grid grid-cols-2 gap-4 items-center">
                     <div className="font-medium text-sm text-gray-900">
-                      {community.name}
+                      {community.community_name}
+                      <span className="text-xs text-gray-500 ml-1">({community.platform})</span>
                     </div>
                     <div className="flex items-center justify-between">
                       {(community.pain_points || []).slice(0, 1).map((pp, ppIndex) => (
@@ -496,7 +534,7 @@ export default function Dashboard() {
                             {getHeatLevelDots(pp.heat_level)}
                           </div>
                           <span className="text-sm text-gray-700">
-                            {pp.keyword} (+{pp.growth_percentage}%)
+                            {pp.keyword} ({pp.mention_count} mentions)
                           </span>
                         </div>
                       ))}
@@ -506,7 +544,7 @@ export default function Dashboard() {
               ) : (
                 <div className="text-center text-gray-500 py-8">
                   <p className="text-sm">No community heat map data available for this brand</p>
-                  <p className="text-xs mt-1">Try selecting "All Brands" or check back later</p>
+                  <p className="text-xs mt-1">Run a campaign to collect data</p>
                 </div>
               )}
             </div>
@@ -542,6 +580,133 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Pain Point Trends Line Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle>PAIN POINT TRENDS</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {(dashboardData.heatmap?.time_series_pain_points || []).length > 0 ? (
+              <>
+                <div className="text-xs text-gray-600 mb-3">
+                  Last 4 weeks • Tracking mention trends for top pain points
+                </div>
+                <ResponsiveContainer width="100%" height={400}>
+                  <LineChart
+                    data={(() => {
+                      // Transform data for line chart
+                      const painPoints = dashboardData.heatmap?.time_series_pain_points || [];
+                      const totalSeries = dashboardData.heatmap?.total_mentions_series || [];
+
+                      if (painPoints.length === 0) return [];
+
+                      // Get weeks from first pain point
+                      const weeks = painPoints[0]?.time_series || [];
+
+                      // Create chart data with week on x-axis and all pain points as separate lines
+                      return weeks.map((weekData, idx) => {
+                        const dataPoint: any = {
+                          week: weekData.week,
+                          dateRange: weekData.date_range,
+                          Total: totalSeries[idx]?.mention_count || 0
+                        };
+
+                        // Add each pain point as a separate line
+                        painPoints.forEach((pp) => {
+                          dataPoint[pp.keyword] = pp.time_series[idx]?.mention_count || 0;
+                        });
+
+                        return dataPoint;
+                      });
+                    })()}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis
+                      dataKey="week"
+                      stroke="#6b7280"
+                      style={{ fontSize: '12px' }}
+                    />
+                    <YAxis
+                      stroke="#6b7280"
+                      style={{ fontSize: '12px' }}
+                      label={{ value: 'Mentions', angle: -90, position: 'insideLeft', style: { fontSize: '12px', fill: '#6b7280' } }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'white',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '6px',
+                        fontSize: '12px'
+                      }}
+                      labelFormatter={(label) => {
+                        const dataPoint = (dashboardData.heatmap?.time_series_pain_points?.[0]?.time_series || []).find((d: any) => d.week === label);
+                        return dataPoint ? `${label} (${dataPoint.date_range})` : label;
+                      }}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: '12px' }}
+                      iconType="line"
+                    />
+                    {/* Total line - bold and dark */}
+                    <Line
+                      type="monotone"
+                      dataKey="Total"
+                      stroke="#1f2937"
+                      strokeWidth={3}
+                      dot={{ r: 5 }}
+                      activeDot={{ r: 7 }}
+                    />
+                    {/* Individual pain point lines - different colors */}
+                    {(dashboardData.heatmap?.time_series_pain_points || []).map((pp, idx) => {
+                      const colors = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#06b6d4'];
+                      return (
+                        <Line
+                          key={pp.keyword}
+                          type="monotone"
+                          dataKey={pp.keyword}
+                          stroke={colors[idx % colors.length]}
+                          strokeWidth={2}
+                          dot={{ r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                      );
+                    })}
+                  </LineChart>
+                </ResponsiveContainer>
+                {/* Legend with growth rates */}
+                <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t">
+                  {(dashboardData.heatmap?.time_series_pain_points || []).map((pp) => (
+                    <div key={pp.keyword} className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">{pp.keyword}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-600">{pp.total_mentions} mentions</span>
+                        <div className={`flex items-center text-xs ${
+                          pp.growth_rate >= 0 ? 'text-red-600' : 'text-green-600'
+                        }`}>
+                          {pp.growth_rate >= 0 ? (
+                            <TrendingUp className="h-3 w-3 mr-1" />
+                          ) : (
+                            <TrendingDown className="h-3 w-3 mr-1" />
+                          )}
+                          {pp.growth_rate >= 0 ? '+' : ''}{pp.growth_rate}%
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                <p className="text-sm">No time series data available</p>
+                <p className="text-xs mt-1">Run a campaign to collect historical data</p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Community Watchlist */}
       <Card>
@@ -823,6 +988,61 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
+
+            {/* Campaign Insights Section */}
+            {analysisSummary?.insights && analysisSummary.insights.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <Lightbulb className="h-5 w-5 mr-2 text-yellow-600" />
+                  Campaign Insights
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {analysisSummary.insights.map((insight: any, index: number) => (
+                    <div
+                      key={index}
+                      className={`p-4 rounded-lg border-l-4 ${
+                        insight.priority === 'high' ? 'bg-red-50 border-red-500' :
+                        insight.priority === 'medium' ? 'bg-yellow-50 border-yellow-500' :
+                        'bg-blue-50 border-blue-500'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-medium text-gray-900 text-sm">{insight.category}</h4>
+                        <span className={`px-2 py-1 text-xs font-medium rounded ${
+                          insight.priority === 'high' ? 'bg-red-100 text-red-800' :
+                          insight.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {insight.priority}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-700 mb-3">{insight.insight}</p>
+                      {insight.action_items && insight.action_items.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs font-medium text-gray-600 mb-1">Recommended Actions:</p>
+                          <ul className="list-disc list-inside space-y-1">
+                            {insight.action_items.map((action: string, idx: number) => (
+                              <li key={idx} className="text-xs text-gray-600">{action}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {analysisSummary?.data_summary && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-600">
+                      Insights generated from {analysisSummary.data_summary.communities} communities, {' '}
+                      {analysisSummary.data_summary.threads} threads, and {' '}
+                      {analysisSummary.data_summary.pain_points} pain points.
+                      Overall sentiment: <span className="font-medium">{analysisSummary.data_summary.sentiment_label}</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -985,6 +1205,162 @@ function ThreadDetailModal({ threadId, onClose }: { threadId: string; onClose: (
           </div>
         </div>
       </div>
+
+      {/* High-Echo Communities Modal */}
+      {showCommunitiesModal && dashboardData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowCommunitiesModal(false)}>
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">High-Echo Communities</h2>
+              <button onClick={() => setShowCommunitiesModal(false)} className="text-gray-500 hover:text-gray-700">
+                ✕
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Communities with echo chamber score ≥ 7.0
+            </p>
+            <div className="space-y-3">
+              {(dashboardData.community_watchlist || []).map((community, index) => (
+                <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-medium text-gray-900">#{community.rank} {community.name}</h3>
+                      <p className="text-sm text-gray-600 mt-1">Key Influencer: {community.key_influencer}</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-gray-900">{community.echo_score.toFixed(1)}</div>
+                      <div className={`text-xs ${community.echo_change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {community.echo_change >= 0 ? '+' : ''}{community.echo_change.toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-sm text-gray-700">
+                    {community.new_threads} new threads this week
+                  </div>
+                </div>
+              ))}
+              {(!dashboardData.community_watchlist || dashboardData.community_watchlist.length === 0) && (
+                <p className="text-center text-gray-500 py-8">No high-echo communities found</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pain Points Modal */}
+      {showPainPointsModal && dashboardData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowPainPointsModal(false)}>
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">High-Growth Pain Points</h2>
+              <button onClick={() => setShowPainPointsModal(false)} className="text-gray-500 hover:text-gray-700">
+                ✕
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Pain points with growth &gt; 50% in the last week
+            </p>
+            <div className="space-y-3">
+              {(dashboardData.top_pain_points || []).map((painPoint, index) => (
+                <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h3 className="font-medium text-gray-900">{painPoint.keyword}</h3>
+                      <p className="text-sm text-gray-600 mt-1">{painPoint.mention_count} mentions</p>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-lg font-bold ${
+                        painPoint.growth_percentage >= 100 ? 'text-red-600' :
+                        painPoint.growth_percentage >= 50 ? 'text-orange-600' :
+                        'text-yellow-600'
+                      }`}>
+                        +{painPoint.growth_percentage.toFixed(0)}%
+                      </div>
+                      <div className="text-xs text-gray-500">growth</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {(!dashboardData.top_pain_points || dashboardData.top_pain_points.length === 0) && (
+                <p className="text-center text-gray-500 py-8">No high-growth pain points found</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sentiment Analysis Modal */}
+      {showSentimentModal && dashboardData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowSentimentModal(false)}>
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Sentiment Analysis</h2>
+              <button onClick={() => setShowSentimentModal(false)} className="text-gray-500 hover:text-gray-700">
+                ✕
+              </button>
+            </div>
+            <div className="space-y-6">
+              <div>
+                <h3 className="font-medium text-gray-900 mb-3">Overall Positivity</h3>
+                <div className="bg-gray-100 rounded-lg p-4">
+                  <div className="text-4xl font-bold text-gray-900 mb-2">
+                    {dashboardData.kpis.positivity_ratio}% 😊
+                  </div>
+                  <div className="flex items-center text-sm">
+                    <TrendingDown className="h-4 w-4 mr-1 text-red-600" />
+                    <span className="text-red-600">{dashboardData.kpis.positivity_change_pp} percentage points from yesterday</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-medium text-gray-900 mb-3">Sentiment Breakdown</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-3 bg-green-50 rounded">
+                    <span className="text-sm font-medium text-green-900">Positive Sentiment</span>
+                    <span className="text-sm font-bold text-green-900">
+                      {Math.max(0, dashboardData.kpis.positivity_ratio).toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                    <span className="text-sm font-medium text-gray-900">Neutral Sentiment</span>
+                    <span className="text-sm font-bold text-gray-900">
+                      {Math.min(100, Math.max(0, 100 - dashboardData.kpis.positivity_ratio - (100 - dashboardData.kpis.positivity_ratio))).toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-red-50 rounded">
+                    <span className="text-sm font-medium text-red-900">Negative Sentiment</span>
+                    <span className="text-sm font-bold text-red-900">
+                      {Math.max(0, 100 - dashboardData.kpis.positivity_ratio).toFixed(0)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-medium text-gray-900 mb-3">Recommendations</h3>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <ul className="list-disc list-inside space-y-2 text-sm text-blue-900">
+                    {dashboardData.kpis.positivity_ratio < 50 ? (
+                      <>
+                        <li>Address negative sentiment through targeted community engagement</li>
+                        <li>Monitor pain points and respond to customer concerns</li>
+                        <li>Highlight positive customer experiences and success stories</li>
+                      </>
+                    ) : (
+                      <>
+                        <li>Maintain positive momentum through consistent engagement</li>
+                        <li>Leverage positive sentiment for marketing campaigns</li>
+                        <li>Continue monitoring for emerging pain points</li>
+                      </>
+                    )}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

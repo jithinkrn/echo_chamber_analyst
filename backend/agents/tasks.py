@@ -195,7 +195,7 @@ def scout_reddit_task(self, campaign_id: Optional[int] = None, config: Optional[
 
                 simple_campaign = SimpleCampaign(campaign)
 
-                # Call storage function directly (it's now synchronous)
+                # Call storage function directly (handles async LLM calls internally)
                 _store_real_dashboard_data(collected_data, simple_campaign, brand.name)
 
                 # Track results
