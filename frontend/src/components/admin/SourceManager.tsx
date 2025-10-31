@@ -1,80 +1,110 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Globe, Trash, CheckCircle, Database, ExternalLink } from 'lucide-react';
+import { Sparkles, Globe, TrendingUp, Brain, ExternalLink, RefreshCw } from 'lucide-react';
 import { apiService } from '../../lib/api';
-import { AddSourceModal } from '../modals/AddSourceModal';
 
-interface Source {
+interface DiscoveredSource {
+  brand_name: string;
+  focus: string;
+  industry: string;
+  reddit_communities: string[];
+  forums: string[];
+  reasoning: string;
+  discovered_at: string;
+  cache_hit?: boolean;
+  is_fallback?: boolean;
+}
+
+interface Campaign {
   id: string;
   name: string;
-  platform: string;
-  url: string;
-  description?: string;
-  category?: string;
-  is_default: boolean;
-  is_active?: boolean;
-  member_count?: number;
-  created_at?: string;
+  brand?: {
+    name: string;
+  };
 }
 
 export default function SourceManager() {
-  const [sources, setSources] = useState<Source[]>([]);
+  const [discoveredSources, setDiscoveredSources] = useState<DiscoveredSource[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [selectedDefaults, setSelectedDefaults] = useState<Set<string>>(new Set());
+  const [selectedBrand, setSelectedBrand] = useState<string>('');
 
   useEffect(() => {
-    fetchSources();
+    fetchData();
   }, []);
 
-  const fetchSources = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await apiService.getSources();
-      setSources(response.sources || []);
+
+      // Fetch campaigns to get brands
+      const campaignsResponse = await apiService.getCampaigns();
+      const campaignsList = campaignsResponse.campaigns || [];
+      setCampaigns(campaignsList);
+
+      // Try to fetch LLM-discovered sources from the backend
+      // This will require a new API endpoint
+      await fetchDiscoveredSources();
+
     } catch (error) {
-      console.error('Failed to fetch sources:', error);
+      console.error('Failed to fetch data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteCustomSource = async (sourceId: string) => {
-    if (!confirm('Are you sure you want to delete this custom source?')) return;
-
+  const fetchDiscoveredSources = async () => {
     try {
-      await apiService.deleteCustomSource(sourceId);
-      setSources(sources.filter(s => s.id !== sourceId));
+      // Call new API endpoint to get LLM-discovered sources
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/v1/discovered-sources/`);
+      if (response.ok) {
+        const data = await response.json();
+        setDiscoveredSources(data.sources || []);
+      }
     } catch (error) {
-      console.error('Failed to delete source:', error);
-      alert('Failed to delete source');
+      console.error('Failed to fetch discovered sources:', error);
+      // If the endpoint doesn't exist yet, we'll show empty state
+      setDiscoveredSources([]);
     }
   };
 
-  const toggleDefaultSelection = (sourceId: string) => {
-    const newSelected = new Set(selectedDefaults);
-    if (newSelected.has(sourceId)) {
-      newSelected.delete(sourceId);
-    } else {
-      newSelected.add(sourceId);
+  const refreshDiscovery = async (brandName: string) => {
+    try {
+      setLoading(true);
+      // Trigger a fresh LLM discovery by clearing cache
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/v1/discover-sources/?brand=${brandName}&refresh=true&industry=general&focus=comprehensive`);
+      if (response.ok) {
+        const data = await response.json();
+        // Update the discovered sources list
+        setDiscoveredSources(prev => {
+          const filtered = prev.filter(s => s.brand_name !== brandName);
+          return [...filtered, data];
+        });
+      }
+    } catch (error) {
+      console.error('Failed to refresh discovery:', error);
+    } finally {
+      setLoading(false);
     }
-    setSelectedDefaults(newSelected);
   };
 
-  const defaultSources = sources.filter(s => s.is_default);
-  const customSources = sources.filter(s => !s.is_default);
+  // Get unique brands from campaigns
+  const uniqueBrands = Array.from(
+    new Set(campaigns.map(c => c.brand?.name).filter(Boolean))
+  );
 
-  const groupedDefaults = {
-    reddit: defaultSources.filter(s => s.platform === 'reddit'),
-    forum: defaultSources.filter(s => s.platform === 'forum')
-  };
+  const filteredSources = selectedBrand
+    ? discoveredSources.filter(s => s.brand_name === selectedBrand)
+    : discoveredSources;
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2 text-gray-600">Loading sources...</span>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+        <span className="ml-2 text-gray-600">Loading LLM-discovered sources...</span>
       </div>
     );
   }
@@ -82,269 +112,204 @@ export default function SourceManager() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-start">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Source Management</h2>
-          <p className="text-gray-600 mt-1">Manage default and custom data sources for brand analysis</p>
-        </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Add Custom Source</span>
-        </button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="text-blue-600 text-sm font-medium">Default Sources</div>
-          <div className="text-2xl font-bold text-blue-900 mt-1">{defaultSources.length}</div>
-        </div>
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="text-green-600 text-sm font-medium">Custom Sources</div>
-          <div className="text-2xl font-bold text-green-900 mt-1">{customSources.length}</div>
-        </div>
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-          <div className="text-purple-600 text-sm font-medium">Total Sources</div>
-          <div className="text-2xl font-bold text-purple-900 mt-1">{sources.length}</div>
-        </div>
-      </div>
-
-      {/* Default Sources Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center space-x-2">
-            <Database className="h-5 w-5 text-blue-600" />
-            <h3 className="text-lg font-semibold text-gray-900">Default Sources</h3>
+          <div className="flex items-center space-x-3">
+            <Brain className="h-8 w-8 text-purple-600" />
+            <h2 className="text-2xl font-bold text-gray-900">AI-Discovered Sources</h2>
           </div>
-          <p className="text-sm text-gray-600 mt-1">
-            Pre-configured sources available for all brands. Select defaults when creating a brand.
+          <p className="text-gray-600 mt-2">
+            Intelligent source recommendations powered by GPT-4 based on brand context and industry
           </p>
         </div>
 
-        <div className="p-6 space-y-6">
-          {/* Reddit Sources */}
-          <div>
-            <h4 className="text-md font-medium text-gray-700 mb-3 flex items-center space-x-2">
-              <Globe className="h-4 w-4" />
-              <span>Reddit Communities ({groupedDefaults.reddit.length})</span>
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {groupedDefaults.reddit.map((source) => (
-                <div
-                  key={source.id}
-                  className="border border-gray-200 rounded-lg p-3 hover:border-blue-300 transition cursor-pointer"
-                  onClick={() => toggleDefaultSelection(source.id)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={selectedDefaults.has(source.id)}
-                          onChange={() => toggleDefaultSelection(source.id)}
-                          className="rounded text-blue-600"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <h5 className="font-medium text-gray-900 text-sm">{source.name}</h5>
-                      </div>
-                      {source.description && (
-                        <p className="text-xs text-gray-600 mt-1 ml-6">{source.description}</p>
-                      )}
-                      <div className="flex items-center space-x-2 mt-2 ml-6">
-                        {source.category && (
-                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                            {source.category}
+        {/* Brand Filter */}
+        {uniqueBrands.length > 0 && (
+          <div className="flex items-center space-x-2">
+            <label className="text-sm text-gray-600">Filter by brand:</label>
+            <select
+              value={selectedBrand}
+              onChange={(e) => setSelectedBrand(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+            >
+              <option value="">All Brands</option>
+              {uniqueBrands.map(brand => (
+                <option key={brand} value={brand}>{brand}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <Sparkles className="h-5 w-5 text-purple-600" />
+            <div className="text-purple-600 text-sm font-medium">Brands Analyzed</div>
+          </div>
+          <div className="text-2xl font-bold text-purple-900 mt-1">{uniqueBrands.length}</div>
+        </div>
+
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <Globe className="h-5 w-5 text-blue-600" />
+            <div className="text-blue-600 text-sm font-medium">Reddit Communities</div>
+          </div>
+          <div className="text-2xl font-bold text-blue-900 mt-1">
+            {discoveredSources.reduce((acc, s) => acc + s.reddit_communities.length, 0)}
+          </div>
+        </div>
+
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <TrendingUp className="h-5 w-5 text-green-600" />
+            <div className="text-green-600 text-sm font-medium">Forums Discovered</div>
+          </div>
+          <div className="text-2xl font-bold text-green-900 mt-1">
+            {discoveredSources.reduce((acc, s) => acc + s.forums.length, 0)}
+          </div>
+        </div>
+
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <Brain className="h-5 w-5 text-orange-600" />
+            <div className="text-orange-600 text-sm font-medium">LLM Discoveries</div>
+          </div>
+          <div className="text-2xl font-bold text-orange-900 mt-1">{discoveredSources.length}</div>
+        </div>
+      </div>
+
+      {/* Discovered Sources */}
+      {filteredSources.length === 0 ? (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+          <Brain className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">No Sources Discovered Yet</h3>
+          <p className="text-gray-600 mb-4 max-w-md mx-auto">
+            LLM-powered source discovery happens automatically when campaigns run.
+            Create and run a campaign to see AI-recommended sources appear here.
+          </p>
+          <div className="text-sm text-gray-500">
+            The system uses GPT-4 to intelligently recommend the best Reddit communities and forums
+            based on your brand, industry, and analysis focus.
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {filteredSources.map((source, idx) => (
+            <div key={idx} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+              {/* Header */}
+              <div className="px-6 py-4 bg-gradient-to-r from-purple-50 to-blue-50 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <Sparkles className="h-6 w-6 text-purple-600" />
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">{source.brand_name}</h3>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                          {source.industry}
+                        </span>
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                          Focus: {source.focus}
+                        </span>
+                        {source.cache_hit && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                            Cached
                           </span>
                         )}
-                        {source.member_count && (
-                          <span className="text-xs text-gray-500">
-                            {(source.member_count / 1000).toFixed(0)}K members
+                        {source.is_fallback && (
+                          <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
+                            Fallback
                           </span>
                         )}
                       </div>
                     </div>
-                    <a
-                      href={source.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-gray-400 hover:text-blue-600 ml-2"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
+                  </div>
+
+                  <button
+                    onClick={() => refreshDiscovery(source.brand_name)}
+                    className="flex items-center space-x-2 px-3 py-1.5 bg-white border border-purple-200 text-purple-600 rounded-md hover:bg-purple-50 transition text-sm"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* LLM Reasoning */}
+              <div className="px-6 py-4 bg-blue-50 border-b border-gray-200">
+                <div className="flex items-start space-x-2">
+                  <Brain className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="text-sm font-semibold text-blue-900 mb-1">AI Reasoning</h4>
+                    <p className="text-sm text-blue-800">{source.reasoning}</p>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          {/* Forum Sources */}
-          {groupedDefaults.forum.length > 0 && (
-            <div>
-              <h4 className="text-md font-medium text-gray-700 mb-3 flex items-center space-x-2">
-                <Globe className="h-4 w-4" />
-                <span>Forums & Discussion Boards ({groupedDefaults.forum.length})</span>
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {groupedDefaults.forum.map((source) => (
-                  <div
-                    key={source.id}
-                    className="border border-gray-200 rounded-lg p-3 hover:border-blue-300 transition cursor-pointer"
-                    onClick={() => toggleDefaultSelection(source.id)}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={selectedDefaults.has(source.id)}
-                            onChange={() => toggleDefaultSelection(source.id)}
-                            className="rounded text-blue-600"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                          <h5 className="font-medium text-gray-900 text-sm">{source.name}</h5>
-                        </div>
-                        {source.description && (
-                          <p className="text-xs text-gray-600 mt-1 ml-6">{source.description}</p>
-                        )}
-                        {source.category && (
-                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded mt-2 ml-6 inline-block">
-                            {source.category}
-                          </span>
-                        )}
-                      </div>
+              {/* Sources Content */}
+              <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Reddit Communities */}
+                <div>
+                  <h4 className="text-md font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+                    <Globe className="h-5 w-5 text-blue-600" />
+                    <span>Reddit Communities ({source.reddit_communities.length})</span>
+                  </h4>
+                  <div className="space-y-2">
+                    {source.reddit_communities.map((community, i) => (
                       <a
-                        href={source.url}
+                        key={i}
+                        href={`https://reddit.com/r/${community}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-gray-400 hover:text-blue-600 ml-2"
-                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition group"
                       >
-                        <ExternalLink className="h-4 w-4" />
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          <span className="font-medium text-gray-900">r/{community}</span>
+                        </div>
+                        <ExternalLink className="h-4 w-4 text-gray-400 group-hover:text-blue-600" />
                       </a>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {selectedDefaults.size > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm text-blue-800">
-                <CheckCircle className="h-4 w-4 inline mr-2" />
-                {selectedDefaults.size} default source{selectedDefaults.size > 1 ? 's' : ''} selected.
-                These will be available when creating a new brand.
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Custom Sources Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center space-x-2">
-                <Plus className="h-5 w-5 text-green-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Custom Sources</h3>
-              </div>
-              <p className="text-sm text-gray-600 mt-1">
-                Add your own custom sources for brand-specific monitoring
-              </p>
-            </div>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition text-sm"
-            >
-              Add Custom Source
-            </button>
-          </div>
-        </div>
-
-        <div className="p-6">
-          {customSources.length === 0 ? (
-            <div className="text-center py-12">
-              <Plus className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <h4 className="text-lg font-medium text-gray-900 mb-2">No Custom Sources Yet</h4>
-              <p className="text-gray-600 mb-4">
-                Add custom sources to monitor brand-specific communities
-              </p>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition"
-              >
-                Add Your First Custom Source
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {customSources.map((source) => (
-                <div
-                  key={source.id}
-                  className="border border-gray-200 rounded-lg p-4 hover:border-green-300 transition"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center space-x-2">
-                      <Globe className="h-5 w-5 text-green-600" />
-                      <h5 className="font-medium text-gray-900">{source.name}</h5>
-                    </div>
-                    <button
-                      onClick={() => handleDeleteCustomSource(source.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  {source.description && (
-                    <p className="text-sm text-gray-600 mb-2">{source.description}</p>
-                  )}
-
-                  <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-                    <span className="bg-gray-100 px-2 py-1 rounded">{source.platform}</span>
-                    {source.category && (
-                      <span className="bg-green-100 text-green-700 px-2 py-1 rounded">
-                        {source.category}
-                      </span>
-                    )}
-                  </div>
-
-                  <a
-                    href={source.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:text-blue-700 flex items-center space-x-1"
-                  >
-                    <span className="truncate">{source.url}</span>
-                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                  </a>
-
-                  {source.created_at && (
-                    <p className="text-xs text-gray-400 mt-2">
-                      Added {new Date(source.created_at).toLocaleDateString()}
-                    </p>
-                  )}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* Add Source Modal */}
-      {showAddModal && (
-        <AddSourceModal
-          onClose={() => setShowAddModal(false)}
-          onSuccess={() => {
-            setShowAddModal(false);
-            fetchSources();
-          }}
-        />
+                {/* Forums */}
+                <div>
+                  <h4 className="text-md font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+                    <TrendingUp className="h-5 w-5 text-green-600" />
+                    <span>Forums & Websites ({source.forums.length})</span>
+                  </h4>
+                  <div className="space-y-2">
+                    {source.forums.map((forum, i) => (
+                      <a
+                        key={i}
+                        href={`https://${forum}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition group"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="font-medium text-gray-900">{forum}</span>
+                        </div>
+                        <ExternalLink className="h-4 w-4 text-gray-400 group-hover:text-green-600" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
+                <p className="text-xs text-gray-500">
+                  Discovered on {new Date(source.discovered_at).toLocaleString()}
+                  {source.cache_hit ? ' (from cache)' : ' (fresh discovery)'}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

@@ -119,6 +119,73 @@ def scout_reddit_task(self, campaign_id: Optional[int] = None, config: Optional[
 
                 loop.close()
 
+                # Store LLM-discovered sources in database for frontend access
+                from common.models import Source
+                from django.utils import timezone
+
+                if 'discovered_sources' in collected_data:
+                    discovered = collected_data['discovered_sources']
+                    focus = scout_config.get('focus', 'comprehensive')
+                    industry = scout_config.get('industry', 'general')
+
+                    # Store Reddit communities
+                    for community_name in discovered.get('reddit_communities', []):
+                        try:
+                            Source.objects.get_or_create(
+                                name=f"r/{community_name}",
+                                source_type='reddit',
+                                url=f"https://reddit.com/r/{community_name}",
+                                defaults={
+                                    'description': f'LLM-discovered Reddit community for {brand.name} ({focus})',
+                                    'is_default': False,
+                                    'is_active': True,
+                                    'category': 'llm_discovered',
+                                    'config': {
+                                        'discovered_by': 'llm',
+                                        'brand': brand.name,
+                                        'focus': focus,
+                                        'industry': industry,
+                                        'reasoning': discovered.get('reasoning', ''),
+                                        'discovered_at': discovered.get('discovered_at', timezone.now().isoformat()),
+                                        'cache_hit': discovered.get('cache_hit', False),
+                                        'is_fallback': discovered.get('is_fallback', False)
+                                    },
+                                    'last_accessed': timezone.now()
+                                }
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to store Reddit source r/{community_name}: {e}")
+
+                    # Store forums
+                    for forum_domain in discovered.get('forums', []):
+                        try:
+                            Source.objects.get_or_create(
+                                name=forum_domain,
+                                source_type='forum',
+                                url=f"https://{forum_domain}",
+                                defaults={
+                                    'description': f'LLM-discovered forum for {brand.name} ({focus})',
+                                    'is_default': False,
+                                    'is_active': True,
+                                    'category': 'llm_discovered',
+                                    'config': {
+                                        'discovered_by': 'llm',
+                                        'brand': brand.name,
+                                        'focus': focus,
+                                        'industry': industry,
+                                        'reasoning': discovered.get('reasoning', ''),
+                                        'discovered_at': discovered.get('discovered_at', timezone.now().isoformat()),
+                                        'cache_hit': discovered.get('cache_hit', False),
+                                        'is_fallback': discovered.get('is_fallback', False)
+                                    },
+                                    'last_accessed': timezone.now()
+                                }
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to store forum source {forum_domain}: {e}")
+
+                    logger.info(f"📝 Stored {len(discovered.get('reddit_communities', []))} Reddit communities and {len(discovered.get('forums', []))} forums")
+
                 # Store data in database
                 # Create a simple campaign context object for storage
                 class SimpleCampaign:

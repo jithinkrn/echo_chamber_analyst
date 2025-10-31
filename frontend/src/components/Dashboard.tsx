@@ -146,8 +146,8 @@ export default function Dashboard() {
 
   const fetchBrands = async () => {
     try {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-      const response = await fetch(`${API_BASE_URL}/brands/`);
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_BASE_URL}/api/v1/brands/`);
       if (response.ok) {
         const data = await response.json();
         setBrands(data.results || []);
@@ -180,8 +180,8 @@ export default function Dashboard() {
         setLoading(true);
       }
 
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-      const url = `${API_BASE_URL}/dashboard/overview/brand/?brand_id=${selectedBrand}`;
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const url = `${API_BASE_URL}/api/v1/dashboard/overview/brand/?brand_id=${selectedBrand}`;
       console.log('Fetching dashboard data from:', url);
 
       const response = await fetch(url);
@@ -850,8 +850,8 @@ function ThreadDetailModal({ threadId, onClose }: { threadId: string; onClose: (
   const fetchThreadDetail = async () => {
     try {
       setLoading(true);
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-      const response = await fetch(`${API_BASE_URL}/threads/${threadId}/`);
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_BASE_URL}/api/v1/threads/${threadId}/`);
       
       if (!response.ok) {
         throw new Error('Thread not found');

@@ -60,8 +60,8 @@ export default function BrandManager() {
     if (!confirm('Are you sure you want to delete this brand? This will also affect all related campaigns.')) return;
 
     try {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-      await fetch(`${API_BASE_URL}/brands/${brandId}/`, { method: 'DELETE' });
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      await fetch(`${API_BASE_URL}/api/v1/brands/${brandId}/`, { method: 'DELETE' });
       setBrands(brands.filter(b => b.id !== brandId));
     } catch (error) {
       console.error('Failed to delete brand:', error);

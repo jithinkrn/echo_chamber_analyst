@@ -3,7 +3,13 @@
     "allow": [
       "Bash(cat:*)",
       "Bash(python manage.py:*)",
-      "Read(//private/tmp/**)"
+      "Read(//private/tmp/**)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(python /tmp/check_sources.py:*)",
+      "Bash(pkill:*)",
+      "Bash(python:*)",
+      "Bash(awk:*)"
     ],
     "deny": [],
     "ask": []

@@ -20,8 +20,8 @@ from rest_framework import status
 
 # Model imports
 from common.models import (
-    Campaign, Brand, Community, PainPoint, Thread, 
-    Competitor, DashboardMetrics, Influencer
+    Campaign, Brand, Community, PainPoint, Thread,
+    Competitor, DashboardMetrics, Influencer, Source
 )
 
 # Agent imports
@@ -2850,5 +2850,152 @@ def system_settings(request):
         logger.error(f"Failed to handle system settings: {e}")
         return Response(
             {'error': f'Failed to handle system settings: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_discovered_sources(request):
+    """
+    Get all LLM-discovered sources from the database.
+
+    This endpoint retrieves all source discoveries made by the LLM
+    during campaign executions and stored in the database.
+
+    Returns:
+        List of discovered sources grouped by brand with:
+        - brand_name: Brand analyzed
+        - industry: Industry context
+        - focus: Analysis focus
+        - reddit_communities: List of Reddit subreddits
+        - forums: List of forum domains
+        - reasoning: LLM explanation
+        - discovered_at: Discovery timestamp
+        - cache_hit: Whether from cache
+    """
+    try:
+        # Get all LLM-discovered sources from database
+        llm_sources = Source.objects.filter(
+            category='llm_discovered',
+            is_active=True
+        ).order_by('-created_at')
+
+        logger.info(f"Found {llm_sources.count()} LLM-discovered sources in database")
+
+        # Group sources by brand
+        sources_by_brand = {}
+
+        for source in llm_sources:
+            brand_name = source.config.get('brand', 'Unknown')
+            focus = source.config.get('focus', 'comprehensive')
+
+            # Create unique key for this brand+focus combination
+            key = f"{brand_name}_{focus}"
+
+            if key not in sources_by_brand:
+                sources_by_brand[key] = {
+                    'brand_name': brand_name,
+                    'focus': focus,
+                    'industry': source.config.get('industry', 'general'),
+                    'reddit_communities': [],
+                    'forums': [],
+                    'reasoning': source.config.get('reasoning', ''),
+                    'discovered_at': source.config.get('discovered_at', source.created_at.isoformat()),
+                    'cache_hit': source.config.get('cache_hit', False),
+                    'is_fallback': source.config.get('is_fallback', False)
+                }
+
+            # Add to appropriate list based on source type
+            if source.source_type == 'reddit':
+                community_name = source.name.replace('r/', '')
+                if community_name not in sources_by_brand[key]['reddit_communities']:
+                    sources_by_brand[key]['reddit_communities'].append(community_name)
+            elif source.source_type == 'forum':
+                forum_domain = source.name
+                if forum_domain not in sources_by_brand[key]['forums']:
+                    sources_by_brand[key]['forums'].append(forum_domain)
+
+        discovered_sources = list(sources_by_brand.values())
+
+        logger.info(f"Retrieved {len(discovered_sources)} unique brand discoveries from database")
+
+        return Response({
+            'sources': discovered_sources,
+            'count': len(discovered_sources),
+            'timestamp': timezone.now().isoformat()
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to get discovered sources: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return Response(
+            {'error': f'Failed to get discovered sources: {str(e)}', 'sources': []},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def discover_sources_api(request):
+    """
+    Trigger LLM source discovery for a specific brand.
+
+    Query params:
+        - brand: Brand name (required)
+        - refresh: Force refresh cache (optional, default: false)
+        - industry: Industry context (optional, default: 'general')
+        - focus: Analysis focus (optional, default: 'comprehensive')
+
+    Returns:
+        Discovered sources for the brand
+    """
+    try:
+        from agents.scout_data_collection import discover_sources_with_llm
+
+        brand_name = request.GET.get('brand')
+        if not brand_name:
+            return Response(
+                {'error': 'Brand name is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        refresh = request.GET.get('refresh', 'false').lower() == 'true'
+        industry = request.GET.get('industry', 'general')
+        focus = request.GET.get('focus', 'comprehensive')
+
+        logger.info(f"Discovering sources for brand: {brand_name}, refresh: {refresh}")
+
+        # If refresh is requested, clear the cache first
+        if refresh:
+            from django.core.cache import cache
+            cache_key = f"llm_sources_{brand_name}_{focus}_{industry}".lower().replace(" ", "_")
+            cache.delete(cache_key)
+            logger.info(f"Cleared cache for key: {cache_key}")
+
+        # Run async discovery
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        sources = loop.run_until_complete(
+            discover_sources_with_llm(
+                brand_name=brand_name,
+                focus=focus,
+                industry=industry,
+                use_cache=not refresh
+            )
+        )
+
+        loop.close()
+
+        logger.info(f"Discovered {len(sources.get('reddit_communities', []))} Reddit communities and {len(sources.get('forums', []))} forums for {brand_name}")
+
+        return Response(sources)
+
+    except Exception as e:
+        logger.error(f"Failed to discover sources: {e}")
+        return Response(
+            {'error': f'Failed to discover sources: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

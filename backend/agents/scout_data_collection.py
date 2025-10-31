@@ -10,13 +10,198 @@ import asyncio
 import logging
 import re
 import random  # ADD THIS MISSING IMPORT
+import json
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 from .search_utils import SearchUtils
+from langchain_openai import ChatOpenAI
+from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
+
+
+async def discover_sources_with_llm(
+    brand_name: str,
+    focus: str,
+    industry: str = "general",
+    use_cache: bool = True
+) -> Dict[str, Any]:
+    """
+    Use LLM to intelligently discover data sources based on brand context.
+
+    This implements Option 1: Single-Shot LLM Discovery with caching.
+    The LLM recommends the most relevant communities and forums to monitor
+    based on the brand, industry, and analysis focus.
+
+    Args:
+        brand_name: Name of the brand to analyze
+        focus: Analysis focus (pain_points, sentiment, comprehensive, etc.)
+        industry: Industry context (fashion, tech, food, etc.)
+        use_cache: Whether to use cached results (default: True)
+
+    Returns:
+        Dict containing recommended sources:
+        {
+            "reddit_communities": ["subreddit1", "subreddit2", ...],
+            "forums": ["forum1.com", "forum2.com", ...],
+            "reasoning": "explanation...",
+            "cache_hit": bool
+        }
+    """
+    # Check cache first
+    cache_key = f"llm_sources_{brand_name}_{focus}_{industry}".lower().replace(" ", "_")
+
+    if use_cache:
+        cached_result = cache.get(cache_key)
+        if cached_result:
+            logger.info(f"✅ Using cached LLM source recommendations for {brand_name}")
+            cached_result['cache_hit'] = True
+            return cached_result
+
+    logger.info(f"🤖 Discovering data sources with LLM for brand: {brand_name}, focus: {focus}, industry: {industry}")
+
+    # Initialize LLM (using same model as SearchUtils)
+    llm = ChatOpenAI(
+        model="gpt-4",
+        temperature=0.1,
+        max_tokens=1000
+    )
+
+    # Craft the prompt for source discovery
+    prompt = f"""You are a brand intelligence expert specializing in online community research.
+
+Given a brand analysis request, recommend the best online communities, forums, and discussion platforms to monitor for authentic customer feedback and discussions.
+
+Brand: {brand_name}
+Industry: {industry}
+Analysis Focus: {focus}
+
+Based on this context, provide:
+
+1. **Reddit Communities**: 5-8 subreddit names (without 'r/' prefix) most likely to contain discussions about this brand or industry. Consider:
+   - Brand-specific subreddits
+   - Industry-specific communities
+   - Review and feedback communities
+   - Relevant lifestyle/interest communities
+
+2. **Forum Sites**: 3-5 forum domains or websites where industry discussions happen. Include:
+   - Industry-specific forums
+   - Review platforms
+   - Q&A sites
+   - Community discussion boards
+
+3. **Reasoning**: Brief explanation of why these sources are ideal for this brand and focus.
+
+IMPORTANT:
+- Focus on active communities with real discussions
+- Prioritize communities where customers naturally discuss products/brands
+- Consider the analysis focus when selecting sources
+- Return ONLY valid JSON, no markdown formatting
+
+Return your response as a JSON object with this exact structure:
+{{
+  "reddit_communities": ["subreddit1", "subreddit2", "subreddit3", ...],
+  "forums": ["forum1.com", "forum2.com", ...],
+  "reasoning": "Brief explanation of source selection strategy"
+}}"""
+
+    try:
+        # Get LLM recommendations
+        response = await llm.ainvoke(prompt)
+        response_text = response.content.strip()
+
+        # Clean up response if it contains markdown code blocks
+        if response_text.startswith("```"):
+            # Extract JSON from markdown code block
+            response_text = response_text.split("```")[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:]
+            response_text = response_text.strip()
+
+        # Parse JSON response
+        sources = json.loads(response_text)
+
+        # Validate response structure
+        if not isinstance(sources.get("reddit_communities"), list):
+            raise ValueError("Invalid reddit_communities in LLM response")
+        if not isinstance(sources.get("forums"), list):
+            raise ValueError("Invalid forums in LLM response")
+
+        # Add metadata
+        sources['cache_hit'] = False
+        sources['discovered_at'] = datetime.now().isoformat()
+        sources['brand_name'] = brand_name
+        sources['focus'] = focus
+        sources['industry'] = industry
+
+        # Cache the results (cache for 7 days)
+        cache.set(cache_key, sources, 60 * 60 * 24 * 7)
+
+        logger.info(f"✅ LLM discovered {len(sources['reddit_communities'])} Reddit communities and {len(sources['forums'])} forums")
+        logger.info(f"🧠 Reasoning: {sources.get('reasoning', 'N/A')[:100]}...")
+
+        return sources
+
+    except json.JSONDecodeError as e:
+        logger.error(f"❌ Failed to parse LLM response as JSON: {e}")
+        logger.error(f"Response was: {response_text[:500]}")
+        # Return fallback sources
+        return _get_fallback_sources(brand_name, focus, industry)
+
+    except Exception as e:
+        logger.error(f"❌ Error discovering sources with LLM: {e}")
+        # Return fallback sources
+        return _get_fallback_sources(brand_name, focus, industry)
+
+
+def _get_fallback_sources(brand_name: str, focus: str, industry: str) -> Dict[str, Any]:
+    """
+    Fallback source recommendations if LLM discovery fails.
+    Uses hardcoded sources based on focus and industry.
+    """
+    logger.warning(f"⚠️ Using fallback sources for {brand_name}")
+
+    # Industry-based defaults
+    industry_sources = {
+        "fashion": {
+            "reddit": ["malefashionadvice", "streetwear", "femalefashionadvice", "BuyItForLife", "reviews"],
+            "forums": ["styleforum.net", "hypebeast.com", "reddit.com"]
+        },
+        "tech": {
+            "reddit": ["technology", "gadgets", "BuyItForLife", "reviews", "ProductReviews"],
+            "forums": ["techpowerup.com", "anandtech.com", "tomshardware.com"]
+        },
+        "food": {
+            "reddit": ["food", "cooking", "AskCulinary", "reviews", "ProductReviews"],
+            "forums": ["chowhound.com", "egullet.org", "seriouseats.com"]
+        },
+        "general": {
+            "reddit": ["reviews", "BuyItForLife", "ProductReviews", "mildlyinfuriating"],
+            "forums": ["reddit.com", "quora.com", "stackexchange.com"]
+        }
+    }
+
+    # Get sources for industry (default to general)
+    sources = industry_sources.get(industry.lower(), industry_sources["general"])
+
+    # Adjust based on focus
+    if focus == "pain_points":
+        sources["reddit"].insert(0, "mildlyinfuriating")
+        sources["reddit"].insert(1, "ProductFails")
+    elif focus == "sentiment":
+        sources["reddit"].insert(0, "testimonials")
+        sources["reddit"].insert(1, "HailCorporate")
+
+    return {
+        "reddit_communities": sources["reddit"][:8],
+        "forums": sources["forums"][:5],
+        "reasoning": f"Fallback sources for {industry} industry with {focus} focus",
+        "cache_hit": False,
+        "is_fallback": True,
+        "discovered_at": datetime.now().isoformat()
+    }
 
 
 async def collect_real_brand_data(brand_name: str, keywords: List[str], config: dict = None) -> Dict[str, Any]:
@@ -60,7 +245,7 @@ async def collect_real_brand_data(brand_name: str, keywords: List[str], config: 
     }
     
     logger.info(f"🎯 Enhanced configuration: {enhanced_config}")
-    
+
     # Adjust search parameters based on config
     if search_depth == 'quick':
         max_subreddits = 3
@@ -74,25 +259,61 @@ async def collect_real_brand_data(brand_name: str, keywords: List[str], config: 
         max_subreddits = 5
         max_queries_per_subreddit = 3
         max_results_per_query = 3
-    
-    # Use target communities if provided, otherwise use defaults based on focus
+
+    # Use target communities if provided, otherwise use LLM discovery or defaults
     if target_communities:
         target_subreddits = [name.replace('r/', '') for name in target_communities][:max_subreddits]
         logger.info(f"🎯 Using specified target communities: {target_subreddits}")
     else:
-        # Choose subreddits based on focus
-        if focus == 'pain_points':
-            target_subreddits = ["reviews", "mildlyinfuriating", "BuyItForLife", "ProductFails"][:max_subreddits]
-        elif focus == 'sentiment':
-            target_subreddits = ["reviews", "testimonials", "BuyItForLife", "HailCorporate"][:max_subreddits]
-        elif focus == 'competitors':
-            target_subreddits = ["reviews", "BuyItForLife", "malefashionadvice", "streetwear"][:max_subreddits]
-        elif focus == 'product_feedback':
-            target_subreddits = ["reviews", "ProductReviews", "BuyItForLife", "malefashionadvice"][:max_subreddits]
-        else:  # comprehensive
-            target_subreddits = ["malefashionadvice", "streetwear", "techwearclothing", "BuyItForLife", "reviews"][:max_subreddits]
-        
-        logger.info(f"🔍 Auto-selected communities based on focus '{focus}': {target_subreddits}")
+        # NEW: Try LLM-driven source discovery first
+        try:
+            industry = config.get('industry', 'general') if config else 'general'
+            use_llm_discovery = config.get('use_llm_discovery', True) if config else True
+
+            if use_llm_discovery:
+                logger.info(f"🤖 Using LLM to discover optimal data sources for {brand_name}")
+                discovered_sources = await discover_sources_with_llm(
+                    brand_name=brand_name,
+                    focus=focus,
+                    industry=industry,
+                    use_cache=True
+                )
+
+                target_subreddits = discovered_sources.get('reddit_communities', [])[:max_subreddits]
+                discovered_forums = discovered_sources.get('forums', [])
+
+                if discovered_sources.get('cache_hit'):
+                    logger.info(f"✅ Using cached LLM-discovered sources")
+                else:
+                    logger.info(f"🧠 LLM Discovery: {discovered_sources.get('reasoning', 'N/A')[:150]}...")
+
+                logger.info(f"📍 LLM-discovered communities: {target_subreddits}")
+
+                # Store discovered sources in enhanced_config for later use
+                enhanced_config['discovered_forums'] = discovered_forums
+                enhanced_config['llm_reasoning'] = discovered_sources.get('reasoning', '')
+                # Store full discovered sources for return to caller (will be saved to DB by task)
+                enhanced_config['discovered_sources'] = discovered_sources
+            else:
+                # LLM discovery disabled, use fallback
+                raise ValueError("LLM discovery disabled in config")
+
+        except Exception as e:
+            # Fallback to hardcoded sources if LLM discovery fails
+            logger.warning(f"⚠️ LLM discovery failed or disabled, using hardcoded sources: {e}")
+
+            if focus == 'pain_points':
+                target_subreddits = ["reviews", "mildlyinfuriating", "BuyItForLife", "ProductFails"][:max_subreddits]
+            elif focus == 'sentiment':
+                target_subreddits = ["reviews", "testimonials", "BuyItForLife", "HailCorporate"][:max_subreddits]
+            elif focus == 'competitors':
+                target_subreddits = ["reviews", "BuyItForLife", "malefashionadvice", "streetwear"][:max_subreddits]
+            elif focus == 'product_feedback':
+                target_subreddits = ["reviews", "ProductReviews", "BuyItForLife", "malefashionadvice"][:max_subreddits]
+            else:  # comprehensive
+                target_subreddits = ["malefashionadvice", "streetwear", "techwearclothing", "BuyItForLife", "reviews"][:max_subreddits]
+
+            logger.info(f"🔍 Fallback: Auto-selected communities based on focus '{focus}': {target_subreddits}")
     
     # Enhanced keyword selection based on focus areas
     enhanced_keywords = keywords.copy()
@@ -158,6 +379,10 @@ async def collect_real_brand_data(brand_name: str, keywords: List[str], config: 
             "max_results_per_query": max_results_per_query
         }
     }
+
+    # Include discovered sources if available
+    if 'discovered_sources' in enhanced_config:
+        combined_data['discovered_sources'] = enhanced_config['discovered_sources']
     
     # Apply post-processing based on focus
     if focus == 'pain_points' and combined_data['pain_points']:
@@ -319,19 +544,19 @@ async def collect_reddit_data_real(brand_name: str, campaign_keywords: List[str]
 async def collect_forum_data_real(brand_name: str, campaign_keywords: List[str], config: dict = None) -> Dict[str, Any]:
     """
     Real forum data collection from various tech and review forums
-    
+
     Args:
         brand_name: The brand name to search for
         campaign_keywords: List of keywords to search for
         config: Enhanced configuration dict
-        
+
     Returns:
         Dict containing real forum communities, threads, and discussions
     """
     # Use config parameters
     search_depth = config.get('search_depth', 'comprehensive') if config else 'comprehensive'
     max_results_per_site = 2 if search_depth == 'deep' else 1
-    
+
     forum_data = {
         "communities": [],
         "threads": [],
@@ -339,16 +564,22 @@ async def collect_forum_data_real(brand_name: str, campaign_keywords: List[str],
         "raw_content": [],
         "discussions": []
     }
-    
+
     logger.info(f"🌐 Collecting REAL forum data for brand: {brand_name} with depth: {search_depth}")
-    
-    # Popular tech and review forums
-    forum_sites = [
-        "stackexchange.com",
-        "quora.com", 
-        "techpowerup.com",
-        "anandtech.com"
-    ]
+
+    # Use LLM-discovered forums if available in config
+    if config and 'discovered_forums' in config:
+        forum_sites = config['discovered_forums']
+        logger.info(f"📍 Using LLM-discovered forums: {forum_sites}")
+    else:
+        # Fallback to hardcoded forums
+        forum_sites = [
+            "stackexchange.com",
+            "quora.com",
+            "techpowerup.com",
+            "anandtech.com"
+        ]
+        logger.info(f"🔍 Using fallback forum list: {forum_sites}")
     
     search_utils = SearchUtils()
     

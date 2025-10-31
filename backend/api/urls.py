@@ -62,4 +62,8 @@ urlpatterns = [
 
     # System Settings Endpoint
     path('settings/', views.system_settings, name='system_settings'),
+
+    # LLM Source Discovery Endpoints
+    path('discovered-sources/', views.get_discovered_sources, name='get_discovered_sources'),
+    path('discover-sources/', views.discover_sources_api, name='discover_sources_api'),
 ]
