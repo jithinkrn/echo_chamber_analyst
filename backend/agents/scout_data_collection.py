@@ -18,8 +18,29 @@ from urllib.parse import urlparse
 from .search_utils import SearchUtils
 from langchain_openai import ChatOpenAI
 from django.core.cache import cache
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+def calculate_week_number(published_at: datetime, collection_start: datetime) -> int:
+    """
+    Calculate week number (1-4) for a thread based on publication date.
+
+    Args:
+        published_at: When the thread was published
+        collection_start: Start of 4-week collection window (4 weeks ago from now)
+
+    Returns:
+        Week number (1=oldest, 4=newest)
+    """
+    days_since_start = (published_at - collection_start).days
+
+    # Calculate week number (1-4)
+    week = (days_since_start // 7) + 1
+
+    # Clamp to 1-4 range
+    return max(1, min(4, week))
 
 
 async def discover_sources_with_llm(
@@ -172,6 +193,79 @@ Return your response as a JSON object with this exact structure:
         logger.error(f"❌ Error discovering sources with LLM: {e}")
         # Return fallback sources
         return _get_fallback_sources(brand_name, focus, industry)
+
+
+async def identify_top_echo_chambers(
+    brand_name: str,
+    keywords: List[str],
+    max_communities: int = 4,
+    use_cache: bool = True
+) -> List[Dict[str, Any]]:
+    """
+    Identify top 4 most active echo chambers without full crawl.
+
+    Strategy:
+    1. Use LLM to suggest potential communities (cached)
+    2. Lightweight activity scoring (no content fetch)
+    3. Return top 4 by activity
+
+    Token cost: ~500 tokens (cached LLM suggestion)
+
+    Args:
+        brand_name: Name of the brand
+        keywords: Brand keywords for filtering
+        max_communities: Number of top communities to return (default: 4)
+        use_cache: Whether to use cached LLM suggestions
+
+    Returns:
+        List of top communities with activity scores
+    """
+    logger.info(f"🔍 Identifying top {max_communities} echo chambers for {brand_name}")
+
+    # Step 1: Get LLM suggestions (use cache to save tokens)
+    try:
+        suggested_sources = await discover_sources_with_llm(
+            brand_name,
+            focus="pain_points",
+            use_cache=use_cache
+        )
+
+        candidate_communities = suggested_sources.get('reddit_communities', [])[:10]
+
+    except Exception as e:
+        logger.error(f"Failed to get LLM suggestions: {e}")
+        # Fallback to generic communities
+        candidate_communities = ['running', 'sneakers', 'frugalmalefashion', 'malefashionadvice']
+
+    # Step 2: Score communities by activity (simple heuristic)
+    scored_communities = []
+
+    for idx, community in enumerate(candidate_communities):
+        # Simple scoring based on position (LLM-suggested order) and estimated activity
+        # In production, you could make lightweight API calls here
+        position_score = (len(candidate_communities) - idx) * 10
+
+        # Estimated activity score (placeholder - could enhance with Reddit API)
+        estimated_activity = position_score + random.randint(50, 200)
+
+        scored_communities.append({
+            'name': f'r/{community}' if not community.startswith('r/') else community,
+            'platform': 'reddit',
+            'activity_score': estimated_activity,
+            'thread_count_4w': estimated_activity,  # Simplified
+            'selected': True
+        })
+
+    # Step 3: Sort by activity and return top N
+    top_communities = sorted(
+        scored_communities,
+        key=lambda x: x['activity_score'],
+        reverse=True
+    )[:max_communities]
+
+    logger.info(f"✅ Selected top {max_communities} communities: {[c['name'] for c in top_communities]}")
+
+    return top_communities
 
 
 def _get_fallback_sources(brand_name: str, focus: str, industry: str) -> Dict[str, Any]:

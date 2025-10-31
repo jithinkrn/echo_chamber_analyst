@@ -108,11 +108,38 @@ async def scout_node(state: EchoChamberAnalystState) -> EchoChamberAnalystState:
             keywords=", ".join(brand_keywords)
         )
 
-        # **REAL DATA COLLECTION** - Use the imported function
+        # **STEP 1: IDENTIFY TOP 4 COMMUNITIES** - Token-efficient community selection
+        from agents.scout_data_collection import identify_top_echo_chambers
+
+        logger.info(f"🔍 Identifying top 4 echo chambers for: {brand_name}")
+
+        top_communities = await identify_top_echo_chambers(
+            brand_name=brand_name,
+            keywords=brand_keywords,
+            max_communities=4,
+            use_cache=True  # Use cached LLM suggestions to save tokens
+        )
+
+        # Store selected communities in campaign for tracking
+        state.campaign.monitored_communities = top_communities
+        state.campaign.collection_weeks = 4
+        state.campaign.save()
+
+        logger.info(f"✅ Selected communities: {[c['name'] for c in top_communities]}")
+
+        # **STEP 2: COLLECT DATA FROM TOP 4 COMMUNITIES ONLY** - 4-week window
         logger.info(f"🚀 Starting REAL brand data collection for: {brand_name}")
-        
-        collected_data = await collect_real_brand_data(brand_name, brand_keywords)
-        
+
+        collected_data = await collect_real_brand_data(
+            brand_name,
+            brand_keywords,
+            config={
+                'target_communities': [c['name'] for c in top_communities],
+                'collection_weeks': 4,
+                'use_llm_discovery': False  # Skip LLM discovery, use selected communities
+            }
+        )
+
         logger.info(f"📊 Real data collected:")
         logger.info(f"  - Communities: {len(collected_data.get('communities', []))}")
         logger.info(f"  - Threads: {len(collected_data.get('threads', []))}")
@@ -501,13 +528,16 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
                 community.last_analyzed = timezone.now()
                 community.save()
 
-        # Store real pain points extracted from actual content
+        # Store real pain points extracted from actual content with week_number
         for pain_point_data in collected_data.get("pain_points", []):
             community = Community.objects.filter(
                 platform__in=["reddit", "forum", "tech_forums", "review_sites"]
             ).first()
-            
+
             if community:
+                # Get week number from pain point data if available, otherwise default to week 4 (current)
+                week_num = pain_point_data.get("week_number", 4)
+
                 PainPoint.objects.update_or_create(
                     keyword=pain_point_data["keyword"],
                     campaign_id=campaign.id,
@@ -517,6 +547,7 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
                         "growth_percentage": pain_point_data["growth_percentage"],
                         "sentiment_score": pain_point_data["sentiment_score"],
                         "heat_level": pain_point_data["heat_level"],
+                        "week_number": week_num,  # NEW: Tag with week 1-4
                         "example_content": pain_point_data.get("example", "")[:500],
                         "related_keywords": pain_point_data.get("related_keywords", []),
                         "first_seen": timezone.now(),
@@ -533,7 +564,12 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
             total_tokens += collected_data['discovered_sources'].get('token_count', 0)
             total_cost += collected_data['discovered_sources'].get('processing_cost', 0.0)
 
-        # Store real threads from actual forums/Reddit
+        # Store real threads from actual forums/Reddit with week_number tagging
+        from datetime import timedelta
+        from agents.scout_data_collection import calculate_week_number
+
+        collection_start = timezone.now() - timedelta(weeks=4)
+
         for thread_data in collected_data.get("threads", []):
             community = Community.objects.filter(
                 name=thread_data.get("community")
@@ -543,6 +579,10 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
                 # Calculate token estimate for this thread (rough approximation: ~1 token per 4 chars)
                 thread_tokens = len(thread_data.get("content", "")) // 4
                 total_tokens += thread_tokens
+
+                # Get thread publication time and calculate week number
+                published_at = thread_data.get("created_at", timezone.now())
+                week_num = calculate_week_number(published_at, collection_start)
 
                 Thread.objects.update_or_create(
                     thread_id=thread_data["thread_id"],
@@ -556,8 +596,9 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
                         "upvotes": thread_data.get("upvotes", 0),
                         "echo_score": thread_data.get("echo_score", 0.0),
                         "sentiment_score": thread_data.get("sentiment_score", 0.0),
-                        "published_at": thread_data.get("created_at", timezone.now()),
+                        "published_at": published_at,
                         "analyzed_at": timezone.now(),
+                        "week_number": week_num,  # NEW: Tag with week 1-4
                         "token_count": thread_tokens,
                         "processing_cost": thread_tokens * 0.00001  # Estimate: $0.01 per 1K tokens
                     }

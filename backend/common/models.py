@@ -108,9 +108,13 @@ class Campaign(BaseModel):
     last_run_at = models.DateTimeField(null=True, blank=True)
     next_run_at = models.DateTimeField(null=True, blank=True)
 
-    # Campaign duration
+    # Campaign duration (only defines when task runs, not data collection window)
     start_date = models.DateTimeField(null=True, blank=True)
     end_date = models.DateTimeField(null=True, blank=True)
+
+    # Data collection configuration
+    monitored_communities = models.JSONField(default=list, blank=True)  # Top 4 selected communities
+    collection_weeks = models.IntegerField(default=4)  # Always collect 4 weeks of data
 
     # Budget and limits
     daily_budget = models.DecimalField(max_digits=10, decimal_places=2, default=10.00)
@@ -445,7 +449,13 @@ class Community(BaseModel):
     echo_score_change = models.FloatField(default=0.0)  # percentage change
     is_active = models.BooleanField(default=True)
     last_analyzed = models.DateTimeField(auto_now=True)
-    
+
+    # Activity tracking for community selection (NEW)
+    activity_score = models.FloatField(default=0.0)  # Overall activity metric
+    threads_last_4_weeks = models.IntegerField(default=0)  # Thread count in past 4 weeks
+    avg_engagement_rate = models.FloatField(default=0.0)  # Average engagement per thread
+    echo_score_delta = models.FloatField(default=0.0)  # Week-over-week delta (W4 vs W3)
+
     # Community metadata
     description = models.TextField(blank=True)
     category = models.CharField(max_length=100, blank=True)
@@ -463,17 +473,20 @@ class Community(BaseModel):
 
 class PainPoint(BaseModel):
     """Pain points extracted from content analysis."""
-    
+
     keyword = models.CharField(max_length=100)
     campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='pain_points')
     community = models.ForeignKey(Community, on_delete=models.CASCADE, related_name='pain_points')
-    
+
+    # Temporal tracking (NEW)
+    week_number = models.IntegerField(null=True, blank=True)  # 1-4 for weekly bucketing
+
     # Metrics
     mention_count = models.IntegerField(default=0)
     growth_percentage = models.FloatField(default=0.0)
     sentiment_score = models.FloatField(default=0.0)
     heat_level = models.IntegerField(default=1)  # 1-5 for heat map visualization
-    
+
     # Context
     example_content = models.TextField(blank=True)
     related_keywords = models.JSONField(default=list)
@@ -504,7 +517,10 @@ class Thread(BaseModel):
     content = models.TextField()
     community = models.ForeignKey(Community, on_delete=models.CASCADE, related_name='threads')
     campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='threads')
-    
+
+    # Temporal tracking (NEW)
+    week_number = models.IntegerField(null=True, blank=True)  # 1-4 for weekly bucketing
+
     # Thread metadata
     author = models.CharField(max_length=100)
     author_karma = models.IntegerField(default=0)

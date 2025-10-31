@@ -964,13 +964,14 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
     ).select_related('community').order_by('-heat_level', '-growth_percentage')
 
     # === TYPE A: Community × Pain Point Matrix (heat = mention count) ===
+    # UPDATED: Limit to top 4 communities by activity score for token efficiency
     community_matrix = []
     communities_processed = set()
 
-    # Get top communities by echo score
+    # Get top 4 communities by activity score (prioritizing active communities)
     top_communities = Community.objects.filter(
         pain_points__campaign__in=brand_campaigns
-    ).distinct().order_by('-echo_score')[:5]
+    ).distinct().order_by('-activity_score', '-echo_score')[:4]  # CHANGED: Top 4 instead of 5
 
     for community in top_communities:
         # Get top pain points for this community
@@ -983,6 +984,9 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
                 'community_name': community.name,
                 'platform': community.platform,
                 'echo_score': float(community.echo_score),
+                'echo_score_delta': float(community.echo_score_delta),  # NEW: W-o-W delta
+                'activity_score': float(community.activity_score),  # NEW: Activity metric
+                'threads_4w': community.threads_last_4_weeks,  # NEW: Thread count
                 'pain_points': [
                     {
                         'keyword': pp.keyword,

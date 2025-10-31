@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Users, MessageSquare, AlertTriangle, Building, ChevronDown, Lightbulb, Target } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ScatterChart, Scatter, ZAxis, Cell } from 'recharts';
 import InfluencerPulse from './InfluencerPulse';
 import { apiService } from '@/lib/api';
 
@@ -148,9 +148,6 @@ export default function Dashboard() {
   const [showBrandDropdown, setShowBrandDropdown] = useState(false);
   const [analysisSummary, setAnalysisSummary] = useState<any>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
-  const [showCommunitiesModal, setShowCommunitiesModal] = useState(false);
-  const [showPainPointsModal, setShowPainPointsModal] = useState(false);
-  const [showSentimentModal, setShowSentimentModal] = useState(false);
 
   useEffect(() => {
     fetchBrands();
@@ -239,12 +236,6 @@ export default function Dashboard() {
     } finally {
       setSummaryLoading(false);
     }
-  };
-
-  const getHeatLevelDots = (level: number) => {
-    return Array.from({ length: Math.min(level, 5) }).map((_, i) => (
-      <span key={i} className="text-red-500 text-sm">⬤</span>
-    ));
   };
 
   const formatReach = (reach: number) => {
@@ -420,10 +411,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card
-          className="cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => setShowCommunitiesModal(true)}
-        >
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
               High‑Echo Communities
@@ -433,20 +421,22 @@ export default function Dashboard() {
             <div className="text-2xl font-bold text-gray-900">
               {dashboardData.kpis.high_echo_communities}
             </div>
-            <div className="flex items-center text-sm text-green-600">
+            <div className="flex items-center text-sm text-green-600 mb-3">
               <TrendingUp className="h-4 w-4 mr-1" />
               +{dashboardData.kpis.high_echo_change_percent}%
             </div>
-            <div className="mt-2 text-xs text-blue-600">
-              Click to view details →
+            <div className="space-y-1 text-xs">
+              {(dashboardData.community_watchlist || []).slice(0, 2).map((community, index) => (
+                <div key={index} className="flex justify-between items-center">
+                  <span className="text-gray-700 truncate">{community.name}</span>
+                  <span className="text-gray-900 font-medium">{community.echo_score.toFixed(1)}</span>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
 
-        <Card
-          className="cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => setShowPainPointsModal(true)}
-        >
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
               New Pain‑pts &gt; +50%
@@ -456,20 +446,22 @@ export default function Dashboard() {
             <div className="text-2xl font-bold text-gray-900">
               {dashboardData.kpis.new_pain_points_above_50}
             </div>
-            <div className="flex items-center text-sm text-green-600">
+            <div className="flex items-center text-sm text-green-600 mb-3">
               <TrendingUp className="h-4 w-4 mr-1" />
               +{dashboardData.kpis.new_pain_points_change}
             </div>
-            <div className="mt-2 text-xs text-blue-600">
-              Click to view details →
+            <div className="space-y-1 text-xs">
+              {(dashboardData.top_pain_points || []).slice(0, 3).map((pp, index) => (
+                <div key={index} className="flex justify-between items-center">
+                  <span className="text-gray-700 truncate">{pp.keyword}</span>
+                  <span className="text-green-600 font-medium">+{pp.growth_percentage.toFixed(0)}%</span>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
 
-        <Card
-          className="cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => setShowSentimentModal(true)}
-        >
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
               Positivity Ratio
@@ -479,12 +471,19 @@ export default function Dashboard() {
             <div className="text-2xl font-bold text-gray-900">
               {dashboardData.kpis.positivity_ratio}% 😊
             </div>
-            <div className="flex items-center text-sm text-red-600">
+            <div className="flex items-center text-sm text-red-600 mb-3">
               <TrendingDown className="h-4 w-4 mr-1" />
               {dashboardData.kpis.positivity_change_pp} pp
             </div>
-            <div className="mt-2 text-xs text-blue-600">
-              Click to view details →
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-green-700">😊 Positive</span>
+                <span className="text-green-900 font-medium">{dashboardData.kpis.positivity_ratio}%</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-red-700">😞 Negative</span>
+                <span className="text-red-900 font-medium">{(100 - dashboardData.kpis.positivity_ratio).toFixed(0)}%</span>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -509,74 +508,157 @@ export default function Dashboard() {
 
       {/* Heat Map and Top Pain Points */}
       <div className="grid grid-cols-2 gap-6">
-        {/* Community × Pain Point Heat Map (Type A) */}
-        <Card>
-          <CardHeader>
-            <CardTitle>HEAT‑MAP A: Communities × Pain Points</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-xs font-medium text-gray-600 border-b pb-2">
-                <span>Community ▼</span>
-                <span>Top Pain Point (by mentions) ▲</span>
-              </div>
-              {(dashboardData.heatmap?.community_pain_point_matrix || []).length > 0 ? (
-                (dashboardData.heatmap?.community_pain_point_matrix || []).slice(0, 4).map((community, index) => (
-                  <div key={index} className="grid grid-cols-2 gap-4 items-center">
-                    <div className="font-medium text-sm text-gray-900">
-                      {community.community_name}
-                      <span className="text-xs text-gray-500 ml-1">({community.platform})</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      {(community.pain_points || []).slice(0, 1).map((pp, ppIndex) => (
-                        <div key={ppIndex} className="flex items-center gap-2">
-                          <div className="flex">
-                            {getHeatLevelDots(pp.heat_level)}
-                          </div>
-                          <span className="text-sm text-gray-700">
-                            {pp.keyword} ({pp.mention_count} mentions)
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center text-gray-500 py-8">
-                  <p className="text-sm">No community heat map data available for this brand</p>
-                  <p className="text-xs mt-1">Run a campaign to collect data</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Top Growing Pains */}
         <Card>
           <CardHeader>
             <CardTitle>TOP‑GROWING PAINS</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {(dashboardData.top_pain_points || []).length > 0 ? (
-                (dashboardData.top_pain_points || []).slice(0, 3).map((painPoint, index) => (
-                  <div key={index} className="flex justify-between items-center">
-                    <span className="text-sm text-gray-900">
-                      {index + 1}. {painPoint.keyword}
-                    </span>
-                    <div className="flex items-center text-sm text-green-600">
-                      <TrendingUp className="h-4 w-4 mr-1" />
-                      +{painPoint.growth_percentage}%
+            {(dashboardData.top_pain_points || []).length > 0 ? (
+              (() => {
+                const painPoints = dashboardData.top_pain_points || [];
+                const chartHeight = Math.max(250, painPoints.length * 50);
+                const barColors = [
+                  '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6',
+                  '#8b5cf6', '#ec4899', '#06b6d4', '#f43f5e', '#84cc16',
+                ];
+                return (
+                  <ResponsiveContainer width="100%" height={chartHeight}>
+                    <BarChart data={painPoints} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis type="number" stroke="#6b7280" style={{ fontSize: '11px' }}
+                        label={{ value: 'Growth %', position: 'insideBottom', offset: -5, style: { fontSize: '11px' } }} />
+                      <YAxis type="category" dataKey="keyword" stroke="#6b7280" style={{ fontSize: '11px' }} width={90} />
+                      <Tooltip cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="bg-white p-3 border border-gray-200 rounded shadow-lg text-xs">
+                                <p className="font-bold text-gray-900">{data.keyword}</p>
+                                <p className="text-gray-700">Growth: <span className="font-medium text-green-600">+{data.growth_percentage.toFixed(1)}%</span></p>
+                                <p className="text-gray-700">Mentions: <span className="font-medium">{data.mention_count}</span></p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }} />
+                      <Bar dataKey="growth_percentage" radius={[0, 4, 4, 0]}
+                        label={{ position: 'right', formatter: (value: number) => `+${value.toFixed(0)}%`,
+                          style: { fontSize: '11px', fontWeight: 'bold' } }}>
+                        {painPoints.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={barColors[index % barColors.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                );
+              })()
+            ) : (
+              <div className="text-center text-gray-500 py-4">
+                <p className="text-sm">No pain points data available for this brand</p>
+                <p className="text-xs mt-1">Try selecting a different brand or check back later</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Community × Pain Point Bubble Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Communities × Pain Points</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(dashboardData.heatmap?.community_pain_point_matrix || []).length > 0 ? (
+              (() => {
+                const communities = dashboardData.heatmap?.community_pain_point_matrix || [];
+                const painPointColors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4'];
+                const chartData: any[] = [];
+                const painPointsSet = new Set<string>();
+                communities.forEach((community, commIdx) => {
+                  (community.pain_points || []).forEach((pp, ppIdx) => {
+                    painPointsSet.add(pp.keyword);
+                    chartData.push({
+                      community: community.community_name, communityIndex: commIdx,
+                      painPoint: pp.keyword, painPointIndex: ppIdx,
+                      mentions: pp.mention_count, sentiment: pp.sentiment_score,
+                      growth: pp.growth_percentage
+                    });
+                  });
+                });
+                const painPointsList = Array.from(painPointsSet);
+                const painPointColorMap: Record<string, string> = {};
+                painPointsList.forEach((pp, idx) => {
+                  painPointColorMap[pp] = painPointColors[idx % painPointColors.length];
+                });
+                return (
+                  <div className="space-y-4">
+                    <ResponsiveContainer width="100%" height={400}>
+                      <ScatterChart margin={{ top: 20, right: 20, bottom: 80, left: 100 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis type="category" dataKey="community" name="Community" allowDuplicatedCategory={false}
+                          stroke="#6b7280" angle={-45} textAnchor="end" height={80} interval={0} style={{ fontSize: '11px' }} />
+                        <YAxis type="category" dataKey="painPoint" name="Pain Point" allowDuplicatedCategory={false}
+                          stroke="#6b7280" style={{ fontSize: '11px' }} width={90} />
+                        <ZAxis type="number" dataKey="mentions" range={[200, 2000]} name="Mentions" />
+                        <Tooltip cursor={{ strokeDasharray: '3 3' }}
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              return (
+                                <div className="bg-white p-3 border border-gray-200 rounded shadow-lg text-xs">
+                                  <p className="font-bold text-gray-900">{data.community}</p>
+                                  <p className="text-gray-700">Pain Point: <span className="font-medium">{data.painPoint}</span></p>
+                                  <p className="text-gray-700">Mentions: <span className="font-medium">{data.mentions}</span></p>
+                                  <p className="text-gray-700">Growth: <span className="font-medium text-green-600">+{data.growth.toFixed(1)}%</span></p>
+                                  <p className="text-gray-700">Sentiment: <span className="font-medium">{data.sentiment.toFixed(2)}</span></p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }} />
+                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
+                          content={() => (
+                            <div className="flex flex-wrap justify-center gap-3 mt-4">
+                              {painPointsList.map((pp, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: painPointColorMap[pp] }} />
+                                  <span className="text-xs text-gray-700">{pp}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )} />
+                        {painPointsList.map((painPoint) => {
+                          const ppData = chartData.filter(d => d.painPoint === painPoint);
+                          return (
+                            <Scatter key={painPoint} name={painPoint} data={ppData} fill={painPointColorMap[painPoint]}
+                              shape={(props: any) => {
+                                const { cx, cy, fill, payload } = props;
+                                const radius = Math.sqrt(payload.mentions) * 2.5;
+                                return (
+                                  <g>
+                                    <circle cx={cx} cy={cy} r={radius} fill={fill} opacity={0.8} />
+                                    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
+                                      fill="white" fontSize="11" fontWeight="bold">{payload.mentions}</text>
+                                  </g>
+                                );
+                              }} />
+                          );
+                        })}
+                      </ScatterChart>
+                    </ResponsiveContainer>
+                    <div className="text-xs text-gray-500 text-center">
+                      Bubble size and number indicate mention count • Hover for details
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="text-center text-gray-500 py-4">
-                  <p className="text-sm">No pain points data available for this brand</p>
-                  <p className="text-xs mt-1">Try selecting a different brand or check back later</p>
-                </div>
-              )}
-            </div>
+                );
+              })()
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                <p className="text-sm">No community heat map data available for this brand</p>
+                <p className="text-xs mt-1">Run a campaign to collect data</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
