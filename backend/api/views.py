@@ -1339,17 +1339,71 @@ def get_brand_community_watchlist(brand_id):
     ).distinct().order_by('-echo_score')[:5]
 
     watchlist_data = []
-    for rank, community in enumerate(brand_communities, 1):        
+    for rank, community in enumerate(brand_communities, 1):
+        # ✅ NEW: Calculate key influencer dynamically from Thread data
+        from django.db.models import Count, Sum, Q
+        
+        # Get threads for this community
+        threads = Thread.objects.filter(community=community)
+        
+        # Find most active author (by post count and engagement)
+        influencer_url = None
+        if threads.exists():
+            # First try to find authors that are NOT unknown
+            author_stats = threads.values('author').annotate(
+                post_count=Count('id'),
+                total_upvotes=Sum('upvotes'),
+                total_comments=Sum('comment_count')
+            ).filter(~Q(author='unknown') & ~Q(author='') & ~Q(author__isnull=True)).order_by('-post_count', '-total_upvotes')
+            
+            if author_stats.exists():
+                top_author = author_stats.first()
+                key_influencer = top_author['author']
+                influencer_post_count = top_author['post_count']
+                influencer_engagement = (top_author['total_upvotes'] or 0) + (top_author['total_comments'] or 0)
+                
+                # Get URL from one of the threads by this author
+                sample_thread = threads.filter(author=key_influencer).first()
+                if sample_thread and sample_thread.url:
+                    influencer_url = sample_thread.url
+            else:
+                # All authors are 'unknown', so just count them
+                all_author_stats = threads.values('author').annotate(
+                    post_count=Count('id'),
+                    total_upvotes=Sum('upvotes'),
+                    total_comments=Sum('comment_count')
+                ).order_by('-post_count', '-total_upvotes').first()
+                
+                if all_author_stats:
+                    key_influencer = 'unknown'
+                    influencer_post_count = all_author_stats['post_count']
+                    influencer_engagement = (all_author_stats['total_upvotes'] or 0) + (all_author_stats['total_comments'] or 0)
+                    
+                    # Get URL from any thread
+                    sample_thread = threads.first()
+                    if sample_thread and sample_thread.url:
+                        influencer_url = sample_thread.url
+                else:
+                    key_influencer = 'Not identified'
+                    influencer_post_count = 0
+                    influencer_engagement = 0
+        else:
+            # No threads yet
+            key_influencer = 'Not identified'
+            influencer_post_count = 0
+            influencer_engagement = 0
+        
         watchlist_data.append({
-            'id': community.id,  # ✅ NEW: Added for frontend links
+            'id': community.id,
             'rank': rank,
             'name': community.name,
             'platform': community.platform,
             'member_count': community.member_count,
             'echo_score': float(community.echo_score),
-            'key_influencer': community.key_influencer or 'Unknown',  # ✅ NEW: From LLM
-            'influencer_post_count': community.influencer_post_count,  # ✅ NEW
-            'influencer_engagement': community.influencer_engagement  # ✅ NEW
+            'key_influencer': key_influencer,
+            'influencer_post_count': influencer_post_count,
+            'influencer_engagement': influencer_engagement,
+            'influencer_url': influencer_url  # ✅ NEW: URL to a thread by this influencer
         })
     
     return watchlist_data

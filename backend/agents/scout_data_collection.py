@@ -216,6 +216,27 @@ async def search_month_with_tavily_and_llm(
 
     logger.info(f"   Total results: {len(all_search_results)}")
 
+    # ✅ Create multiple mappings from search results (Tavily already provides URLs)
+    url_by_title = {}
+    url_by_content = {}
+    all_result_urls = []
+    
+    for result in all_search_results:
+        if 'url' in result:
+            url = result['url']
+            all_result_urls.append(url)
+            
+            # Map by title
+            if 'title' in result:
+                url_by_title[result['title'].lower()] = url
+            
+            # Map by content keywords (first 100 chars)
+            if 'content' in result:
+                content_snippet = result['content'][:100].lower()
+                url_by_content[content_snippet] = url
+    
+    logger.info(f"   Mapped {len(all_result_urls)} URLs from search results")
+
     # Use LLM to analyze results
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
 
@@ -311,6 +332,46 @@ Output valid JSON only:"""
         month_data['month_year'] = month_info['month_year']
         month_data['month_label'] = month_info['month_label']
         month_data['search_success'] = True
+
+        # ✅ Enrich threads with actual URLs from Tavily search results
+        threads = month_data.get('threads', [])
+        url_match_count = 0
+        
+        for i, thread in enumerate(threads):
+            thread_title = thread.get('title', '').lower()
+            thread_content = thread.get('content', '')[:100].lower()
+            
+            # Strategy 1: Exact title match
+            if thread_title in url_by_title:
+                thread['url'] = url_by_title[thread_title]
+                url_match_count += 1
+                continue
+            
+            # Strategy 2: Fuzzy title matching (50% word overlap)
+            if not thread.get('url') and len(thread_title) > 10:
+                best_match_score = 0
+                best_match_url = None
+                thread_words = set(thread_title.split())
+                
+                for result_title, result_url in url_by_title.items():
+                    result_words = set(result_title.split())
+                    if thread_words and result_words:
+                        overlap = len(thread_words & result_words) / len(thread_words)
+                        if overlap > best_match_score and overlap >= 0.4:  # Lower threshold to 40%
+                            best_match_score = overlap
+                            best_match_url = result_url
+                
+                if best_match_url:
+                    thread['url'] = best_match_url
+                    url_match_count += 1
+                    continue
+            
+            # Strategy 3: If still no match, use URLs in sequence (fallback)
+            if not thread.get('url') and i < len(all_result_urls):
+                thread['url'] = all_result_urls[i]
+                url_match_count += 1
+        
+        logger.info(f"   Enriched {url_match_count}/{len(threads)} threads with URLs from search results")
 
         logger.info(f"✅ Extracted: {len(month_data.get('threads', []))} threads, "
                    f"{len(month_data.get('pain_points_found', []))} pain points")

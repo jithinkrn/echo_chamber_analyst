@@ -1,4 +1,4 @@
-"""
+3 posts · 150 engagement"""
 Analyst Agent - Unified Content & Influencer Analysis
 
 This module consolidates all analysis capabilities into a single Analyst Agent:
@@ -797,52 +797,50 @@ def generate_campaign_ai_insights(
         # Build prompt for LLM
         prompt = ChatPromptTemplate.from_messages([
             SystemMessage(content="""You are an expert campaign analyst for social media monitoring campaigns.
-            Generate 3-5 actionable insights specifically for THIS campaign's performance and findings.
+            Generate EXACTLY 4 concise, actionable insights for THIS campaign's performance.
 
             Guidelines:
-            - Focus on THIS specific campaign's data and results
-            - Provide actionable recommendations for campaign optimization
-            - Identify specific trends and patterns in the collected data
-            - Suggest concrete next steps for campaign managers
+            - Generate EXACTLY 4 insights (no more, no less)
+            - Each insight should be 1-2 short sentences maximum
+            - Focus on the most critical findings from collected data
+            - Make insights specific to THIS campaign's actual results
+            - Provide 2-3 concrete action items per insight
             - Prioritize insights by urgency (high/medium/low)
-            - Each insight should have 2-4 specific action items
 
-            Format your response as a JSON array of objects, each with:
-            - "category": Brief category name (e.g., "Community Engagement", "Pain Point Alert")
-            - "insight": Clear, specific insight about the campaign (1-2 sentences)
+            Format your response as a JSON array with EXACTLY 4 objects, each with:
+            - "category": Brief category (e.g., "Sentiment Analysis", "Top Pain Point")
+            - "insight": One clear, specific finding (1-2 sentences max)
             - "priority": "high", "medium", or "low"
-            - "action_items": Array of 2-4 specific, actionable steps
+            - "action_items": Array of 2-3 specific actions
 
             Return ONLY the JSON array, no other text."""),
 
-            HumanMessage(content=f"""Analyze this campaign's data and generate 3-5 actionable insights:
+            HumanMessage(content=f"""Analyze this campaign and generate EXACTLY 4 key insights:
 
 CAMPAIGN: {campaign.name}
-BRAND: {brand.name}
-CAMPAIGN STATUS: {campaign.status}
+OBJECTIVE: {campaign.metadata.get('objectives', 'Monitor brand sentiment')[:200]}...
 
-DATA COLLECTED:
-- Communities Monitored: {num_communities}
-- Discussions Analyzed: {num_threads}
-- Pain Points Identified: {num_pain_points}
-- Overall Sentiment: {sentiment_label} ({avg_sentiment:.2f})
+ACTUAL DATA COLLECTED:
+- Communities: {num_communities} active communities monitored
+- Threads: {num_threads} discussions analyzed  
+- Pain Points: {num_pain_points} issues identified
+- Sentiment: {sentiment_label} ({avg_sentiment:.2f} average score)
 
-TOP PAIN POINTS:
-{chr(10).join([f"- {pp['keyword']}: {pp['mention_count']} mentions (growth: {pp.get('growth_percentage', 0):.0f}%)"
-               for pp in top_pain_points[:3]]) if top_pain_points else "- No pain points identified yet"}
+TOP 3 PAIN POINTS:
+{chr(10).join([f"- {pp['keyword']}: {pp['mention_count']} mentions"
+               for pp in top_pain_points[:3]]) if top_pain_points else "- None identified yet"}
 
-TOP COMMUNITIES (by echo score):
-{chr(10).join([f"- {c['name']} ({c['platform']}): echo score {c['echo_score']:.1f}, {c.get('member_count', 0)} members"
-               for c in top_communities]) if top_communities else "- No communities identified yet"}
+TOP COMMUNITIES:
+{chr(10).join([f"- {c['name']}: {c.get('member_count', 0):,} members, echo score {c['echo_score']:.0f}"
+               for c in top_communities[:3]]) if top_communities else "- None identified yet"}
 
-Generate insights focusing on:
-1. Campaign performance and effectiveness
-2. Community engagement patterns specific to this campaign
-3. Critical pain points requiring immediate attention
-4. Opportunities for campaign optimization
-5. Recommended next steps for campaign managers
+Generate EXACTLY 4 insights focusing on:
+1. Overall sentiment trend and what it means
+2. Most critical pain point requiring attention  
+3. Best performing community or engagement opportunity
+4. Key recommendation for campaign optimization
 
-Return ONLY a JSON array of insight objects.""")
+Return ONLY a JSON array with exactly 4 insight objects.""")
         ])
 
         # Generate insights using LLM

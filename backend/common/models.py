@@ -551,6 +551,7 @@ class Thread(BaseModel):
     thread_id = models.CharField(max_length=100)
     title = models.CharField(max_length=500)
     content = models.TextField()
+    url = models.URLField(max_length=500, blank=True, null=True, help_text='Direct link to the thread/post')
     community = models.ForeignKey(Community, on_delete=models.CASCADE, related_name='threads')
     campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='threads')
     # NEW: Link to brand for data separation

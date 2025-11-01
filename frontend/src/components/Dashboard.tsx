@@ -955,9 +955,22 @@ export default function Dashboard() {
                     <td className="py-3 px-2 text-gray-900">
                       <div className="flex flex-col">
                         <span className="font-medium">{community.key_influencer}</span>
-                        <span className="text-xs text-gray-500">
-                          {community.influencer_post_count} posts · {community.influencer_engagement} engagement
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">
+                            {community.influencer_post_count} posts · {community.influencer_engagement} engagement
+                          </span>
+                          {community.influencer_url && (
+                            <a
+                              href={community.influencer_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              View Post →
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>

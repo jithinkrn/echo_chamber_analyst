@@ -649,11 +649,12 @@ def _extract_and_store_influencers(collected_data: Dict[str, Any], campaign, bra
             influencer, created = Influencer.objects.update_or_create(
                 campaign=campaign_obj,
                 username=stats['username'],
-                platform=stats['platform'],
+                source_type=stats['platform'],  # ✅ FIX: Use source_type (not platform) for unique constraint
                 defaults={
                     'brand': brand,
                     'community': community,
                     'display_name': stats['display_name'],
+                    'platform': stats['platform'],  # Store platform in defaults
                     'profile_url': f"https://reddit.com/user/{stats['username']}" if stats['platform'] == 'reddit' else '',
                     'total_posts': stats['total_posts'],
                     'total_comments': stats['total_comments'],
@@ -1012,6 +1013,7 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
                 defaults={
                     "title": thread_data["title"],
                     "content": thread_data["content"][:2000],
+                    "url": thread_data.get("url", ""),  # ✅ NEW: Save thread URL
                     "community": community,
                     "campaign_id": campaign.id,
                     "author": thread_data.get("author", "unknown"),
