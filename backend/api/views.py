@@ -1068,11 +1068,11 @@ def get_brand_top_pain_points(brand_id, date_from, date_to, limit=10):
             pain_point_data[keyword]['months'][month_year] = 0
         pain_point_data[keyword]['months'][month_year] += mention_count
     
-    # NEW LOGIC: Compare recent 3 months vs previous 3 months average
-    # This identifies pain points that are TRENDING UP over time
+    # Simplified logic: Calculate average mentions across all 6 months
+    # Show top pain points by average volume (most talked about issues)
     pain_points_with_growth = []
-
-    # Get the last 6 complete months for comparison
+    
+    # Get the last 6 complete months
     from dateutil.relativedelta import relativedelta
     now = timezone.now()
     last_6_months = []
@@ -1080,60 +1080,28 @@ def get_brand_top_pain_points(brand_id, date_from, date_to, limit=10):
         target_date = now - relativedelta(months=offset)
         month_year = target_date.strftime('%Y-%m')
         last_6_months.append(month_year)
-    
-    # Split into two periods: recent 3 vs previous 3
-    previous_3_months = last_6_months[:3]  # Oldest 3 months
-    recent_3_months = last_6_months[3:]    # Most recent 3 months
 
     for keyword, data in pain_point_data.items():
-        # Calculate average mentions for each period
-        previous_mentions = [data['months'].get(month, 0) for month in previous_3_months]
-        recent_mentions = [data['months'].get(month, 0) for month in recent_3_months]
+        # Get all mentions across 6 months
+        all_months_mentions = [data['months'].get(month, 0) for month in last_6_months]
+        avg_mentions = sum(all_months_mentions) / len(last_6_months)
+        total_mentions = sum(data['months'].values())
         
-        previous_avg = sum(previous_mentions) / len(previous_mentions) if previous_mentions else 0
-        recent_avg = sum(recent_mentions) / len(recent_mentions) if recent_mentions else 0
-        
-        # Skip pain points with no recent activity
-        if recent_avg == 0:
-            continue
-        
-        # Skip pain points with very low activity (less than 0.5 avg = less than 2 total mentions in 3 months)
-        # This filters out one-off mentions that aren't real trends
-        if recent_avg < 0.5:
-            continue
-        
-        # Calculate growth percentage based on averages
-        if previous_avg > 0:
-            # Standard growth calculation
-            growth = ((recent_avg - previous_avg) / previous_avg) * 100
-        else:
-            # New pain point (no previous data)
-            # Instead of showing +100%, show the actual increase from 0
-            # For display purposes, we'll calculate based on recent_avg
-            # If recent_avg = 1.33, that means it went from 0 to 1.33 avg mentions
-            growth = 100.0  # Still show as 100% for "new" items
-
-        # Only include pain points that are TRENDING UP (recent > previous)
-        # We want to see pain points that are getting worse
-        if recent_avg > previous_avg:
-            total_mentions = sum(data['months'].values())
+        # Only include pain points with meaningful activity (at least 0.5 avg = at least 3 mentions across 6 months)
+        if avg_mentions >= 0.5:
             pain_points_with_growth.append({
                 'keyword': keyword,
-                'growth_percentage': round(growth, 1),
                 'mention_count': total_mentions,
-                'recent_avg_mentions': round(recent_avg, 1),
-                'previous_avg_mentions': round(previous_avg, 1),
-                'trend_direction': 'up',
-                'recent_period': f"{recent_3_months[0]} to {recent_3_months[-1]}",
-                'previous_period': f"{previous_3_months[0]} to {previous_3_months[-1]}"
+                'avg_mentions': round(avg_mentions, 1),
+                'recent_avg_mentions': round(avg_mentions, 1),  # For compatibility with frontend
+                'growth_percentage': 0.0,  # Not used anymore, but kept for compatibility
             })
 
-    # Sort by recent average mentions (most critical issues by volume)
-    # This shows the most talked-about pain points in recent months, regardless of growth rate
-    # Secondary sort by growth percentage as tie-breaker
-    pain_points_with_growth.sort(key=lambda x: (x['recent_avg_mentions'], x['growth_percentage']), reverse=True)
+    # Sort by average mentions (highest volume first)
+    # This shows the most critical pain points by mention volume
+    pain_points_with_growth.sort(key=lambda x: x['avg_mentions'], reverse=True)
     
-    # Return top N pain points by recent mention volume (configurable limit)
+    # Return top N pain points by average mention volume (configurable limit)
     return pain_points_with_growth[:limit]
 
 
