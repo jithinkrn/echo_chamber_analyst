@@ -474,16 +474,14 @@ class Community(BaseModel):
     platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
     url = models.URLField()
     member_count = models.IntegerField(default=0)
-    echo_score = models.FloatField(default=0.0)
-    echo_score_change = models.FloatField(default=0.0)  # percentage change
+    echo_score = models.FloatField(default=0.0)  # Calculated from threads, pain points, engagement
     is_active = models.BooleanField(default=True)
     last_analyzed = models.DateTimeField(auto_now=True)
 
-    # Activity tracking for community selection (NEW)
-    activity_score = models.FloatField(default=0.0)  # Overall activity metric
-    threads_last_4_weeks = models.IntegerField(default=0)  # Thread count in past 4 weeks
-    avg_engagement_rate = models.FloatField(default=0.0)  # Average engagement per thread
-    echo_score_delta = models.FloatField(default=0.0)  # Week-over-week delta (W4 vs W3)
+    # Key Influencer identification (from LLM analysis of thread authors)
+    key_influencer = models.CharField(max_length=200, blank=True, null=True, help_text='Most active/influential author in this community')
+    influencer_post_count = models.IntegerField(default=0, help_text='Number of posts by key influencer')
+    influencer_engagement = models.IntegerField(default=0, help_text='Total engagement on key influencer posts')
 
     # Community metadata
     description = models.TextField(blank=True)

@@ -92,17 +92,15 @@ interface DashboardData {
     mention_count: number;
   }>;
   community_watchlist: Array<{
+    id: number;
     rank: number;
     name: string;
     platform: string;
     member_count: number;
     echo_score: number;
-    echo_change: number;
-    new_threads: number;
-    activity_score: number;
-    threads_last_4_weeks: number;
-    avg_engagement_rate: number;
     key_influencer: string;
+    influencer_post_count: number;
+    influencer_engagement: number;
   }>;
   influencer_pulse: Array<{
     handle: string;
@@ -913,23 +911,27 @@ export default function Dashboard() {
                   <th className="text-left py-2 px-2">Community</th>
                   <th className="text-left py-2 px-2">Platform</th>
                   <th className="text-right py-2 px-2">Members</th>
-                  <th className="text-right py-2 px-2">Echo</th>
-                  <th className="text-right py-2 px-2">Δ</th>
-                  <th className="text-right py-2 px-2">Activity</th>
-                  <th className="text-right py-2 px-2">6mo Threads</th>
-                  <th className="text-right py-2 px-2">Engagement</th>
+                  <th className="text-right py-2 px-2">Echo Score</th>
                   <th className="text-left py-2 px-2">Key Influencer</th>
+                  <th className="text-center py-2 px-2">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {(dashboardData.community_watchlist || []).map((community, index) => (
                   <tr
                     key={index}
-                    className="border-b hover:bg-gray-50 cursor-pointer transition-colors"
-                    onClick={() => setSelectedCommunity(community)}
+                    className="border-b hover:bg-gray-50 transition-colors"
                   >
                     <td className="py-3 px-2 font-medium">{community.rank}</td>
-                    <td className="py-3 px-2 font-medium text-gray-900">{community.name}</td>
+                    <td 
+                      className="py-3 px-2 font-medium text-blue-600 cursor-pointer hover:underline"
+                      onClick={() => {
+                        // TODO: Open pain points modal
+                        console.log('Open pain points for', community.id);
+                      }}
+                    >
+                      {community.name}
+                    </td>
                     <td className="py-3 px-2">
                       <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
                         {community.platform.charAt(0).toUpperCase() + community.platform.slice(1)}
@@ -942,46 +944,44 @@ export default function Dashboard() {
                         ? `${(community.member_count / 1000).toFixed(1)}k`
                         : community.member_count}
                     </td>
-                    <td className="py-3 px-2 text-right font-medium text-gray-900">
-                      {community.echo_score.toFixed(1)}
-                    </td>
                     <td className="py-3 px-2 text-right">
-                      <div className={`flex items-center justify-end ${
-                        community.echo_change >= 0 ? 'text-green-600' : 'text-red-600'
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${
+                        community.echo_score >= 70 ? 'bg-green-100 text-green-800' :
+                        community.echo_score >= 40 ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
                       }`}>
-                        {community.echo_change >= 0 ? (
-                          <TrendingUp className="h-3 w-3 mr-1" />
-                        ) : (
-                          <TrendingDown className="h-3 w-3 mr-1" />
-                        )}
-                        <span className="font-medium">
-                          {community.echo_change >= 0 ? '+' : ''}{community.echo_change.toFixed(1)}%
+                        {community.echo_score.toFixed(1)}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2 text-gray-900">
+                      <div className="flex flex-col">
+                        <span className="font-medium">{community.key_influencer}</span>
+                        <span className="text-xs text-gray-500">
+                          {community.influencer_post_count} posts · {community.influencer_engagement} engagement
                         </span>
                       </div>
                     </td>
-                    <td className="py-3 px-2 text-right">
-                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                        community.activity_score >= 7 ? 'bg-green-100 text-green-800' :
-                        community.activity_score >= 4 ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {community.activity_score.toFixed(1)}
-                      </span>
-                    </td>
-                    <td className="py-3 px-2 text-right text-gray-700">
-                      {community.threads_last_4_weeks}
-                    </td>
-                    <td className="py-3 px-2 text-right text-gray-700">
-                      {community.avg_engagement_rate.toFixed(1)}%
-                    </td>
-                    <td className="py-3 px-2 text-gray-900 truncate max-w-[120px]">
-                      {community.key_influencer}
+                    <td className="py-3 px-2">
+                      <div className="flex gap-2 justify-center">
+                        <button
+                          onClick={() => window.open(`/community/${community.id}/threads`, '_blank')}
+                          className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
+                        >
+                          View Threads
+                        </button>
+                        <button
+                          onClick={() => window.open(`/community/${community.id}/influencers`, '_blank')}
+                          className="px-3 py-1 text-xs font-medium text-purple-700 bg-purple-50 rounded hover:bg-purple-100 transition-colors"
+                        >
+                          View Influencers
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
                 {(!dashboardData.community_watchlist || dashboardData.community_watchlist.length === 0) && (
                   <tr>
-                    <td colSpan={10} className="py-8 text-center text-gray-500">
+                    <td colSpan={7} className="py-8 text-center text-gray-500">
                       <p className="text-sm">No communities in watchlist</p>
                       <p className="text-xs mt-1">Run a campaign to discover communities</p>
                     </td>

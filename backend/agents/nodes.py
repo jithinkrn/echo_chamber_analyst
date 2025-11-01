@@ -854,6 +854,8 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
 
         def save_community(community_data):
             """Save single community with error handling"""
+            from common.utils import calculate_community_echo_score
+            
             community, created = Community.objects.get_or_create(
                 name=community_data["name"],
                 platform=community_data["platform"],
@@ -862,26 +864,24 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
                 defaults={
                     "url": community_data.get("url", f"https://reddit.com/{community_data["name"]}"),
                     "member_count": community_data.get("member_count", 0),
-                    "echo_score": community_data.get("echo_score", 0.0),
-                    "echo_score_change": community_data.get("echo_score_change", 0.0),
+                    "echo_score": 0.0,  # Will be calculated after threads/pain points saved
                     "description": f"Real community data for {brand_name}",
                     "is_active": True,
                     "last_analyzed": timezone.now(),
                     "category": community_data.get("category", "general"),
-                    "language": community_data.get("language", "en")
+                    "language": community_data.get("language", "en"),
+                    "key_influencer": community_data.get("key_influencer", None),
+                    "influencer_post_count": community_data.get("influencer_post_count", 0),
+                    "influencer_engagement": community_data.get("influencer_engagement", 0)
                 }
             )
 
             if not created:
-                # Update existing community with real data
-                old_echo_score = community.echo_score or 0.0
-                new_echo_score = community_data["echo_score"]
-
-                community.echo_score = new_echo_score
-                community.echo_score_change = round(
-                    ((new_echo_score - old_echo_score) / max(old_echo_score, 0.1)) * 100, 1
-                )
-                community.member_count = community_data["member_count"]
+                # Update existing community with new data
+                community.member_count = community_data.get("member_count", community.member_count)
+                community.key_influencer = community_data.get("key_influencer", community.key_influencer)
+                community.influencer_post_count = community_data.get("influencer_post_count", community.influencer_post_count)
+                community.influencer_engagement = community_data.get("influencer_engagement", community.influencer_engagement)
                 community.last_analyzed = timezone.now()
                 community.save()
 
@@ -1105,6 +1105,12 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
         gc.collect()
         logger.info("🧹 Memory cleanup complete")
 
+        # Calculate echo scores for all communities after data is saved
+        from common.utils import recalculate_all_community_scores
+        logger.info("📊 Calculating echo scores for communities...")
+        updated_count = recalculate_all_community_scores(campaign_id=campaign.id)
+        logger.info(f"✅ Updated echo scores for {updated_count} communities")
+
         return save_results
 
     except Exception as e:
@@ -1160,32 +1166,25 @@ def store_brand_analytics_data(collected_data: Dict[str, Any], brand, automatic_
                 defaults={
                     "url": community_url,
                     "member_count": community_data.get("member_count", 0),
-                    "echo_score": community_data.get("echo_score", 0.0),
-                    "echo_score_change": community_data.get("echo_score_change", 0.0),
+                    "echo_score": 0.0,  # Will be calculated after all data is saved
                     "description": f"Brand Analytics - Community for {brand.name}",
                     "is_active": True,
                     "last_analyzed": timezone.now(),
                     "category": community_data.get("category", "general"),
                     "language": community_data.get("language", "en"),
-                    "activity_score": community_data.get("activity_score", 0.0),
-                    "threads_last_4_weeks": community_data.get("threads_last_4_weeks", 0),
-                    "avg_engagement_rate": community_data.get("avg_engagement_rate", 0.0),
-                    "echo_score_delta": community_data.get("echo_score_delta", 0.0)
+                    "key_influencer": community_data.get("key_influencer", None),
+                    "influencer_post_count": community_data.get("influencer_post_count", 0),
+                    "influencer_engagement": community_data.get("influencer_engagement", 0)
                 }
             )
 
             if not created:
                 # Update existing community with new data
-                old_echo_score = community.echo_score or 0.0
-                new_echo_score = community_data.get("echo_score", 0.0)
-
-                community.echo_score = new_echo_score
-                community.echo_score_change = round(
-                    ((new_echo_score - old_echo_score) / max(old_echo_score, 0.1)) * 100, 1
-                )
                 community.member_count = community_data.get("member_count", community.member_count)
+                community.key_influencer = community_data.get("key_influencer", community.key_influencer)
+                community.influencer_post_count = community_data.get("influencer_post_count", community.influencer_post_count)
+                community.influencer_engagement = community_data.get("influencer_engagement", community.influencer_engagement)
                 community.last_analyzed = timezone.now()
-                community.activity_score = community_data.get("activity_score", community.activity_score)
                 community.save()
 
             # Cache community for later lookups (memory optimization)
@@ -1343,6 +1342,12 @@ def store_brand_analytics_data(collected_data: Dict[str, Any], brand, automatic_
         gc.collect()
         logger.info("🧹 Final memory cleanup complete")
 
+        # Calculate echo scores for all communities after data is saved
+        from common.utils import recalculate_all_community_scores
+        logger.info("📊 Calculating echo scores for communities...")
+        updated_count = recalculate_all_community_scores(campaign_id=automatic_campaign.id)
+        logger.info(f"✅ Updated echo scores for {updated_count} communities")
+
         logger.info(f"✅ Brand Analytics data stored successfully for brand '{brand.name}'")
         logger.info(f"📊 Stored: {len(collected_data.get('communities', []))} communities, "
                    f"{len(collected_data.get('pain_points', []))} pain points, "
@@ -1387,29 +1392,23 @@ def store_custom_campaign_data(collected_data: Dict[str, Any], brand, campaign) 
                 defaults={
                     "url": community_data.get("url", f"https://reddit.com/{community_data["name"]}"),
                     "member_count": community_data.get("member_count", 0),
-                    "echo_score": community_data.get("echo_score", 0.0),
-                    "echo_score_change": community_data.get("echo_score_change", 0.0),
+                    "echo_score": 0.0,  # Will be calculated after all data is saved
                     "description": f"Custom Campaign: {campaign.name} - {community_data['name']}",
                     "is_active": True,
                     "last_analyzed": timezone.now(),
                     "category": community_data.get("category", "custom_campaign"),
                     "language": community_data.get("language", "en"),
-                    "activity_score": community_data.get("activity_score", 0.0),
-                    "threads_last_4_weeks": community_data.get("threads_last_4_weeks", 0),
-                    "avg_engagement_rate": community_data.get("avg_engagement_rate", 0.0),
-                    "echo_score_delta": community_data.get("echo_score_delta", 0.0)
+                    "key_influencer": community_data.get("key_influencer", None),
+                    "influencer_post_count": community_data.get("influencer_post_count", 0),
+                    "influencer_engagement": community_data.get("influencer_engagement", 0)
                 }
             )
 
             if not created:
-                old_echo_score = community.echo_score or 0.0
-                new_echo_score = community_data["echo_score"]
-
-                community.echo_score = new_echo_score
-                community.echo_score_change = round(
-                    ((new_echo_score - old_echo_score) / max(old_echo_score, 0.1)) * 100, 1
-                )
-                community.member_count = community_data["member_count"]
+                community.member_count = community_data.get("member_count", community.member_count)
+                community.key_influencer = community_data.get("key_influencer", community.key_influencer)
+                community.influencer_post_count = community_data.get("influencer_post_count", community.influencer_post_count)
+                community.influencer_engagement = community_data.get("influencer_engagement", community.influencer_engagement)
                 community.last_analyzed = timezone.now()
                 community.save()
 
@@ -1507,6 +1506,12 @@ def store_custom_campaign_data(collected_data: Dict[str, Any], brand, campaign) 
                 ))
             )
             future.result()
+
+        # Calculate echo scores for all communities after data is saved
+        from common.utils import recalculate_all_community_scores
+        logger.info("📊 Calculating echo scores for communities...")
+        updated_count = recalculate_all_community_scores(campaign_id=campaign.id)
+        logger.info(f"✅ Updated echo scores for {updated_count} communities")
 
         logger.info(f"✅ Custom Campaign data stored successfully for campaign '{campaign.name}'")
         logger.info(f"📊 Stored: {len(collected_data.get('communities', []))} communities, "

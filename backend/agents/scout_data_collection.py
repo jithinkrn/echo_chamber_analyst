@@ -273,9 +273,10 @@ Return JSON:
       "name": "r/subreddit",
       "platform": "reddit/forum",
       "thread_count": count,
-      "avg_engagement": score,
-      "echo_score": 65.0,
-      "member_count": 100000
+      "member_count": 100000,
+      "key_influencer": "username_of_most_active_author",
+      "influencer_post_count": 5,
+      "influencer_engagement": 1200
     }}
   ]
 }}
@@ -286,6 +287,12 @@ Rules:
 - Identify pain points intelligently (no keyword matching)
 - Estimate dates within {month_info['month_label']}
 - Extract community names from URLs
+- For each community, identify the KEY INFLUENCER:
+  * Find the author who appears most frequently in threads/comments
+  * OR the author with highest total engagement (upvotes + replies)
+  * Return username as "key_influencer"
+  * Count posts: "influencer_post_count"
+  * Sum engagement: "influencer_engagement"
 
 Output valid JSON only:"""
 

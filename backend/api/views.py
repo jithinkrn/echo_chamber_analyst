@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from django.db.models import Sum, Avg, Count, Q
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
@@ -692,11 +692,6 @@ def get_community_watchlist(campaign_id, date_from, date_to):
                 'platform': community.platform,
                 'member_count': community.member_count,
                 'echo_score': float(community.echo_score),
-                'echo_change': float(community.echo_score_change or 0.0),
-                'new_threads': recent_threads,
-                'activity_score': float(community.activity_score),
-                'threads_last_4_weeks': community.threads_last_4_weeks,
-                'avg_engagement_rate': float(community.avg_engagement_rate),
                 'key_influencer': top_influencer.handle if top_influencer else 'N/A'
             })
 
@@ -1115,11 +1110,11 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
     # Show top communities with most threads/activity (even if no pain points yet)
     community_matrix = []
     
-    # Get top 5 communities by threads and echo score (not just those with pain points)
+    # Get top 5 communities by echo score
     top_communities = Community.objects.filter(
         brand_id=brand_id,
         campaign=automatic_campaign
-    ).order_by('-threads_last_4_weeks', '-echo_score', '-activity_score')[:5]
+    ).order_by('-echo_score')[:5]
 
     for community in top_communities:
         # Get top pain points for this community, aggregated across all months
@@ -1171,9 +1166,6 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
             'community_name': community.name,
             'platform': community.platform,
             'echo_score': float(community.echo_score),
-            'echo_score_delta': float(community.echo_score_delta),  # NEW: W-o-W delta
-            'activity_score': float(community.activity_score),  # NEW: Activity metric
-            'threads_4w': community.threads_last_4_weeks,  # NEW: Thread count
             'pain_points': community_pain_points  # May be empty list if no pain points
         })
 
@@ -1284,7 +1276,6 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
 def get_brand_community_watchlist(brand_id):
     """Get community watchlist for a specific brand - Brand Analytics ONLY."""
     from common.models import Community, Thread
-    from datetime import timedelta
 
     # ✅ FIX: Get automatic campaign only (Brand Analytics)
     automatic_campaign = Campaign.objects.filter(
@@ -1300,40 +1291,161 @@ def get_brand_community_watchlist(brand_id):
         brand_id=brand_id,
         campaign=automatic_campaign,
         is_active=True
-        # Removed echo_score filter to show all communities
     ).distinct().order_by('-echo_score')[:5]
 
     watchlist_data = []
-    for rank, community in enumerate(brand_communities, 1):
-        # ✅ FIX: Get recent thread count for Brand Analytics only
-        recent_threads = Thread.objects.filter(
-            community=community,
-            brand_id=brand_id,
-            campaign=automatic_campaign,
-            published_at__gte=timezone.now() - timedelta(days=28)  # Last 4 weeks
-        ).count()
-
-        # ✅ FIX: Get top influencer for Brand Analytics only
-        top_influencer = community.influencers.filter(
-            brand_id=brand_id,
-            campaign=automatic_campaign
-        ).order_by('-influence_score').first()
-        
+    for rank, community in enumerate(brand_communities, 1):        
         watchlist_data.append({
+            'id': community.id,  # ✅ NEW: Added for frontend links
             'rank': rank,
             'name': community.name,
             'platform': community.platform,
             'member_count': community.member_count,
             'echo_score': float(community.echo_score),
-            'echo_change': float(community.echo_score_change),
-            'new_threads': recent_threads,
-            'activity_score': float(community.activity_score),
-            'threads_last_4_weeks': community.threads_last_4_weeks,
-            'avg_engagement_rate': float(community.avg_engagement_rate),
-            'key_influencer': top_influencer.display_name if top_influencer else 'Unknown'
+            'key_influencer': community.key_influencer or 'Unknown',  # ✅ NEW: From LLM
+            'influencer_post_count': community.influencer_post_count,  # ✅ NEW
+            'influencer_engagement': community.influencer_engagement  # ✅ NEW
         })
     
     return watchlist_data
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_community_pain_points(request, community_id):
+    """
+    Get top pain points for a specific community.
+    GET /api/community/{id}/pain-points/
+    """
+    from common.models import Community, PainPoint
+    
+    try:
+        community = Community.objects.get(id=community_id)
+        
+        # Get top 10 pain points for this community
+        pain_points = PainPoint.objects.filter(
+            community=community
+        ).values(
+            'keyword', 'mention_count', 'sentiment_score', 'heat_level', 
+            'growth_percentage', 'example_content'
+        ).order_by('-mention_count')[:10]
+        
+        result = []
+        for pp in pain_points:
+            result.append({
+                'keyword': pp['keyword'],
+                'mention_count': pp['mention_count'],
+                'sentiment_score': float(pp['sentiment_score'] or 0),
+                'severity': pp['heat_level'],
+                'trend': 'increasing' if pp['growth_percentage'] > 10 else 'stable' if pp['growth_percentage'] > -10 else 'decreasing',
+                'example_quote': pp['example_content'][:200] if pp['example_content'] else ''
+            })
+        
+        return Response({
+            'community': {
+                'id': community.id,
+                'name': community.name,
+                'platform': community.platform
+            },
+            'pain_points': result
+        })
+        
+    except Community.DoesNotExist:
+        return Response({'error': 'Community not found'}, status=404)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_community_threads(request, community_id):
+    """
+    Get all threads for a specific community with URLs.
+    GET /api/community/{id}/threads/
+    """
+    from common.models import Community, Thread
+    
+    try:
+        community = Community.objects.get(id=community_id)
+        
+        # Get all threads for this community
+        threads = Thread.objects.filter(
+            community=community
+        ).order_by('-published_at')
+        
+        result = []
+        for thread in threads:
+            result.append({
+                'id': thread.id,
+                'title': thread.title,
+                'url': thread.url if thread.url else f"https://reddit.com/comments/{thread.thread_id}",
+                'platform': community.platform,
+                'author': thread.author,
+                'published_date': thread.published_at.strftime('%Y-%m-%d') if thread.published_at else 'Unknown',
+                'upvotes': thread.upvotes or 0,
+                'comment_count': thread.comment_count or 0,
+                'sentiment_score': float(thread.sentiment_score or 0),
+                'echo_score': float(thread.echo_score or 0)
+            })
+        
+        return Response({
+            'community': {
+                'id': community.id,
+                'name': community.name,
+                'platform': community.platform
+            },
+            'threads': result,
+            'total_count': len(result)
+        })
+        
+    except Community.DoesNotExist:
+        return Response({'error': 'Community not found'}, status=404)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_community_influencers(request, community_id):
+    """
+    Get top influencers for a specific community.
+    GET /api/community/{id}/influencers/
+    """
+    from common.models import Community, Influencer
+    
+    try:
+        community = Community.objects.get(id=community_id)
+        
+        # Get top 10 influencers for this community
+        influencers = Influencer.objects.filter(
+            community=community
+        ).order_by('-influence_score')[:10]
+        
+        result = []
+        for inf in influencers:
+            result.append({
+                'username': inf.username or inf.display_name,
+                'display_name': inf.display_name,
+                'platform': inf.platform,
+                'influence_score': float(inf.influence_score or 0),
+                'reach_score': float(inf.reach_score or 0),
+                'authority_score': float(inf.authority_score or 0),
+                'advocacy_score': float(inf.advocacy_score or 0),
+                'relevance_score': float(inf.relevance_score or 0),
+                'brand_mentions': inf.brand_mention_count or 0,
+                'sentiment': float(inf.sentiment_towards_brand or 0),
+                'reach': inf.reach or 0,
+                'engagement_rate': float(inf.engagement_rate or 0)
+            })
+        
+        return Response({
+            'community': {
+                'id': community.id,
+                'name': community.name,
+                'platform': community.platform
+            },
+            'influencers': result,
+            'total_count': len(result)
+        })
+        
+    except Community.DoesNotExist:
+        return Response({'error': 'Community not found'}, status=404)
 
 
 def get_brand_influencer_pulse(brand_id):
@@ -1514,7 +1626,7 @@ TOP PAIN POINTS:
 {json.dumps([{'keyword': pp['keyword'], 'growth': pp['growth_percentage'], 'mentions': pp['mention_count']} for pp in pain_points[:5]], indent=2)}
 
 COMMUNITY WATCHLIST:
-{json.dumps([{'name': c['name'], 'platform': c['platform'], 'echo_score': c['echo_score'], 'echo_change': c['echo_change'], 'activity_score': c['activity_score']} for c in communities[:3]], indent=2)}
+{json.dumps([{'name': c['name'], 'platform': c['platform'], 'echo_score': c['echo_score'], 'key_influencer': c.get('key_influencer', 'Unknown')} for c in communities[:3]], indent=2)}
 
 CAMPAIGN ANALYTICS:
 - Total Campaigns: {campaign_analytics.get('total_campaigns', 0)}
@@ -1944,7 +2056,9 @@ async def _store_brand_scout_data(brand, scout_results):
                     url=community_data.get('url', ''),
                     member_count=community_data.get('member_count', 0),
                     echo_score=community_data.get('echo_score', 0.0),
-                    echo_score_change=community_data.get('echo_score_change', 0.0),
+                    key_influencer=community_data.get('key_influencer'),
+                    influencer_post_count=community_data.get('influencer_post_count', 0),
+                    influencer_engagement=community_data.get('influencer_engagement', 0),
                     activity_level=community_data.get('activity_level', 'medium'),
                     is_active=True,
                     last_analyzed=timezone.now()

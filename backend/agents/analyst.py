@@ -447,7 +447,7 @@ KEY PERFORMANCE INDICATORS:
 - LLM Tokens Used: {kpis.get('llm_tokens_used', 0)}k (Cost: ${kpis.get('llm_cost_usd', 0):.2f})
 
 TOP COMMUNITIES ({len(communities)} total):
-{chr(10).join([f"  {i+1}. {c.get('name', 'Unknown')} - Echo: {c.get('echo_score', 0):.1f}, {c.get('threads_last_4_weeks', 0)} threads (4 weeks)"
+{chr(10).join([f"  {i+1}. {c.get('name', 'Unknown')} ({c.get('platform', 'unknown')}) - Echo Score: {c.get('echo_score', 0):.1f}, Key Influencer: {c.get('key_influencer', 'Unknown')}"
                for i, c in enumerate(communities[:5])])}
 
 TOP PAIN POINTS ({len(pain_points)} total):
@@ -459,12 +459,12 @@ TOP INFLUENCERS ({len(influencers)} total):
                for inf in influencers[:5]])}
 
 Generate exactly 6 insights focusing on:
-1. Overall brand health and sentiment trends
-2. Community engagement patterns and echo chamber risks
-3. Emerging pain points and customer concerns
-4. Influencer landscape and partnership opportunities
-5. Competitive positioning and market dynamics
-6. Recommended strategic actions
+1. Overall brand health based on echo scores across communities
+2. Community engagement and key influencer opportunities
+3. Emerging pain points and customer experience trends
+4. Influencer landscape and partnership potential
+5. Data quality and coverage assessment
+6. Recommended strategic actions prioritized by impact
 
 Return ONLY the 6 insights, numbered 1-6, nothing else.""")
         ])
@@ -562,9 +562,10 @@ def generate_fallback_insights_from_brand_analytics(
     # Insight 5: Top community
     if communities and len(communities) > 0:
         top_comm = communities[0]
+        key_inf = top_comm.get('key_influencer', 'Unknown')
         insights.append(
-            f"Most active community '{top_comm.get('name', 'Unknown')}' with {top_comm.get('threads_last_4_weeks', 0)} "
-            f"threads shows echo score of {top_comm.get('echo_score', 0):.1f}, presenting key engagement opportunity"
+            f"Most active community '{top_comm.get('name', 'Unknown')}' with echo score of {top_comm.get('echo_score', 0):.1f} "
+            f"features key influencer '{key_inf}', presenting strategic partnership opportunity"
         )
 
     # Insight 6: Top pain point
