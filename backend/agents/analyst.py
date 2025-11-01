@@ -1,4 +1,4 @@
-3 posts · 150 engagement"""
+"""
 Analyst Agent - Unified Content & Influencer Analysis
 
 This module consolidates all analysis capabilities into a single Analyst Agent:
@@ -742,199 +742,271 @@ def generate_fallback_insights_from_brand_analytics(
 
 
 # ============================================================================
-# CAMPAIGN AI INSIGHTS GENERATION (FOR CUSTOM CAMPAIGNS)
+# CUSTOM CAMPAIGN REPORT GENERATION
+# ============================================================================
+# This is THE ONLY function used for custom campaigns.
+# Brand Analytics uses generate_ai_powered_insights_from_brand_analytics() instead.
 # ============================================================================
 
-def generate_campaign_ai_insights(
+def generate_strategic_campaign_report(
     campaign: Campaign,
     brand: Brand,
     collected_data: Dict[str, Any]
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
-    Generate AI-powered insights for a specific custom campaign.
+    Generate strategic campaign report aligned with campaign objectives.
 
-    This is SEPARATE from Brand Analytics insights. These insights are
-    campaign-specific and based on data collected during campaign execution.
+    This is for CUSTOM CAMPAIGNS only. Unlike Brand Analytics (which collects
+    pain points generically), custom campaigns are strategic initiatives with
+    specific business objectives (e.g., "Increase retention 45% → 65%").
+
+    This function analyzes collected data in the context of campaign objectives
+    and generates a goal-oriented strategic report.
 
     Args:
-        campaign: Campaign instance
+        campaign: Campaign instance with objectives in metadata
         brand: Brand instance
         collected_data: Dictionary containing campaign collection results
             - communities: List of communities monitored
             - threads: List of threads collected
-            - pain_points: List of pain points identified
+            - pain_points: List of pain points identified (if any)
 
     Returns:
-        List of campaign insight objects with structure:
+        Strategic report dictionary with structure:
         {
-            "category": str,
-            "insight": str,
-            "priority": "high"|"medium"|"low",
-            "action_items": [str, ...]
+            "executive_summary": str,
+            "campaign_objective": str,
+            "key_metrics": {
+                "target": str,
+                "baseline": str,
+                "current_progress": str,
+                "trend": str
+            },
+            "strategic_findings": [
+                {
+                    "finding": str,
+                    "evidence": str,
+                    "recommendation": str,
+                    "priority": "high"|"medium"|"low"
+                }
+            ],
+            "supporting_data": {
+                "communities_analyzed": int,
+                "discussions_reviewed": int,
+                "sentiment_score": float,
+                "top_themes": [str, ...]
+            },
+            "generated_at": str (ISO timestamp)
         }
     """
-    logger.info(f"Generating Campaign AI Insights for campaign: {campaign.name}")
+    logger.info(f"🎯 Generating Strategic Campaign Report for: {campaign.name}")
 
     try:
-        # Extract campaign data
+        from openai import OpenAI
+        import os
+
+        # Initialize OpenAI client
+        client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
+        # Extract campaign objective
+        campaign_objective = campaign.metadata.get('objectives', 'Monitor brand sentiment and engagement')
+
+        # Extract collected data summary
         num_communities = len(collected_data.get("communities", []))
         num_threads = len(collected_data.get("threads", []))
-        num_pain_points = len(collected_data.get("pain_points", []))
-
-        # Get top pain points
-        pain_points = collected_data.get("pain_points", [])
-        top_pain_points = sorted(pain_points, key=lambda x: x.get('mention_count', 0), reverse=True)[:5]
-
-        # Calculate average sentiment
         threads = collected_data.get("threads", [])
+
+        # Calculate sentiment
         avg_sentiment = sum(t.get('sentiment_score', 0.0) for t in threads) / len(threads) if threads else 0.0
         sentiment_label = "positive" if avg_sentiment > 0.2 else "negative" if avg_sentiment < -0.2 else "neutral"
 
-        # Get top communities by echo score
+        # Get top communities
         communities = collected_data.get("communities", [])
         top_communities = sorted(communities, key=lambda x: x.get('echo_score', 0), reverse=True)[:3]
 
-        # Build prompt for LLM
-        prompt = ChatPromptTemplate.from_messages([
-            SystemMessage(content="""You are an expert campaign analyst for social media monitoring campaigns.
-            Generate EXACTLY 4 concise, actionable insights for THIS campaign's performance.
+        # Extract top themes from threads
+        pain_points = collected_data.get("pain_points", [])
+        top_themes = [pp.get('keyword', '') for pp in sorted(pain_points, key=lambda x: x.get('mention_count', 0), reverse=True)[:5]]
 
-            Guidelines:
-            - Generate EXACTLY 4 insights (no more, no less)
-            - Each insight should be 1-2 short sentences maximum
-            - Focus on the most critical findings from collected data
-            - Make insights specific to THIS campaign's actual results
-            - Provide 2-3 concrete action items per insight
-            - Prioritize insights by urgency (high/medium/low)
+        # Prepare data summary for LLM
+        data_summary = f"""CAMPAIGN: {campaign.name}
+BRAND: {brand.name}
+OBJECTIVE: {campaign_objective}
 
-            Format your response as a JSON array with EXACTLY 4 objects, each with:
-            - "category": Brief category (e.g., "Sentiment Analysis", "Top Pain Point")
-            - "insight": One clear, specific finding (1-2 sentences max)
-            - "priority": "high", "medium", or "low"
-            - "action_items": Array of 2-3 specific actions
-
-            Return ONLY the JSON array, no other text."""),
-
-            HumanMessage(content=f"""Analyze this campaign and generate EXACTLY 4 key insights:
-
-CAMPAIGN: {campaign.name}
-OBJECTIVE: {campaign.metadata.get('objectives', 'Monitor brand sentiment')[:200]}...
-
-ACTUAL DATA COLLECTED:
-- Communities: {num_communities} active communities monitored
-- Threads: {num_threads} discussions analyzed  
-- Pain Points: {num_pain_points} issues identified
-- Sentiment: {sentiment_label} ({avg_sentiment:.2f} average score)
-
-TOP 3 PAIN POINTS:
-{chr(10).join([f"- {pp['keyword']}: {pp['mention_count']} mentions"
-               for pp in top_pain_points[:3]]) if top_pain_points else "- None identified yet"}
+DATA COLLECTED:
+• Communities Analyzed: {num_communities}
+• Discussions Reviewed: {num_threads}
+• Sentiment: {sentiment_label} ({avg_sentiment:.2f})
 
 TOP COMMUNITIES:
-{chr(10).join([f"- {c['name']}: {c.get('member_count', 0):,} members, echo score {c['echo_score']:.0f}"
-               for c in top_communities[:3]]) if top_communities else "- None identified yet"}
+{chr(10).join([f"  • {c['name']} ({c.get('platform', 'unknown')}): {c.get('member_count', 0):,} members, echo score {c.get('echo_score', 0):.0f}"
+               for c in top_communities]) if top_communities else "  • None identified yet"}
 
-Generate EXACTLY 4 insights focusing on:
-1. Overall sentiment trend and what it means
-2. Most critical pain point requiring attention  
-3. Best performing community or engagement opportunity
-4. Key recommendation for campaign optimization
+TOP DISCUSSION THEMES:
+{chr(10).join([f"  • {theme}" for theme in top_themes]) if top_themes else "  • None identified yet"}
 
-Return ONLY a JSON array with exactly 4 insight objects.""")
-        ])
+SAMPLE DISCUSSIONS:
+{chr(10).join([f"  • '{t.get('title', 'Untitled')}' ({t.get('engagement', 0)} engagement, sentiment: {t.get('sentiment_score', 0):.2f})"
+               for t in threads[:5]]) if threads else "  • No discussions yet"}"""
 
-        # Generate insights using LLM
-        response = llm.invoke(prompt.format_messages())
-        insights_text = response.content.strip()
+        # Generate strategic report using GPT-4
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """You are a strategic business analyst specializing in data-driven campaign performance analysis.
+
+Your task: Analyze collected social media data in the context of the campaign's business objective and generate a strategic report.
+
+CRITICAL: This is NOT a generic brand monitoring report. This is a STRATEGIC CAMPAIGN with specific business goals.
+- Focus on the stated objective (e.g., retention, sentiment shift, feature adoption, etc.)
+- Generate findings that directly relate to achieving the objective
+- Provide evidence-based recommendations aligned with the goal
+- Estimate progress toward the objective based on available signals
+
+Return your analysis as a JSON object with this EXACT structure:
+{
+  "executive_summary": "2-3 sentence summary of campaign progress toward objective",
+  "key_metrics": {
+    "target": "The campaign's target goal (extracted from objective)",
+    "baseline": "Estimated baseline or starting point (if inferable from data, else 'TBD')",
+    "current_progress": "Evidence-based assessment of progress (percentage or qualitative)",
+    "trend": "Direction: 'improving', 'stable', 'declining', or 'insufficient data'"
+  },
+  "strategic_findings": [
+    {
+      "finding": "Key insight directly related to campaign objective",
+      "evidence": "Data points from collected discussions supporting this finding",
+      "recommendation": "Specific action to advance toward objective",
+      "priority": "high|medium|low"
+    }
+  ],
+  "next_steps": [
+    "Immediate action item 1",
+    "Immediate action item 2",
+    "Immediate action item 3"
+  ]
+}
+
+Generate EXACTLY 4 strategic findings. Focus on objective-relevant insights, not generic pain points."""
+                },
+                {
+                    "role": "user",
+                    "content": f"""Analyze this campaign data and generate a strategic report:
+
+{data_summary}
+
+Instructions:
+1. Read the OBJECTIVE carefully - this defines success for the campaign
+2. Analyze collected data for signals related to achieving that objective
+3. Generate 4 strategic findings that help understand progress toward the goal
+4. Provide evidence from actual discussions (titles, sentiment, themes)
+5. Recommend actions that directly advance the objective
+
+Return ONLY the JSON object, no other text."""
+                }
+            ],
+            temperature=0.7,
+            max_tokens=1500
+        )
+
+        report_text = response.choices[0].message.content.strip()
 
         # Parse JSON response
-        import re
-
-        # Extract JSON from response
-        json_match = re.search(r'\[.*\]', insights_text, re.DOTALL)
+        json_match = re.search(r'\{.*\}', report_text, re.DOTALL)
         if json_match:
-            insights_json = json.loads(json_match.group(0))
+            strategic_report = json.loads(json_match.group(0))
         else:
-            # Fallback to rule-based insights
-            insights_json = generate_fallback_campaign_insights(campaign, brand, collected_data)
+            # Fallback to rule-based report
+            logger.warning("Failed to parse LLM response, using fallback report")
+            strategic_report = generate_fallback_strategic_report(campaign, brand, collected_data)
 
-        logger.info(f"Generated {len(insights_json)} Campaign AI Insights")
+        # Add supporting data
+        strategic_report["supporting_data"] = {
+            "communities_analyzed": num_communities,
+            "discussions_reviewed": num_threads,
+            "sentiment_score": round(avg_sentiment, 2),
+            "top_themes": top_themes[:5]
+        }
 
-        return insights_json
+        # Add metadata
+        strategic_report["campaign_objective"] = campaign_objective
+        strategic_report["generated_at"] = datetime.now().isoformat()
+
+        logger.info(f"✅ Generated strategic report with {len(strategic_report.get('strategic_findings', []))} findings")
+
+        return strategic_report
 
     except Exception as e:
-        logger.error(f"Error generating Campaign AI Insights: {str(e)}")
-        # Return fallback insights
-        return generate_fallback_campaign_insights(campaign, brand, collected_data)
+        logger.error(f"❌ Error generating strategic campaign report: {str(e)}")
+        # Return fallback report
+        return generate_fallback_strategic_report(campaign, brand, collected_data)
 
 
-def generate_fallback_campaign_insights(
+def generate_fallback_strategic_report(
     campaign: Campaign,
     brand: Brand,
     collected_data: Dict[str, Any]
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
-    Generate fallback campaign insights when AI generation fails.
+    Generate fallback strategic report when AI generation fails.
     Uses rule-based logic.
     """
-    insights = []
-
+    campaign_objective = campaign.metadata.get('objectives', 'Monitor brand sentiment')
     num_threads = len(collected_data.get("threads", []))
-    num_pain_points = len(collected_data.get("pain_points", []))
-    pain_points = collected_data.get("pain_points", [])
+    num_communities = len(collected_data.get("communities", []))
+    threads = collected_data.get("threads", [])
+    avg_sentiment = sum(t.get('sentiment_score', 0.0) for t in threads) / len(threads) if threads else 0.0
 
-    # Insight 1: Data collection status
-    if num_threads > 50:
-        insights.append({
-            "category": "Data Collection Success",
-            "insight": f"Campaign has successfully collected {num_threads} discussions, providing robust data for analysis.",
-            "priority": "medium",
-            "action_items": [
-                "Review top discussions for key themes",
-                "Identify most active communities for targeted engagement",
-                "Schedule regular data refresh to maintain currency"
-            ]
-        })
-    elif num_threads > 0:
-        insights.append({
-            "category": "Data Collection Status",
-            "insight": f"Campaign has collected {num_threads} discussions. Consider expanding data collection scope for more comprehensive insights.",
-            "priority": "medium",
-            "action_items": [
-                "Review and expand campaign keywords",
-                "Add more target communities",
-                "Increase collection frequency"
-            ]
-        })
-
-    # Insight 2: Pain points
-    if num_pain_points > 0:
-        top_pain = sorted(pain_points, key=lambda x: x.get('mention_count', 0), reverse=True)[0]
-        insights.append({
-            "category": "Critical Pain Point",
-            "insight": f"Top issue '{top_pain['keyword']}' identified with {top_pain['mention_count']} mentions, requiring brand response strategy.",
-            "priority": "high",
-            "action_items": [
-                "Develop response strategy for this pain point",
-                "Monitor sentiment trends around this issue",
-                "Engage with affected users directly",
-                "Create content addressing this concern"
-            ]
-        })
-
-    # Insight 3: Campaign optimization
-    insights.append({
-        "category": "Campaign Optimization",
-        "insight": f"Campaign '{campaign.name}' is actively monitoring {brand.name}. Regular reviews recommended for optimal performance.",
-        "priority": "medium",
-        "action_items": [
-            "Review campaign metrics weekly",
-            "Adjust targeting based on findings",
-            "Update stakeholders on key insights"
-        ]
-    })
-
-    return insights[:5]  # Return up to 5 fallback insights
+    return {
+        "executive_summary": f"Campaign '{campaign.name}' is actively monitoring {num_threads} discussions across {num_communities} communities. Overall sentiment is {'positive' if avg_sentiment > 0 else 'neutral/negative'}. Continue data collection to establish baseline metrics.",
+        "campaign_objective": campaign_objective,
+        "key_metrics": {
+            "target": "TBD (requires more data)",
+            "baseline": "Establishing baseline",
+            "current_progress": f"{num_threads} discussions analyzed",
+            "trend": "insufficient data" if num_threads < 20 else "stable"
+        },
+        "strategic_findings": [
+            {
+                "finding": f"Campaign has collected {num_threads} discussions for analysis",
+                "evidence": f"Data from {num_communities} communities provides initial insights",
+                "recommendation": "Continue monitoring to establish trends and baseline metrics",
+                "priority": "medium"
+            },
+            {
+                "finding": f"Overall sentiment is {'positive' if avg_sentiment > 0.2 else 'negative' if avg_sentiment < -0.2 else 'neutral'} ({avg_sentiment:.2f})",
+                "evidence": f"Average sentiment across {num_threads} discussions",
+                "recommendation": "Track sentiment trends over time to measure progress",
+                "priority": "medium"
+            },
+            {
+                "finding": "Baseline data collection in progress",
+                "evidence": f"{num_communities} communities being monitored",
+                "recommendation": "Expand data collection scope for comprehensive analysis",
+                "priority": "low"
+            },
+            {
+                "finding": "Strategic insights require additional data",
+                "evidence": "Initial collection phase",
+                "recommendation": "Schedule next data collection cycle and review progress",
+                "priority": "low"
+            }
+        ],
+        "next_steps": [
+            "Continue data collection across monitored communities",
+            "Schedule weekly review of campaign metrics",
+            "Establish baseline benchmarks for objective measurement"
+        ],
+        "supporting_data": {
+            "communities_analyzed": num_communities,
+            "discussions_reviewed": num_threads,
+            "sentiment_score": round(avg_sentiment, 2),
+            "top_themes": []
+        },
+        "generated_at": datetime.now().isoformat()
+    }
 
 
 def generate_ai_powered_insights(
@@ -1243,3 +1315,258 @@ def generate_comprehensive_analysis_summary(
 
     logger.info(f"Generated summary with {len(ai_insights)} AI-powered key insights")
     return summary
+
+
+# ============================================================================
+# PDF REPORT GENERATION
+# ============================================================================
+
+def generate_strategic_report_pdf(campaign: Campaign, brand: Brand) -> bytes:
+    """
+    Generate a professional PDF report from the strategic campaign report.
+    
+    This function is called by the Analyst Agent to generate a downloadable
+    PDF report containing all strategic findings, metrics, and recommendations.
+    
+    Args:
+        campaign: Campaign instance with metadata['report']
+        brand: Brand instance
+        
+    Returns:
+        bytes: PDF file content
+    """
+    from reportlab.lib.pagesizes import letter, A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
+    from io import BytesIO
+    
+    logger.info(f"📄 Analyst Agent: Generating PDF report for campaign '{campaign.name}'")
+    
+    # Get strategic report from campaign metadata
+    if not campaign.metadata or 'report' not in campaign.metadata:
+        raise ValueError(f"No strategic report found for campaign {campaign.id}")
+    
+    strategic_report = campaign.metadata['report']
+    
+    # Create PDF buffer
+    buffer = BytesIO()
+    
+    # Create PDF document
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=72,
+        leftMargin=72,
+        topMargin=72,
+        bottomMargin=18,
+    )
+    
+    # Container for the 'Flowable' objects
+    elements = []
+    
+    # Define styles
+    styles = getSampleStyleSheet()
+    
+    # Custom styles
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#1e40af'),
+        spaceAfter=30,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+    
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=16,
+        textColor=colors.HexColor('#1e40af'),
+        spaceAfter=12,
+        spaceBefore=12,
+        fontName='Helvetica-Bold'
+    )
+    
+    subheading_style = ParagraphStyle(
+        'CustomSubHeading',
+        parent=styles['Heading3'],
+        fontSize=12,
+        textColor=colors.HexColor('#374151'),
+        spaceAfter=6,
+        spaceBefore=6,
+        fontName='Helvetica-Bold'
+    )
+    
+    body_style = ParagraphStyle(
+        'CustomBody',
+        parent=styles['BodyText'],
+        fontSize=10,
+        leading=14,
+        alignment=TA_JUSTIFY,
+        spaceAfter=12
+    )
+    
+    # Title
+    elements.append(Paragraph("Strategic Campaign Report", title_style))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Campaign Info
+    campaign_info = [
+        ["Campaign:", campaign.name],
+        ["Brand:", brand.name],
+        ["Type:", campaign.campaign_type.upper()],
+        ["Status:", campaign.status.upper()],
+        ["Generated:", datetime.now().strftime("%B %d, %Y at %H:%M")]
+    ]
+    
+    info_table = Table(campaign_info, colWidths=[1.5*inch, 4.5*inch])
+    info_table.setStyle(TableStyle([
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#6b7280')),
+        ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor('#111827')),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+    ]))
+    
+    elements.append(info_table)
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Executive Summary
+    elements.append(Paragraph("Executive Summary", heading_style))
+    exec_summary = strategic_report.get('executive_summary', 'No executive summary available.')
+    elements.append(Paragraph(exec_summary, body_style))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Campaign Objective
+    elements.append(Paragraph("Campaign Objective", heading_style))
+    objective = strategic_report.get('campaign_objective', 'No objective specified.')
+    # Split by newlines and create paragraphs for each section
+    for section in objective.split('\n\n'):
+        if section.strip():
+            elements.append(Paragraph(section.strip().replace('\n', '<br/>'), body_style))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Key Metrics
+    elements.append(Paragraph("Key Metrics", heading_style))
+    key_metrics = strategic_report.get('key_metrics', {})
+    
+    if key_metrics:
+        metrics_data = [['Metric', 'Value']]
+        for key, value in key_metrics.items():
+            metric_name = key.replace('_', ' ').title()
+            metrics_data.append([metric_name, str(value)])
+        
+        metrics_table = Table(metrics_data, colWidths=[2.5*inch, 3.5*inch])
+        metrics_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e5e7eb')),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('TOPPADDING', (0, 1), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+        ]))
+        elements.append(metrics_table)
+    else:
+        elements.append(Paragraph("No metrics available.", body_style))
+    
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Strategic Findings
+    elements.append(Paragraph("Strategic Findings", heading_style))
+    strategic_findings = strategic_report.get('strategic_findings', [])
+    
+    if strategic_findings:
+        for idx, finding in enumerate(strategic_findings, 1):
+            # Finding title with priority
+            priority = finding.get('priority', 'medium').upper()
+            priority_color = {
+                'HIGH': '#dc2626',
+                'MEDIUM': '#f59e0b',
+                'LOW': '#3b82f6'
+            }.get(priority, '#6b7280')
+            
+            finding_title = f"{idx}. {finding.get('finding', 'No finding specified')}"
+            elements.append(Paragraph(finding_title, subheading_style))
+            
+            # Priority badge
+            priority_text = f"<font color='{priority_color}'><b>Priority: {priority}</b></font>"
+            elements.append(Paragraph(priority_text, body_style))
+            
+            # Evidence
+            if finding.get('evidence'):
+                evidence_text = f"<b>Evidence:</b> {finding.get('evidence')}"
+                elements.append(Paragraph(evidence_text, body_style))
+            
+            # Recommendation
+            if finding.get('recommendation'):
+                rec_text = f"<b>Recommendation:</b> {finding.get('recommendation')}"
+                elements.append(Paragraph(rec_text, body_style))
+            
+            elements.append(Spacer(1, 0.15*inch))
+    else:
+        elements.append(Paragraph("No strategic findings available.", body_style))
+    
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Supporting Data
+    elements.append(Paragraph("Supporting Data", heading_style))
+    supporting_data = strategic_report.get('supporting_data', {})
+    
+    if supporting_data:
+        support_data_list = [
+            ['Communities Analyzed', str(supporting_data.get('communities_analyzed', 0))],
+            ['Discussions Reviewed', str(supporting_data.get('discussions_reviewed', 0))],
+            ['Sentiment Score', f"{supporting_data.get('sentiment_score', 0):.2f}"],
+        ]
+        
+        # Add top themes
+        top_themes = supporting_data.get('top_themes', [])
+        if top_themes:
+            support_data_list.append(['Key Themes', ', '.join(top_themes)])
+        
+        support_table = Table(support_data_list, colWidths=[2.5*inch, 3.5*inch])
+        support_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f3f4f6')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#111827')),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e5e7eb')),
+        ]))
+        elements.append(support_table)
+    else:
+        elements.append(Paragraph("No supporting data available.", body_style))
+    
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Next Steps
+    next_steps = strategic_report.get('next_steps', [])
+    if next_steps:
+        elements.append(Paragraph("Recommended Next Steps", heading_style))
+        for idx, step in enumerate(next_steps, 1):
+            step_text = f"{idx}. {step}"
+            elements.append(Paragraph(step_text, body_style))
+    
+    # Build PDF
+    doc.build(elements)
+    
+    # Get PDF content
+    pdf_content = buffer.getvalue()
+    buffer.close()
+    
+    logger.info(f"✅ Analyst Agent: PDF report generated successfully ({len(pdf_content)} bytes)")
+    
+    return pdf_content

@@ -1615,22 +1615,56 @@ def get_brand_campaign_analytics(brand_id, date_from, date_to):
     total_budget = custom_campaigns.aggregate(total=Sum('daily_budget'))['total'] or 0
     total_spent = custom_campaigns.aggregate(total=Sum('current_spend'))['total'] or 0
 
-    # ✅ FIX: Get campaign insights from the latest CUSTOM campaign with insights
+    # ✅ NEW: Get strategic reports from custom campaigns (NOT old-style insights)
     campaign_insights = []
     campaign_data_summary = {}
 
-    # Look for custom campaigns with insights in metadata (most recent first)
-    campaigns_with_insights = custom_campaigns.filter(
-        metadata__insights__isnull=False
-    ).exclude(
-        metadata__insights=[]
+    # Look for custom campaigns with strategic reports in metadata (most recent first)
+    campaigns_with_reports = custom_campaigns.filter(
+        metadata__report__isnull=False
     ).order_by('-created_at')
 
-    if campaigns_with_insights.exists():
-        latest_campaign = campaigns_with_insights.first()
-        if latest_campaign.metadata:
-            campaign_insights = latest_campaign.metadata.get('insights', [])
-            campaign_data_summary = latest_campaign.metadata.get('data_summary', {})
+    # Get list of all campaigns with reports for dropdown selector
+    available_campaigns = []
+    for camp in campaigns_with_reports:
+        available_campaigns.append({
+            'id': str(camp.id),
+            'name': camp.name,
+            'status': camp.status,
+            'has_report': True,
+            'report_generated_at': camp.metadata.get('report_generated_at') if camp.metadata else None
+        })
+
+    if campaigns_with_reports.exists():
+        latest_campaign = campaigns_with_reports.first()
+        if latest_campaign.metadata and 'report' in latest_campaign.metadata:
+            strategic_report = latest_campaign.metadata['report']
+            
+            # Transform strategic report into insights format for frontend
+            # Convert strategic_findings to insights format
+            for finding in strategic_report.get('strategic_findings', []):
+                campaign_insights.append({
+                    'category': finding.get('finding', '')[:50] + '...' if len(finding.get('finding', '')) > 50 else finding.get('finding', ''),
+                    'insight': finding.get('finding', ''),
+                    'priority': finding.get('priority', 'medium'),
+                    'action_items': [finding.get('recommendation', '')] if finding.get('recommendation') else []
+                })
+            
+            # Get data summary from supporting_data and include full report details
+            supporting_data = strategic_report.get('supporting_data', {})
+            campaign_data_summary = {
+                'campaign_id': str(latest_campaign.id),  # Add campaign ID for PDF download
+                'campaign_name': latest_campaign.name,
+                'communities': supporting_data.get('communities_analyzed', 0),
+                'threads': supporting_data.get('discussions_reviewed', 0),
+                'sentiment_score': supporting_data.get('sentiment_score', 0),
+                'sentiment_label': 'positive' if supporting_data.get('sentiment_score', 0) > 0.2 else 'negative' if supporting_data.get('sentiment_score', 0) < -0.2 else 'neutral',
+                'top_themes': supporting_data.get('top_themes', []),
+                'executive_summary': strategic_report.get('executive_summary', ''),
+                'campaign_objective': strategic_report.get('campaign_objective', ''),
+                'key_metrics': strategic_report.get('key_metrics', {}),
+                'next_steps': strategic_report.get('next_steps', [])
+            }
 
     return {
         'total_campaigns': total_campaigns,
@@ -1641,9 +1675,252 @@ def get_brand_campaign_analytics(brand_id, date_from, date_to):
         'total_spent': float(total_spent),
         'budget_utilization': round((total_spent / total_budget * 100) if total_budget > 0 else 0, 1),
         'recent_campaigns': [],
-        'insights': campaign_insights,  # Custom Campaign insights only
-        'data_summary': campaign_data_summary  # Data summary for insights context
+        'insights': campaign_insights,  # Transformed from strategic_report.strategic_findings
+        'data_summary': campaign_data_summary,  # Data summary from strategic_report.supporting_data
+        'available_campaigns': available_campaigns  # List of campaigns with reports for selector
     }
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_campaign_strategic_report(request, campaign_id):
+    """Get strategic report for a specific custom campaign."""
+    try:
+        # Get the campaign
+        campaign = Campaign.objects.filter(id=campaign_id).first()
+        
+        if not campaign:
+            return Response(
+                {'error': 'Campaign not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Verify it's a custom campaign
+        if campaign.campaign_type != 'custom':
+            return Response(
+                {'error': 'Strategic reports are only available for custom campaigns'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get strategic report from campaign metadata
+        if not campaign.metadata or 'report' not in campaign.metadata:
+            return Response(
+                {
+                    'campaign_id': str(campaign.id),
+                    'campaign_name': campaign.name,
+                    'campaign_type': campaign.campaign_type,
+                    'report': None,
+                    'message': 'No strategic report generated yet. Run the scout to generate a report.'
+                },
+                status=status.HTTP_200_OK
+            )
+        
+        strategic_report = campaign.metadata.get('report', {})
+        report_generated_at = campaign.metadata.get('report_generated_at')
+        
+        return Response({
+            'campaign_id': str(campaign.id),
+            'campaign_name': campaign.name,
+            'campaign_type': campaign.campaign_type,
+            'campaign_objective': campaign.metadata.get('objectives', ''),
+            'report': strategic_report,
+            'report_generated_at': report_generated_at,
+            'campaign_status': campaign.status
+        })
+    
+    except Exception as e:
+        logger.error(f"Error fetching campaign strategic report: {e}")
+        return Response(
+            {'error': f'Failed to fetch campaign report: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def list_custom_campaigns_for_brand(request, brand_id):
+    """List all custom campaigns for a specific brand."""
+    try:
+        # Get the brand
+        brand = Brand.objects.filter(id=brand_id).first()
+        
+        if not brand:
+            return Response(
+                {'error': 'Brand not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get all custom campaigns for this brand
+        custom_campaigns = Campaign.objects.filter(
+            brand_id=brand_id,
+            campaign_type='custom'
+        ).order_by('-created_at')
+        
+        campaigns_data = []
+        for campaign in custom_campaigns:
+            has_report = bool(campaign.metadata and 'report' in campaign.metadata)
+            report_generated_at = campaign.metadata.get('report_generated_at') if campaign.metadata else None
+            
+            campaigns_data.append({
+                'id': str(campaign.id),
+                'name': campaign.name,
+                'status': campaign.status,
+                'objective': campaign.metadata.get('objectives', '') if campaign.metadata else '',
+                'has_report': has_report,
+                'report_generated_at': report_generated_at,
+                'created_at': campaign.created_at.isoformat() if campaign.created_at else None
+            })
+        
+        return Response({
+            'brand_id': brand_id,
+            'brand_name': brand.name,
+            'campaigns': campaigns_data,
+            'total_campaigns': len(campaigns_data)
+        })
+    
+    except Exception as e:
+        logger.error(f"Error listing custom campaigns: {e}")
+        return Response(
+            {'error': f'Failed to list campaigns: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_specific_campaign_analytics(request, brand_id, campaign_id):
+    """Get campaign analytics for a specific custom campaign."""
+    from datetime import datetime, timedelta
+    from django.db.models import Count, Avg, Sum
+
+    try:
+        # Get the campaign
+        campaign = Campaign.objects.filter(
+            id=campaign_id,
+            brand_id=brand_id,
+            campaign_type='custom'
+        ).first()
+
+        if not campaign:
+            return Response(
+                {'error': 'Campaign not found or not a custom campaign'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check if report exists
+        if not campaign.metadata or 'report' not in campaign.metadata:
+            return Response(
+                {'error': 'No strategic report available for this campaign'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        strategic_report = campaign.metadata['report']
+
+        # Transform strategic report into insights format
+        campaign_insights = []
+        for finding in strategic_report.get('strategic_findings', []):
+            campaign_insights.append({
+                'category': finding.get('finding', '')[:50] + '...' if len(finding.get('finding', '')) > 50 else finding.get('finding', ''),
+                'insight': finding.get('finding', ''),
+                'priority': finding.get('priority', 'medium'),
+                'action_items': [finding.get('recommendation', '')] if finding.get('recommendation') else []
+            })
+
+        # Get data summary
+        supporting_data = strategic_report.get('supporting_data', {})
+        campaign_data_summary = {
+            'campaign_id': str(campaign.id),
+            'campaign_name': campaign.name,
+            'communities': supporting_data.get('communities_analyzed', 0),
+            'threads': supporting_data.get('discussions_reviewed', 0),
+            'sentiment_score': supporting_data.get('sentiment_score', 0),
+            'sentiment_label': 'positive' if supporting_data.get('sentiment_score', 0) > 0.2 else 'negative' if supporting_data.get('sentiment_score', 0) < -0.2 else 'neutral',
+            'top_themes': supporting_data.get('top_themes', []),
+            'executive_summary': strategic_report.get('executive_summary', ''),
+            'campaign_objective': strategic_report.get('campaign_objective', ''),
+            'key_metrics': strategic_report.get('key_metrics', {}),
+            'next_steps': strategic_report.get('next_steps', [])
+        }
+
+        return Response({
+            'insights': campaign_insights,
+            'data_summary': campaign_data_summary
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching specific campaign analytics: {e}")
+        return Response(
+            {'error': f'Failed to fetch campaign analytics: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def download_campaign_report_pdf(request, campaign_id):
+    """
+    Download strategic campaign report as PDF.
+    
+    This endpoint uses the Analyst Agent to generate a professional PDF report
+    from the strategic campaign data.
+    """
+    from django.http import HttpResponse
+    from agents.analyst import generate_strategic_report_pdf
+    
+    try:
+        # Get the campaign
+        campaign = Campaign.objects.filter(id=campaign_id).first()
+        
+        if not campaign:
+            return Response(
+                {'error': 'Campaign not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Verify it's a custom campaign
+        if campaign.campaign_type != 'custom':
+            return Response(
+                {'error': 'PDF reports are only available for custom campaigns'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if report exists
+        if not campaign.metadata or 'report' not in campaign.metadata:
+            return Response(
+                {'error': 'No strategic report available. Please run the scout to generate a report.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get the brand
+        brand = campaign.brand
+        
+        # Generate PDF using Analyst Agent
+        logger.info(f"Generating PDF report for campaign {campaign.id} using Analyst Agent")
+        pdf_content = generate_strategic_report_pdf(campaign, brand)
+        
+        # Create HTTP response with PDF
+        response = HttpResponse(pdf_content, content_type='application/pdf')
+        
+        # Set filename
+        filename = f"strategic_report_{campaign.name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        logger.info(f"✅ PDF report generated and sent: {filename}")
+        
+        return response
+    
+    except ValueError as e:
+        logger.error(f"ValueError generating PDF: {e}")
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except Exception as e:
+        logger.error(f"Error generating PDF report: {e}", exc_info=True)
+        return Response(
+            {'error': f'Failed to generate PDF report: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 @api_view(['GET'])

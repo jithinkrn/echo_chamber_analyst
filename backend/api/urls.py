@@ -47,6 +47,10 @@ urlpatterns = [
     # Campaign management endpoints
     path('campaigns/', views.get_campaigns, name='get_campaigns'),  # GET = list, POST = create
     path('campaigns/<uuid:campaign_id>/', views.get_campaign_detail, name='get_campaign_detail'),
+    path('campaigns/<uuid:campaign_id>/report/', views.get_campaign_strategic_report, name='get_campaign_strategic_report'),
+    path('campaigns/<uuid:campaign_id>/report/pdf/', views.download_campaign_report_pdf, name='download_campaign_report_pdf'),
+    path('brands/<uuid:brand_id>/campaigns/', views.list_custom_campaigns_for_brand, name='list_custom_campaigns_for_brand'),
+    path('brands/<uuid:brand_id>/campaigns/<uuid:campaign_id>/analytics/', views.get_specific_campaign_analytics, name='get_specific_campaign_analytics'),
 
     # Task Management and Monitoring Endpoints
     path('tasks/scout/', views.trigger_scout_task, name='trigger_scout_task'),

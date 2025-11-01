@@ -10,6 +10,7 @@ import asyncio
 import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
+from django.utils import timezone
 import json
 import re
 
@@ -232,110 +233,149 @@ async def scout_node(state: EchoChamberAnalystState) -> EchoChamberAnalystState:
 
 async def _generate_and_store_campaign_insights(collected_data: Dict[str, Any], campaign, brand_name: str) -> None:
     """
-    Generate campaign-specific AI insights using OPTIMIZED Analytics Agent.
-
-    OPTIMIZATION: Pre-aggregates data into compact summary BEFORE calling Analytics Agent.
-    This reduces token usage by ~90% (from ~10,000 to ~1,000 tokens per insight generation).
-
-    This function delegates to the Analytics Agent (analyst.py) for all insight generation,
-    maintaining the agentic architecture where the Analytics Agent owns all insight logic.
+    Generate campaign-specific insights/reports.
+    
+    - For CUSTOM campaigns: Generates strategic report aligned with campaign objectives
+    - For BRAND ANALYTICS (automatic): Uses optimized insight generation
+    
+    This maintains separation between:
+    - Brand Analytics: Generic data collection & 6 insights (o1-mini)
+    - Custom Campaigns: Strategic goal tracking & objective-based reports (gpt-4)
     """
     try:
         from django.utils import timezone
         from common.models import Campaign as CampaignModel, Brand
         from asgiref.sync import sync_to_async
-        from agents.analyst import generate_campaign_ai_insights
+        from agents.analyst import generate_campaign_ai_insights, generate_strategic_campaign_report
 
         # Get the Campaign and Brand objects
         campaign_obj = await sync_to_async(CampaignModel.objects.get)(id=campaign.id)
         brand_obj = await sync_to_async(Brand.objects.get)(name=brand_name)
 
-        logger.info(f"💡 Generating OPTIMIZED Campaign AI Insights: '{campaign_obj.name}'...")
+        # Check campaign type to determine which generation method to use
+        is_custom_campaign = campaign_obj.campaign_type == 'custom'
 
-        # OPTIMIZATION: Pre-aggregate data (NO LLM, cheap)
-        threads = collected_data.get("threads", [])
-        pain_points = collected_data.get("pain_points", [])
-        communities = collected_data.get("communities", [])
+        if is_custom_campaign:
+            # CUSTOM CAMPAIGNS: Generate strategic report aligned with objectives
+            logger.info(f"🎯 Generating Strategic Campaign Report for: '{campaign_obj.name}'...")
+            
+            # Prepare collected data for strategic report
+            threads = collected_data.get("threads", [])
+            pain_points = collected_data.get("pain_points", [])
+            communities = collected_data.get("communities", [])
+            
+            strategic_data = {
+                "threads": threads,
+                "pain_points": pain_points,
+                "communities": communities
+            }
+            
+            # Generate strategic report (objective-focused, not pain-point-focused)
+            strategic_report = await sync_to_async(generate_strategic_campaign_report)(
+                campaign=campaign_obj,
+                brand=brand_obj,
+                collected_data=strategic_data
+            )
+            
+            # Store strategic report in campaign metadata
+            if not campaign_obj.metadata:
+                campaign_obj.metadata = {}
+            
+            campaign_obj.metadata['report'] = strategic_report
+            campaign_obj.metadata['report_generated_at'] = timezone.now().isoformat()
+            
+            await sync_to_async(campaign_obj.save)()
+            
+            logger.info(f"✅ Generated Strategic Campaign Report with {len(strategic_report.get('strategic_findings', []))} findings")
+            
+        else:
+            # BRAND ANALYTICS (automatic campaign): Use optimized insight generation
+            logger.info(f"💡 Generating OPTIMIZED Campaign AI Insights: '{campaign_obj.name}'...")
 
-        # Create compact data summary
-        data_summary = {
-            'total_threads': len(threads),
-            'total_communities': len(communities),
-            'total_pain_points': len(pain_points),
+            # OPTIMIZATION: Pre-aggregate data (NO LLM, cheap)
+            threads = collected_data.get("threads", [])
+            pain_points = collected_data.get("pain_points", [])
+            communities = collected_data.get("communities", [])
 
-            # Top pain points (already extracted, no LLM needed)
-            'top_pain_points': [
-                {
-                    'keyword': pp.get('keyword'),
-                    'mentions': pp.get('mention_count'),
-                    'sentiment': pp.get('sentiment_score'),
-                    'week': pp.get('month_year')
-                }
-                for pp in sorted(pain_points, key=lambda x: x.get('mention_count', 0), reverse=True)[:5]
-            ],
+            # Create compact data summary
+            data_summary = {
+                'total_threads': len(threads),
+                'total_communities': len(communities),
+                'total_pain_points': len(pain_points),
 
-            # Sentiment distribution (already calculated)
-            'sentiment_breakdown': {
-                'positive': len([t for t in threads if t.get('sentiment_score', 0) > 0.2]),
-                'negative': len([t for t in threads if t.get('sentiment_score', 0) < -0.2]),
-                'neutral': len([t for t in threads if abs(t.get('sentiment_score', 0)) <= 0.2])
-            },
-            'avg_sentiment': sum(t.get('sentiment_score', 0.0) for t in threads) / len(threads) if threads else 0.0,
+                # Top pain points (already extracted, no LLM needed)
+                'top_pain_points': [
+                    {
+                        'keyword': pp.get('keyword'),
+                        'mentions': pp.get('mention_count'),
+                        'sentiment': pp.get('sentiment_score'),
+                        'week': pp.get('month_year')
+                    }
+                    for pp in sorted(pain_points, key=lambda x: x.get('mention_count', 0), reverse=True)[:5]
+                ],
 
-            # Top communities (by thread count)
-            'top_communities': [
-                {
-                    'name': c.get('name'),
-                    'threads': len([t for t in threads if t.get('community') == c.get('name')]),
-                    'echo_score': c.get('echo_score', 0)
-                }
-                for c in sorted(communities, key=lambda x: x.get('echo_score', 0), reverse=True)[:3]
-            ],
+                # Sentiment distribution (already calculated)
+                'sentiment_breakdown': {
+                    'positive': len([t for t in threads if t.get('sentiment_score', 0) > 0.2]),
+                    'negative': len([t for t in threads if t.get('sentiment_score', 0) < -0.2]),
+                    'neutral': len([t for t in threads if abs(t.get('sentiment_score', 0)) <= 0.2])
+                },
+                'avg_sentiment': sum(t.get('sentiment_score', 0.0) for t in threads) / len(threads) if threads else 0.0,
 
-            # Sample high-value threads (top 3 by relevance_score)
-            'sample_threads': [
-                {
-                    'title': t.get('title'),
-                    'snippet': t.get('content', '')[:150],  # First 150 chars
-                    'sentiment': t.get('sentiment_score'),
-                    'relevance': t.get('relevance_score', 0),
-                    'platform': t.get('platform')
-                }
-                for t in sorted(threads, key=lambda x: x.get('relevance_score', 0), reverse=True)[:3]
-            ]
-        }
+                # Top communities (by thread count)
+                'top_communities': [
+                    {
+                        'name': c.get('name'),
+                        'threads': len([t for t in threads if t.get('community') == c.get('name')]),
+                        'echo_score': c.get('echo_score', 0)
+                    }
+                    for c in sorted(communities, key=lambda x: x.get('echo_score', 0), reverse=True)[:3]
+                ],
 
-        # SINGLE OPTIMIZED LLM CALL with compact summary (90% token reduction)
-        campaign_insights = await sync_to_async(generate_campaign_ai_insights)(
-            campaign=campaign_obj,
-            brand=brand_obj,
-            collected_data={'data_summary': data_summary}  # Pass summary instead of raw data
-        )
+                # Sample high-value threads (top 3 by relevance_score)
+                'sample_threads': [
+                    {
+                        'title': t.get('title'),
+                        'snippet': t.get('content', '')[:150],  # First 150 chars
+                        'sentiment': t.get('sentiment_score'),
+                        'relevance': t.get('relevance_score', 0),
+                        'platform': t.get('platform')
+                    }
+                    for t in sorted(threads, key=lambda x: x.get('relevance_score', 0), reverse=True)[:3]
+                ]
+            }
 
-        # Calculate overall sentiment label
-        avg_sentiment = data_summary['avg_sentiment']
-        sentiment_label = "positive" if avg_sentiment > 0.2 else "negative" if avg_sentiment < -0.2 else "neutral"
+            # SINGLE OPTIMIZED LLM CALL with compact summary (90% token reduction)
+            campaign_insights = await sync_to_async(generate_campaign_ai_insights)(
+                campaign=campaign_obj,
+                brand=brand_obj,
+                collected_data={'data_summary': data_summary}  # Pass summary instead of raw data
+            )
 
-        # Store insights in campaign metadata
-        if not campaign_obj.metadata:
-            campaign_obj.metadata = {}
+            # Calculate overall sentiment label
+            avg_sentiment = data_summary['avg_sentiment']
+            sentiment_label = "positive" if avg_sentiment > 0.2 else "negative" if avg_sentiment < -0.2 else "neutral"
 
-        campaign_obj.metadata['insights'] = campaign_insights
-        campaign_obj.metadata['insights_generated_at'] = timezone.now().isoformat()
-        campaign_obj.metadata['data_summary'] = {
-            'communities': len(communities),
-            'threads': len(threads),
-            'pain_points': len(pain_points),
-            'avg_sentiment': round(avg_sentiment, 2),
-            'sentiment_label': sentiment_label,
-            'threads_analyzed': len([t for t in threads if t.get('relevance_score', 0) >= 3])  # High-value threads
-        }
+            # Store insights in campaign metadata
+            if not campaign_obj.metadata:
+                campaign_obj.metadata = {}
 
-        # Save using sync_to_async
-        await sync_to_async(campaign_obj.save)()
+            campaign_obj.metadata['insights'] = campaign_insights
+            campaign_obj.metadata['insights_generated_at'] = timezone.now().isoformat()
+            campaign_obj.metadata['data_summary'] = {
+                'communities': len(communities),
+                'threads': len(threads),
+                'pain_points': len(pain_points),
+                'avg_sentiment': round(avg_sentiment, 2),
+                'sentiment_label': sentiment_label,
+                'threads_analyzed': len([t for t in threads if t.get('relevance_score', 0) >= 3])  # High-value threads
+            }
 
-        logger.info(f"✅ Generated {len(campaign_insights)} Campaign AI Insights (OPTIMIZED)")
-        logger.info(f"💰 Token savings: ~90% vs full thread analysis")
+            # Save using sync_to_async
+            await sync_to_async(campaign_obj.save)()
+
+            logger.info(f"✅ Generated {len(campaign_insights)} Campaign AI Insights (OPTIMIZED)")
+            logger.info(f"💰 Token savings: ~90% vs full thread analysis")
 
     except Exception as e:
         logger.error(f"❌ Error generating optimized campaign insights: {e}")
@@ -400,103 +440,58 @@ async def _generate_and_store_brand_analytics_insights(collected_data: Dict[str,
 
 async def _generate_and_store_custom_campaign_insights(collected_data: Dict[str, Any], campaign, brand_name: str) -> None:
     """
-    Generate Campaign AI Insights for Custom Campaigns using OPTIMIZED approach.
-    Takes campaign objectives (from description) into account.
-
-    OPTIMIZATION: Pre-aggregates data into compact summary BEFORE calling Analytics Agent.
-    This reduces token usage by ~90% while maintaining insight quality.
-
-    This function delegates to the Analytics Agent for generating Custom Campaign insights,
-    which are displayed at the bottom of the dashboard in Campaign Analytics section.
+    Generate Strategic Campaign Report for Custom Campaigns.
+    
+    Custom campaigns are strategic initiatives with specific business objectives.
+    This generates objective-focused strategic reports, NOT generic pain-point insights.
+    
+    This function delegates to the Analytics Agent's strategic report generator,
+    which analyzes collected data in the context of campaign objectives.
     """
     try:
         from django.utils import timezone
         from common.models import Campaign as CampaignModel, Brand
         from asgiref.sync import sync_to_async
-        from agents.analyst import generate_campaign_ai_insights
+        from agents.analyst import generate_strategic_campaign_report
 
         # Get the Campaign and Brand objects
         campaign_obj = await sync_to_async(CampaignModel.objects.get)(id=campaign.id)
         brand_obj = await sync_to_async(Brand.objects.get)(name=brand_name)
 
-        logger.info(f"💡 Generating OPTIMIZED Custom Campaign AI Insights: '{campaign_obj.name}'...")
+        logger.info(f"🎯 Generating Strategic Campaign Report for: '{campaign_obj.name}'...")
         if campaign_obj.description:
-            logger.info(f"📋 Using Campaign Objectives: {campaign_obj.description[:200]}")
+            logger.info(f"📋 Campaign Objective: {campaign_obj.description[:200]}")
 
-        # OPTIMIZATION: Pre-aggregate data (NO LLM, cheap)
+        # Prepare collected data for strategic report
         threads = collected_data.get("threads", [])
         pain_points = collected_data.get("pain_points", [])
         communities = collected_data.get("communities", [])
-
-        # Create compact data summary with campaign objectives context
-        data_summary = {
-            'total_threads': len(threads),
-            'total_communities': len(communities),
-            'total_pain_points': len(pain_points),
-            'campaign_objectives': campaign_obj.description if campaign_obj.description else None,
-
-            # Top pain points (already extracted, no LLM needed)
-            'top_pain_points': [
-                {
-                    'keyword': pp.get('keyword'),
-                    'mentions': pp.get('mention_count'),
-                    'sentiment': pp.get('sentiment_score'),
-                    'week': pp.get('month_year'),
-                    'severity': pp.get('severity')
-                }
-                for pp in sorted(pain_points, key=lambda x: x.get('priority_score', 0), reverse=True)[:5]
-            ],
-
-            # Sentiment distribution (already calculated)
-            'sentiment_breakdown': {
-                'positive': len([t for t in threads if t.get('sentiment_score', 0) > 0.2]),
-                'negative': len([t for t in threads if t.get('sentiment_score', 0) < -0.2]),
-                'neutral': len([t for t in threads if abs(t.get('sentiment_score', 0)) <= 0.2])
-            },
-            'avg_sentiment': sum(t.get('sentiment_score', 0.0) for t in threads) / len(threads) if threads else 0.0,
-
-            # Top communities (by echo score)
-            'top_communities': [
-                {
-                    'name': c.get('name'),
-                    'threads': len([t for t in threads if t.get('community') == c.get('name')]),
-                    'echo_score': c.get('echo_score', 0),
-                    'platform': c.get('platform')
-                }
-                for c in sorted(communities, key=lambda x: x.get('echo_score', 0), reverse=True)[:3]
-            ],
-
-            # Sample high-value threads (top 3 by relevance_score)
-            'sample_threads': [
-                {
-                    'title': t.get('title'),
-                    'snippet': t.get('content', '')[:150],  # First 150 chars
-                    'sentiment': t.get('sentiment_score'),
-                    'relevance': t.get('relevance_score', 0),
-                    'platform': t.get('platform'),
-                    'community': t.get('community')
-                }
-                for t in sorted(threads, key=lambda x: x.get('relevance_score', 0), reverse=True)[:3]
-            ]
+        
+        # Pass actual collected data for strategic analysis
+        strategic_data = {
+            "threads": threads,
+            "pain_points": pain_points,
+            "communities": communities
         }
 
-        # SINGLE OPTIMIZED LLM CALL with compact summary and objectives (90% token reduction)
-        campaign_insights = await sync_to_async(generate_campaign_ai_insights)(
+        # Generate strategic report aligned with campaign objectives
+        strategic_report = await sync_to_async(generate_strategic_campaign_report)(
             campaign=campaign_obj,
             brand=brand_obj,
-            collected_data={'data_summary': data_summary}  # Pass summary instead of raw data
+            collected_data=strategic_data
         )
 
-        # Calculate overall metrics
-        avg_sentiment = data_summary['avg_sentiment']
-        sentiment_label = "positive" if avg_sentiment > 0.2 else "negative" if avg_sentiment < -0.2 else "neutral"
-
-        # Store insights in campaign metadata
+        # Store strategic report in campaign metadata
         if not campaign_obj.metadata:
             campaign_obj.metadata = {}
 
-        campaign_obj.metadata['insights'] = campaign_insights  # Structured objects
-        campaign_obj.metadata['insights_generated_at'] = timezone.now().isoformat()
+        campaign_obj.metadata['report'] = strategic_report
+        campaign_obj.metadata['report_generated_at'] = timezone.now().isoformat()
+        
+        # Also store data summary for reference
+        avg_sentiment = sum(t.get('sentiment_score', 0.0) for t in threads) / len(threads) if threads else 0.0
+        sentiment_label = "positive" if avg_sentiment > 0.2 else "negative" if avg_sentiment < -0.2 else "neutral"
+        
         campaign_obj.metadata['data_summary'] = {
             'communities': len(communities),
             'threads': len(threads),
@@ -512,11 +507,10 @@ async def _generate_and_store_custom_campaign_insights(collected_data: Dict[str,
 
         await sync_to_async(campaign_obj.save)()
 
-        logger.info(f"✅ Generated {len(campaign_insights)} Custom Campaign AI Insights (OPTIMIZED)")
-        logger.info(f"💰 Token savings: ~90% vs full thread analysis")
+        logger.info(f"✅ Generated Strategic Campaign Report with {len(strategic_report.get('strategic_findings', []))} findings")
 
     except Exception as e:
-        logger.error(f"❌ Error generating Custom Campaign insights: {e}")
+        logger.error(f"❌ Error generating Strategic Campaign Report: {e}", exc_info=True)
         # Don't raise exception to avoid breaking the workflow
 
 

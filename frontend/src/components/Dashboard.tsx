@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Users, MessageSquare, AlertTriangle, Building, ChevronDown, Lightbulb, Target, X } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Users, MessageSquare, AlertTriangle, Building, ChevronDown, Lightbulb, Target, X, Download } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ScatterChart, Scatter, ZAxis, Cell } from 'recharts';
 import { apiService } from '@/lib/api';
 
@@ -122,6 +122,32 @@ interface DashboardData {
     total_budget: number;
     total_spent: number;
     budget_utilization: number;
+    insights?: Array<{
+      category: string;
+      insight: string;
+      priority: string;
+      action_items: string[];
+    }>;
+    data_summary?: {
+      campaign_id?: string;
+      campaign_name?: string;
+      communities: number;
+      threads: number;
+      sentiment_score?: number;
+      sentiment_label: string;
+      top_themes?: string[];
+      executive_summary?: string;
+      campaign_objective?: string;
+      key_metrics?: Record<string, string | number>;
+      next_steps?: string[];
+    };
+    available_campaigns?: Array<{
+      id: string;
+      name: string;
+      status: string;
+      has_report: boolean;
+      report_generated_at?: string;
+    }>;
   };
 }
 
@@ -168,6 +194,10 @@ export default function Dashboard() {
   const [painPointsCommunity, setPainPointsCommunity] = useState<any>(null);
   const [communityPainPoints, setCommunityPainPoints] = useState<any[]>([]);
   const [painPointsLoading, setPainPointsLoading] = useState(false);
+  // Campaign selector state
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [availableCampaigns, setAvailableCampaigns] = useState<any[]>([]);
+  const [campaignLoading, setCampaignLoading] = useState(false);
 
   useEffect(() => {
     fetchBrands();
@@ -179,6 +209,12 @@ export default function Dashboard() {
       fetchAnalysisSummary();
     }
   }, [selectedBrand]);
+
+  useEffect(() => {
+    if (selectedCampaignId && selectedBrand) {
+      fetchSpecificCampaignAnalytics(selectedCampaignId);
+    }
+  }, [selectedCampaignId]);
 
   const fetchBrands = async () => {
     try {
@@ -229,6 +265,16 @@ export default function Dashboard() {
       const data = await response.json();
       console.log('Received dashboard data:', data);
       setDashboardData(data);
+      
+      // Extract and set available campaigns
+      if (data.campaign_analytics?.available_campaigns) {
+        setAvailableCampaigns(data.campaign_analytics.available_campaigns);
+        // Auto-select first campaign if none selected
+        if (!selectedCampaignId && data.campaign_analytics.available_campaigns.length > 0) {
+          setSelectedCampaignId(data.campaign_analytics.available_campaigns[0].id);
+        }
+      }
+      
       setError(null);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -255,6 +301,42 @@ export default function Dashboard() {
       setAnalysisSummary(null);
     } finally {
       setSummaryLoading(false);
+    }
+  };
+
+  const fetchSpecificCampaignAnalytics = async (campaignId: string) => {
+    if (!selectedBrand || !campaignId) return;
+
+    try {
+      setCampaignLoading(true);
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const url = `${API_BASE_URL}/api/v1/brands/${selectedBrand}/campaigns/${campaignId}/analytics/`;
+      console.log('Fetching campaign analytics from:', url);
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch campaign analytics');
+      }
+
+      const data = await response.json();
+      console.log('Received campaign analytics:', data);
+
+      // Update campaign_analytics section in dashboardData
+      if (dashboardData && dashboardData.campaign_analytics) {
+        setDashboardData({
+          ...dashboardData,
+          campaign_analytics: {
+            ...dashboardData.campaign_analytics,
+            insights: data.insights,
+            data_summary: data.data_summary,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching campaign analytics:', error);
+    } finally {
+      setCampaignLoading(false);
     }
   };
 
@@ -1021,8 +1103,37 @@ export default function Dashboard() {
       {selectedBrand && dashboardData?.campaign_analytics && (
         <div className="bg-white shadow rounded-lg">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-medium text-gray-900">Campaign Analytics</h2>
-            <p className="text-sm text-gray-600">Performance metrics for {brands.find((b: Brand) => b.id === selectedBrand)?.name} campaigns</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-medium text-gray-900">Campaign Analytics</h2>
+                <p className="text-sm text-gray-600">Performance metrics for {brands.find((b: Brand) => b.id === selectedBrand)?.name} campaigns</p>
+              </div>
+              
+              {/* Campaign Selector Dropdown */}
+              {availableCampaigns.length > 0 && (
+                <div className="flex items-center space-x-2">
+                  <label htmlFor="campaign-selector" className="text-sm font-medium text-gray-700">
+                    Select Campaign:
+                  </label>
+                  <select
+                    id="campaign-selector"
+                    value={selectedCampaignId || ''}
+                    onChange={(e) => setSelectedCampaignId(e.target.value)}
+                    disabled={campaignLoading}
+                    className="block w-64 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  >
+                    {availableCampaigns.map((campaign) => (
+                      <option key={campaign.id} value={campaign.id}>
+                        {campaign.name} {campaign.status === 'paused' ? '(Paused)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {campaignLoading && (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
@@ -1135,7 +1246,6 @@ export default function Dashboard() {
                       }`}
                     >
                       <div className="flex justify-between items-start mb-2">
-                        <h4 className="font-medium text-gray-900 text-sm">{insight.category}</h4>
                         <span className={`px-2 py-1 text-xs font-medium rounded ${
                           insight.priority === 'high' ? 'bg-red-100 text-red-800' :
                           insight.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
@@ -1144,7 +1254,7 @@ export default function Dashboard() {
                           {insight.priority}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-700 mb-3">{insight.insight}</p>
+                      <p className="text-sm text-gray-700 font-medium mb-2">{insight.insight}</p>
                       {insight.action_items && insight.action_items.length > 0 && (
                         <div className="mt-2">
                           <p className="text-xs font-medium text-gray-600 mb-1">Recommended Actions:</p>
@@ -1159,14 +1269,64 @@ export default function Dashboard() {
                   ))}
                 </div>
 
+                {/* Executive Summary and Download Report */}
                 {dashboardData?.campaign_analytics?.data_summary && (
-                  <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                    <p className="text-xs text-gray-600">
-                      Insights generated from {dashboardData.campaign_analytics.data_summary.communities} communities, {' '}
-                      {dashboardData.campaign_analytics.data_summary.threads} threads, and {' '}
-                      {dashboardData.campaign_analytics.data_summary.pain_points} pain points.
-                      Overall sentiment: <span className="font-medium">{dashboardData.campaign_analytics.data_summary.sentiment_label}</span>
-                    </p>
+                  <div className="mt-6 space-y-4">
+                    {/* Executive Summary */}
+                    {dashboardData.campaign_analytics.data_summary.executive_summary && (
+                      <div className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                        <h4 className="text-base font-semibold text-gray-900 mb-3 flex items-center">
+                          <Target className="h-5 w-5 mr-2 text-blue-600" />
+                          Executive Summary
+                        </h4>
+                        <p className="text-sm text-gray-700 leading-relaxed">
+                          {dashboardData.campaign_analytics.data_summary.executive_summary}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Download Report Button */}
+                    <div className="flex justify-center">
+                      <button
+                        onClick={async () => {
+                          // Use selectedCampaignId instead of campaign_id from data_summary
+                          const campaignId = selectedCampaignId || dashboardData?.campaign_analytics?.data_summary?.campaign_id;
+                          
+                          if (!campaignId) {
+                            alert('Campaign ID not found');
+                            return;
+                          }
+
+                          const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                          const url = `${API_BASE_URL}/api/v1/campaigns/${campaignId}/report/pdf/`;
+                          
+                          try {
+                            const response = await fetch(url);
+                            if (!response.ok) {
+                              throw new Error('Failed to download report');
+                            }
+                            
+                            const blob = await response.blob();
+                            const downloadUrl = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = downloadUrl;
+                            const campaignName = dashboardData?.campaign_analytics?.data_summary?.campaign_name?.replace(/\s+/g, '_') || 'report';
+                            link.download = `strategic_report_${campaignName}_${new Date().toISOString().split('T')[0]}.pdf`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            window.URL.revokeObjectURL(downloadUrl);
+                          } catch (error) {
+                            console.error('Error downloading PDF:', error);
+                            alert('Failed to download PDF report. Please try again.');
+                          }
+                        }}
+                        className="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-md transition-colors duration-200"
+                      >
+                        <Download className="h-5 w-5 mr-2" />
+                        Download Full Strategic Report (PDF)
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

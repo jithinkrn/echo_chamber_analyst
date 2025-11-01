@@ -912,11 +912,12 @@ def scout_custom_campaign_task(self, campaign_id: int):
         if campaign.description:
             logger.info(f"📋 Campaign Objectives: {campaign.description[:200]}")
 
-        # Prepare scout configuration using campaign-specific parameters with full brand context
+        # OPTIMIZED scout configuration for custom campaigns (strategic focus, not exhaustive)
+        # Custom campaigns focus on current state + recent trends for strategic reporting
         scout_config = {
-            'search_depth': 'comprehensive',
+            'search_depth': 'focused',  # Changed from 'comprehensive' - strategic focus only
             'focus': 'custom_campaign',
-            'collection_months': 6,
+            'collection_months': 2,  # Reduced from 6 - only collect recent 2 months for strategic snapshot
             'brand_description': brand.description if brand.description else '',
             'brand_website': brand.website if brand.website else '',
             'industry': brand.industry if brand.industry else 'general',
@@ -924,7 +925,7 @@ def scout_custom_campaign_task(self, campaign_id: int):
             'sources': campaign.sources if campaign.sources else [],
             'exclude_keywords': campaign.exclude_keywords if campaign.exclude_keywords else [],
             'include_sentiment': True,
-            'focus_areas': ['pain_points', 'feedback', 'sentiment', 'objectives']
+            'focus_areas': ['objectives', 'sentiment', 'progress']  # Strategic focus, not generic pain points
         }
 
         # Collect data using campaign-specific keywords
