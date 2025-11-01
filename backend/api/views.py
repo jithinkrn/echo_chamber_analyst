@@ -567,10 +567,11 @@ def get_dashboard_kpis(campaign_id, date_from, date_to):
         if campaign_id:
             pain_points_filter['campaign_id'] = campaign_id
             
+        # Count unique keywords with growth_percentage >= 50 (not individual records)
         new_pain_points_above_50 = PainPoint.objects.filter(
             growth_percentage__gte=50,
             **pain_points_filter
-        ).count()
+        ).values('keyword').distinct().count()
         
         return {
             "active_campaigns": active_campaigns,
@@ -898,7 +899,9 @@ def get_brand_dashboard_kpis(brand_id, date_from, date_to):
     from dateutil.relativedelta import relativedelta
     month_years = []
     current_date = datetime.now()
-    for i in range(6):  # Last 6 months
+    # ✅ Use COMPLETED months only (scout collects data for completed months)
+    # Start from month 1 (previous month) to skip current incomplete month
+    for i in range(1, 7):  # Last 6 COMPLETED months
         month_date = current_date - relativedelta(months=i)
         month_years.append(month_date.strftime('%Y-%m'))
     
@@ -907,23 +910,66 @@ def get_brand_dashboard_kpis(brand_id, date_from, date_to):
         campaign=automatic_campaign,
         month_year__in=month_years
     )
-    # Count unique pain point keywords (since growth is calculated dynamically)
-    high_growth_pain_points = brand_pain_points.values('keyword').distinct().count()
+    
+    # Count NEW pain points in the latest COMPLETED month (keywords that don't exist in previous 5 months)
+    latest_month = month_years[0]  # Most recent completed month (e.g., "2025-10")
+    previous_months = month_years[1:]  # Previous 5 completed months
+    
+    # Get pain point keywords from latest month
+    latest_month_keywords = set(
+        PainPoint.objects.filter(
+            brand_id=brand_id,
+            campaign=automatic_campaign,
+            month_year=latest_month
+        ).values_list('keyword', flat=True).distinct()
+    )
+    
+    # Get pain point keywords from previous months
+    previous_months_keywords = set(
+        PainPoint.objects.filter(
+            brand_id=brand_id,
+            campaign=automatic_campaign,
+            month_year__in=previous_months
+        ).values_list('keyword', flat=True).distinct()
+    )
+    
+    # Count NEW keywords (in latest month but not in previous months)
+    new_pain_points_count = len(latest_month_keywords - previous_months_keywords)
 
-    # ✅ FIX: Calculate positivity ratio from brand-related threads (Brand Analytics only)
+    # ✅ FIX: Calculate positivity ratio from latest COMPLETED month's PainPoint data
+    # Fall back to previous months if latest month has no real sentiment data (all zeros)
+    latest_month_pain_points = PainPoint.objects.filter(
+        campaign=automatic_campaign,
+        month_year=latest_month
+    ).exclude(sentiment_score=0.0)  # Exclude default zero values
+
+    # If latest month has no real sentiment data, try previous months
+    if not latest_month_pain_points.exists():
+        # Try to find most recent month with actual sentiment data
+        for month in month_years[1:]:  # Try months 2-6
+            latest_month_pain_points = PainPoint.objects.filter(
+                campaign=automatic_campaign,
+                month_year=month
+            ).exclude(sentiment_score=0.0)
+            if latest_month_pain_points.exists():
+                break
+
+    if latest_month_pain_points.exists():
+        avg_sentiment = latest_month_pain_points.aggregate(
+            avg_sentiment=Avg('sentiment_score')
+        )['avg_sentiment'] or 0.0
+        # Convert sentiment (-1 to +1) to percentage (0 to 100)
+        positivity_ratio = max(0, min(100, (avg_sentiment + 1) * 50))
+    else:
+        # No sentiment data available in any completed month
+        positivity_ratio = 0.0
+
+    # ✅ Get LLM token usage from Thread data (for cost tracking)
     brand_threads = Thread.objects.filter(
         brand_id=brand_id,
         campaign=automatic_campaign,
         analyzed_at__gte=seven_days_ago
     )
-
-    if brand_threads.exists():
-        avg_sentiment = brand_threads.aggregate(avg_sentiment=Avg('sentiment_score'))['avg_sentiment'] or 0
-        positivity_ratio = max(0, min(100, (avg_sentiment + 1) * 50))
-    else:
-        positivity_ratio = 0.0
-
-    # ✅ FIX: Get LLM token usage for Brand Analytics
     brand_token_usage = brand_threads.aggregate(total_tokens=Sum('token_count'))['total_tokens'] or 0
     brand_cost = brand_threads.aggregate(total_cost=Sum('processing_cost'))['total_cost'] or 0.0
     
@@ -970,7 +1016,7 @@ def get_brand_dashboard_kpis(brand_id, date_from, date_to):
         "active_campaigns": active_campaigns_count,
         "high_echo_communities": high_echo_communities_count,
         "high_echo_change_percent": round(high_echo_change, 1),
-        "new_pain_points_above_50": high_growth_pain_points,
+        "new_pain_points_above_50": new_pain_points_count,
         "new_pain_points_change": round(pain_points_change, 1),
         "positivity_ratio": round(positivity_ratio, 1),
         "positivity_change_pp": round(positivity_change_pp, 1),
@@ -1317,24 +1363,32 @@ def get_community_pain_points(request, community_id):
     GET /api/community/{id}/pain-points/
     """
     from common.models import Community, PainPoint
+    from django.db.models import Sum, Avg
     
     try:
         community = Community.objects.get(id=community_id)
         
-        # Get top 10 pain points for this community
+        # Aggregate pain points by keyword, summing mentions across all months
         pain_points = PainPoint.objects.filter(
             community=community
-        ).values(
-            'keyword', 'mention_count', 'sentiment_score', 'example_content'
-        ).order_by('-mention_count')[:10]
+        ).values('keyword').annotate(
+            total_mentions=Sum('mention_count'),
+            avg_sentiment=Avg('sentiment_score')
+        ).order_by('-total_mentions')[:10]
         
         result = []
         for pp in pain_points:
+            # Get one example from the most recent entry for this keyword
+            example = PainPoint.objects.filter(
+                community=community,
+                keyword=pp['keyword']
+            ).exclude(example_content='').order_by('-last_seen').first()
+            
             result.append({
                 'keyword': pp['keyword'],
-                'mention_count': pp['mention_count'],
-                'sentiment': float(pp['sentiment_score'] or 0),
-                'example_quote': pp['example_content'][:200] if pp['example_content'] else ''
+                'mention_count': pp['total_mentions'],
+                'sentiment': float(pp['avg_sentiment'] or 0),
+                'example_quote': example.example_content[:200] if example and example.example_content else ''
             })
         
         return Response({

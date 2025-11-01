@@ -856,36 +856,46 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
             """Save single community with error handling"""
             from common.utils import calculate_community_echo_score
             
-            community, created = Community.objects.get_or_create(
-                name=community_data["name"],
+            # ✅ Use case-insensitive lookup to prevent duplicates like "tiktok" vs "TikTok"
+            community_name = community_data["name"]
+            
+            # First, try to find existing community with case-insensitive name match
+            existing_community = Community.objects.filter(
+                name__iexact=community_name,
                 platform=community_data["platform"],
                 campaign_id=campaign.id,
-                brand_id=brand_id,
-                defaults={
-                    "url": community_data.get("url", f"https://reddit.com/{community_data["name"]}"),
-                    "member_count": community_data.get("member_count", 0),
-                    "echo_score": 0.0,  # Will be calculated after threads/pain points saved
-                    "description": f"Real community data for {brand_name}",
-                    "is_active": True,
-                    "last_analyzed": timezone.now(),
-                    "category": community_data.get("category", "general"),
-                    "language": community_data.get("language", "en"),
-                    "key_influencer": community_data.get("key_influencer", None),
-                    "influencer_post_count": community_data.get("influencer_post_count", 0),
-                    "influencer_engagement": community_data.get("influencer_engagement", 0)
-                }
-            )
-
-            if not created:
-                # Update existing community with new data
-                community.member_count = community_data.get("member_count", community.member_count)
-                community.key_influencer = community_data.get("key_influencer", community.key_influencer)
-                community.influencer_post_count = community_data.get("influencer_post_count", community.influencer_post_count)
-                community.influencer_engagement = community_data.get("influencer_engagement", community.influencer_engagement)
-                community.last_analyzed = timezone.now()
-                community.save()
-
-            return (community, created)
+                brand_id=brand_id
+            ).first()
+            
+            if existing_community:
+                # Update existing community
+                existing_community.member_count = community_data.get("member_count", existing_community.member_count)
+                existing_community.key_influencer = community_data.get("key_influencer", existing_community.key_influencer)
+                existing_community.influencer_post_count = community_data.get("influencer_post_count", existing_community.influencer_post_count)
+                existing_community.influencer_engagement = community_data.get("influencer_engagement", existing_community.influencer_engagement)
+                existing_community.last_analyzed = timezone.now()
+                existing_community.save()
+                return (existing_community, False)
+            else:
+                # Create new community
+                community = Community.objects.create(
+                    name=community_name,
+                    platform=community_data["platform"],
+                    campaign_id=campaign.id,
+                    brand_id=brand_id,
+                    url=community_data.get("url", f"https://reddit.com/{community_name}"),
+                    member_count=community_data.get("member_count", 0),
+                    echo_score=0.0,  # Will be calculated after threads/pain points saved
+                    description=f"Real community data for {brand_name}",
+                    is_active=True,
+                    last_analyzed=timezone.now(),
+                    category=community_data.get("category", "general"),
+                    language=community_data.get("language", "en"),
+                    key_influencer=community_data.get("key_influencer", None),
+                    influencer_post_count=community_data.get("influencer_post_count", 0),
+                    influencer_engagement=community_data.get("influencer_engagement", 0)
+                )
+                return (community, True)
 
         communities_data = collected_data.get("communities", [])
         if communities_data:
@@ -904,9 +914,9 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
             community_name = pain_point_data.get("community")
             
             if community_name:
-                # Find the specific community for this pain point
+                # Find the specific community for this pain point (case-insensitive)
                 community = Community.objects.filter(
-                    name=community_name,
+                    name__iexact=community_name,
                     campaign_id=campaign.id
                 ).first()
             

@@ -403,7 +403,7 @@ def generate_ai_powered_insights_from_brand_analytics(
     influencers: List[Dict]
 ) -> List[str]:
     """
-    Generate AI-powered insights based on Brand Analytics dashboard data.
+    Generate AI-powered insights based on Brand Analytics dashboard data using OpenAI o1-mini reasoning model.
 
     This is specifically for the dashboard's "AI-Powered Key Insights" section,
     which displays insights based on overall brand performance metrics.
@@ -418,61 +418,151 @@ def generate_ai_powered_insights_from_brand_analytics(
     Returns:
         List of 6 AI-generated insight strings for dashboard display
     """
-    logger.info(f"Generating AI-powered insights for Brand Analytics: {brand.name}")
+    logger.info(f"🧠 Generating AI-powered insights using OpenAI o1-mini for Brand: {brand.name}")
 
     try:
-        # Prepare context for the LLM
-        prompt = ChatPromptTemplate.from_messages([
-            SystemMessage(content="""You are an expert brand intelligence analyst specializing in social media analytics.
-            Generate 6 strategic, actionable insights based on brand dashboard metrics.
+        from openai import OpenAI
+        import os
+        
+        # Initialize OpenAI client
+        client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        
+        # Prepare comprehensive dashboard data summary
+        dashboard_data = f"""BRAND ANALYTICS DASHBOARD DATA - {brand.name}
 
-            Guidelines:
-            - Focus on immediate business impact and actionable recommendations
-            - Identify critical trends, opportunities, and risks
-            - Be specific with numbers and metrics
-            - Prioritize insights by urgency and business value
-            - Keep each insight to 1-2 sentences maximum
-            - Use clear, executive-level language"""),
+INDUSTRY: {brand.industry or 'Not specified'}
+ANALYSIS PERIOD: Last 6 completed months
 
-            HumanMessage(content=f"""Analyze this Brand Analytics Dashboard data and generate 6 key insights:
+═══════════════════════════════════════════════════════════════
 
-BRAND: {brand.name}
-INDUSTRY: {brand.industry}
+📊 KEY PERFORMANCE INDICATORS (KPIs):
+────────────────────────────────────────────────────────────────
+• Active Campaigns: {kpis.get('active_campaigns', 0)}
+• High-Echo Communities (score ≥7.0): {kpis.get('high_echo_communities', 0)} communities
+  └─ Trend: {kpis.get('high_echo_change_percent', 0):+.1f}% change
+• New Pain Points: {kpis.get('new_pain_points_above_50', 0)} unique keywords appearing in latest completed month only
+  └─ Change: {kpis.get('new_pain_points_change', 0)} new issues
+• Positivity Ratio: {kpis.get('positivity_ratio', 0):.1f}% (derived from sentiment analysis)
+  └─ Trend: {kpis.get('positivity_change_pp', 0):+.1f} percentage points change
 
-KEY PERFORMANCE INDICATORS:
-- Active Campaigns: {kpis.get('active_campaigns', 0)}
-- High-Echo Communities (score ≥7): {kpis.get('high_echo_communities', 0)} (change: {kpis.get('high_echo_change_percent', 0):+.1f}%)
-- Pain Points Above +50% Growth: {kpis.get('new_pain_points_above_50', 0)} (change: {kpis.get('new_pain_points_change', 0):+.1f}%)
-- Positivity Ratio: {kpis.get('positivity_ratio', 0):.1f}% (change: {kpis.get('positivity_change_pp', 0):+.1f} pp)
-- LLM Tokens Used: {kpis.get('llm_tokens_used', 0)}k (Cost: ${kpis.get('llm_cost_usd', 0):.2f})
+═══════════════════════════════════════════════════════════════
 
-TOP COMMUNITIES ({len(communities)} total):
-{chr(10).join([f"  {i+1}. {c.get('name', 'Unknown')} ({c.get('platform', 'unknown')}) - Echo Score: {c.get('echo_score', 0):.1f}, Key Influencer: {c.get('key_influencer', 'Unknown')}"
+🌐 COMMUNITY WATCHLIST ({len(communities)} communities total):
+────────────────────────────────────────────────────────────────
+Top Communities by Echo Score:
+{chr(10).join([f"  {i+1}. {c.get('name', 'Unknown')} ({c.get('platform', 'unknown')})"
+              f"     • Echo Score: {c.get('echo_score', 0):.1f}/100"
+              f"     • Members: {c.get('member_count', 0):,}"
+              f"     • Key Influencer: {c.get('key_influencer', 'Unknown')} ({c.get('influencer_post_count', 0)} posts, {c.get('influencer_engagement', 0)} engagement)"
                for i, c in enumerate(communities[:5])])}
 
-TOP PAIN POINTS ({len(pain_points)} total):
-{chr(10).join([f"  • {pp.get('keyword', 'Unknown')}: {pp.get('mention_count', 0)} mentions (+{pp.get('growth_percentage', 0):.0f}% growth)"
+Echo Score Formula: Thread Volume (40%) + Pain Point Intensity (30%) + Engagement Depth (30%)
+
+═══════════════════════════════════════════════════════════════
+
+⚠️ PAIN POINT TRENDS ({len(pain_points)} total pain points):
+────────────────────────────────────────────────────────────────
+Top Growing Pain Points:
+{chr(10).join([f"  • {pp.get('keyword', 'Unknown')}"
+              f"     └─ {pp.get('mention_count', 0)} total mentions across communities"
+              f"     └─ Growth Rate: +{pp.get('growth_percentage', 0):.0f}% month-over-month"
+              f"     └─ Sentiment: {pp.get('sentiment_score', 0):.2f} (scale: -1 to +1)"
                for pp in pain_points[:5]])}
 
-TOP INFLUENCERS ({len(influencers)} total):
-{chr(10).join([f"  • {inf.get('handle', 'Unknown')} ({inf.get('platform', 'unknown')}): {inf.get('reach', 0):,} reach, {inf.get('engagement_rate', 0):.1f}% engagement"
+═══════════════════════════════════════════════════════════════
+
+👥 INFLUENCER PULSE ({len(influencers)} influencers tracked):
+────────────────────────────────────────────────────────────────
+Top Influencers:
+{chr(10).join([f"  • @{inf.get('handle', 'Unknown')} ({inf.get('platform', 'unknown')})"
+              f"     └─ Reach: {inf.get('reach', 0):,} followers"
+              f"     └─ Engagement Rate: {inf.get('engagement_rate', 0):.1f}%"
+              f"     └─ Advocacy Score: {inf.get('advocacy_score', 0):.1f}/10"
                for inf in influencers[:5]])}
 
-Generate exactly 6 insights focusing on:
-1. Overall brand health based on echo scores across communities
-2. Community engagement and key influencer opportunities
-3. Emerging pain points and customer experience trends
-4. Influencer landscape and partnership potential
-5. Data quality and coverage assessment
-6. Recommended strategic actions prioritized by impact
+═══════════════════════════════════════════════════════════════"""
 
-Return ONLY the 6 insights, numbered 1-6, nothing else.""")
-        ])
+        # Use OpenAI reasoning model for deep analysis
+        # Try o1-mini first, fallback to gpt-4 if not accessible
+        try:
+            response = client.chat.completions.create(
+                model="o1-mini",  # OpenAI's reasoning model
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"""You are an expert brand intelligence analyst. Analyze the following Brand Analytics Dashboard data and generate exactly 6 strategic, actionable insights.
 
-        # Generate insights using the LLM
-        response = llm.invoke(prompt.format_messages())
-        insights_text = response.content
+{dashboard_data}
 
+ANALYSIS INSTRUCTIONS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Generate exactly 6 insights that cover:
+
+1. BRAND HEALTH ASSESSMENT: Evaluate overall brand perception based on echo scores, positivity ratio, and community engagement patterns. Identify if the brand is in a strong, moderate, or concerning position.
+
+2. COMMUNITY ENGAGEMENT OPPORTUNITIES: Analyze the community watchlist data to identify which communities present the best opportunities for brand advocacy, partnerships, or crisis management. Look for patterns in echo scores and influencer activity.
+
+3. PAIN POINT ANALYSIS: Examine the pain points data to identify critical customer experience issues. Prioritize by growth rate and sentiment. Suggest if these are product quality issues, service gaps, or perception problems.
+
+4. INFLUENCER STRATEGY: Evaluate the influencer landscape to identify partnership opportunities, potential brand advocates, or areas where influencer engagement is weak. Consider reach, engagement, and advocacy scores.
+
+5. DATA QUALITY & COVERAGE: Assess whether the monitoring coverage is sufficient. Look for gaps (e.g., zero campaigns, missing influencers, limited communities) that suggest need for expanded data collection.
+
+6. STRATEGIC RECOMMENDATIONS: Provide prioritized action items based on the most critical findings. Focus on immediate business impact and feasibility.
+
+FORMAT REQUIREMENTS:
+• Return ONLY 6 insights, numbered 1-6
+• Each insight must be 1-2 sentences maximum
+• Be specific with actual numbers from the data
+• Focus on actionable recommendations
+• Use clear, executive-level language
+• NO introductions, NO conclusions, NO preamble
+• Start directly with "1. [insight]"
+
+Example format:
+1. [First insight with specific numbers and action]
+2. [Second insight with specific numbers and action]
+...
+6. [Sixth insight with specific numbers and action]"""
+                    }
+                ]
+            )
+            logger.info("✅ Successfully used OpenAI o1-mini for insights")
+        except Exception as o1_error:
+            logger.warning(f"⚠️  o1-mini not accessible ({str(o1_error)}), falling back to gpt-4")
+            # Fallback to GPT-4
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an expert brand intelligence analyst specializing in social media analytics and brand perception analysis."
+                    },
+                    {
+                        "role": "user",
+                        "content": f"""Analyze the following Brand Analytics Dashboard data and generate exactly 6 strategic, actionable insights.
+
+{dashboard_data}
+
+ANALYSIS INSTRUCTIONS:
+Generate exactly 6 insights covering: brand health assessment, community engagement opportunities, pain point analysis, influencer strategy, data quality assessment, and strategic recommendations.
+
+FORMAT: Return ONLY 6 insights, numbered 1-6. Each must be 1-2 sentences maximum. Be specific with actual numbers from the data. Focus on actionable recommendations.
+
+Example:
+1. [insight with numbers and action]
+2. [insight with numbers and action]
+...
+6. [insight with numbers and action]"""
+                    }
+                ],
+                temperature=0.7,
+                max_tokens=800
+            )
+
+        insights_text = response.choices[0].message.content.strip()
+        
         # Parse the numbered insights
         insights = []
         lines = insights_text.split('\n')
@@ -493,16 +583,16 @@ Return ONLY the 6 insights, numbered 1-6, nothing else.""")
                 if line.strip() and not line.strip().startswith('#') and len(line.strip()) > 30
             ][:6]
 
-        logger.info(f"Generated {len(insights)} AI-powered insights for Brand Analytics")
+        logger.info(f"✅ Generated {len(insights)} AI-powered insights using OpenAI o1-mini")
 
         # Ensure we have exactly 6 insights (pad with fallbacks if needed)
         while len(insights) < 6 and len(insights) > 0:
-            insights.append(f"Monitor ongoing trends in {brand.name} brand discussions for emerging opportunities")
+            insights.append(f"Monitor ongoing trends in {brand.name} brand discussions for emerging opportunities and risks")
 
         return insights[:6]
 
     except Exception as e:
-        logger.error(f"Error generating AI insights from Brand Analytics: {str(e)}")
+        logger.error(f"❌ Error generating AI insights with OpenAI o1-mini: {str(e)}")
         # Return rule-based fallback insights
         return generate_fallback_insights_from_brand_analytics(brand, kpis, communities, pain_points)
 

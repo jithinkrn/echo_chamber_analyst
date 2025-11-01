@@ -506,8 +506,8 @@ export default function Dashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-5 gap-4">
-        <Card>
+      <div className="grid grid-cols-4 gap-4">
+        <Card className="bg-orange-50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
               Active Campaigns
@@ -520,7 +520,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-orange-50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
               High‑Echo Communities
@@ -530,47 +530,23 @@ export default function Dashboard() {
             <div className="text-2xl font-bold text-gray-900">
               {dashboardData.kpis.high_echo_communities}
             </div>
-            <div className="flex items-center text-sm text-green-600 mb-3">
-              <TrendingUp className="h-4 w-4 mr-1" />
-              +{dashboardData.kpis.high_echo_change_percent}%
-            </div>
-            <div className="space-y-1 text-xs">
-              {(dashboardData.community_watchlist || []).slice(0, 2).map((community, index) => (
-                <div key={index} className="flex justify-between items-center">
-                  <span className="text-gray-700 truncate">{community.name}</span>
-                  <span className="text-gray-900 font-medium">{community.echo_score?.toFixed(1) || '0.0'}</span>
-                </div>
-              ))}
-            </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-orange-50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
-              New Pain‑pts &gt; +50%
+              New Pain Points
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">
               {dashboardData.kpis.new_pain_points_above_50}
             </div>
-            <div className="flex items-center text-sm text-green-600 mb-3">
-              <TrendingUp className="h-4 w-4 mr-1" />
-              +{dashboardData.kpis.new_pain_points_change}
-            </div>
-            <div className="space-y-1 text-xs">
-              {(dashboardData.top_pain_points || []).slice(0, 3).map((pp, index) => (
-                <div key={index} className="flex justify-between items-center">
-                  <span className="text-gray-700 truncate">{pp.keyword}</span>
-                  <span className="text-green-600 font-medium">+{pp.growth_percentage?.toFixed(0) || 0}%</span>
-                </div>
-              ))}
-            </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-orange-50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
               Positivity Ratio
@@ -586,30 +562,13 @@ export default function Dashboard() {
             </div>
             <div className="space-y-1 text-xs">
               <div className="flex justify-between items-center">
-                <span className="text-green-700">😊 Positive</span>
+                <span className="text-green-700">Positive</span>
                 <span className="text-green-900 font-medium">{dashboardData.kpis.positivity_ratio}%</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-red-700">😞 Negative</span>
+                <span className="text-red-700">Negative</span>
                 <span className="text-red-900 font-medium">{(100 - dashboardData.kpis.positivity_ratio).toFixed(0)}%</span>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              LLM Tokens Burnt
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900">
-              {dashboardData.kpis.llm_tokens_used}k
-            </div>
-            <div className="flex items-center text-sm text-gray-600">
-              <DollarSign className="h-4 w-4 mr-1" />
-              ${dashboardData.kpis.llm_cost_usd}
             </div>
           </CardContent>
         </Card>
