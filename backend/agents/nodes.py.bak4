@@ -34,7 +34,6 @@ from .scout_data_collection import collect_real_brand_data
 
 # Import Django models for dashboard data
 from common.models import Campaign, Community, PainPoint, Influencer, Thread, DashboardMetrics
-from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
@@ -838,9 +837,6 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
         from django.utils import timezone
 
         logger.info(f"💾 Starting RESILIENT data storage for brand: {brand_name}")
-        
-        # Get brand_id from campaign
-        brand_id = campaign.brand_id
 
         # Track results for all save operations
         save_results = {
@@ -857,12 +853,10 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
             community, created = Community.objects.get_or_create(
                 name=community_data["name"],
                 platform=community_data["platform"],
-                campaign_id=campaign.id,
-                brand_id=brand_id,
                 defaults={
-                    "url": community_data.get("url", f"https://reddit.com/{community_data["name"]}"),
-                    "member_count": community_data.get("member_count", 0),
-                    "echo_score": community_data.get("echo_score", 0.0),
+                    "url": community_data["url"],
+                    "member_count": community_data["member_count"],
+                    "echo_score": community_data["echo_score"],
                     "echo_score_change": community_data.get("echo_score_change", 0.0),
                     "description": f"Real community data for {brand_name}",
                     "is_active": True,
@@ -900,36 +894,22 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
 
         def save_pain_point(pain_point_data):
             """Save single pain point with error handling"""
-            # Get community from pain_point_data if provided, otherwise use a default
-            community_name = pain_point_data.get("community")
-            
-            if community_name:
-                # Find the specific community for this pain point
-                community = Community.objects.filter(
-                    name=community_name,
-                    campaign_id=campaign.id
-                ).first()
-            
-            # If no specific community, get first available
-            if not community_name or not community:
-                community = Community.objects.filter(
-                    campaign_id=campaign.id
-                ).order_by('-threads_last_4_weeks', '-echo_score').first()
+            # Get first available community (for pain points without specific community)
+            community = Community.objects.filter(
+                platform__in=["reddit", "forum", "tech_forums", "review_sites"]
+            ).first()
 
             if not community:
                 raise ValueError("No community found for pain point storage")
 
-            # Get month_year from pain point data
-            month_year_value = pain_point_data.get("month_year", "2025-10")
-
-            # Debug logging
-            logger.debug(f"Saving PainPoint: keyword={pain_point_data['keyword']}, month_year={month_year_value}, community={community.name}")
+            # Get week number from pain point data
+            week_num = pain_point_data.get("month_year", 4)
 
             return PainPoint.objects.update_or_create(
                 keyword=pain_point_data["keyword"],
                 campaign_id=campaign.id,
                 community=community,
-                month_year=month_year_value,  # Include in lookup for proper monthly separation
+                month_year=week_num,  # Include in lookup for proper weekly separation
                 defaults={
                     "mention_count": pain_point_data["mention_count"],
                     "growth_percentage": pain_point_data["growth_percentage"],
@@ -1177,13 +1157,13 @@ def store_brand_analytics_data(collected_data: Dict[str, Any], brand, automatic_
             if not created:
                 # Update existing community with new data
                 old_echo_score = community.echo_score or 0.0
-                new_echo_score = community_data.get("echo_score", 0.0)
+                new_echo_score = community_data["echo_score"]
 
                 community.echo_score = new_echo_score
                 community.echo_score_change = round(
                     ((new_echo_score - old_echo_score) / max(old_echo_score, 0.1)) * 100, 1
                 )
-                community.member_count = community_data.get("member_count", community.member_count)
+                community.member_count = community_data["member_count"]
                 community.last_analyzed = timezone.now()
                 community.activity_score = community_data.get("activity_score", community.activity_score)
                 community.save()
@@ -1191,53 +1171,161 @@ def store_brand_analytics_data(collected_data: Dict[str, Any], brand, automatic_
             # Cache community for later lookups (memory optimization)
             community_cache[community_data["name"].lower()] = community
 
-        # ==================== SAVE PAIN POINTS (FROM LLM) ====================
-        def save_pain_point(pain_point_data):
-            """Save single pain point"""
-            # Find community for this pain point
-            community_name = pain_point_data.get("community", "")
+        # Store pain points extracted from threads (link each to correct community)
+        # Group threads by community to extract community-specific pain points
+        import re
+        from collections import defaultdict
+        community_threads = defaultdict(list)
+
+        for thread_data in collected_data.get("threads", []):
+            community_name = thread_data.get("community")
+            if community_name:
+                community_threads[community_name].append(thread_data)
+
+        # Extract pain points per community from their threads
+        for community_name, threads in community_threads.items():
+            # Try exact match first
             community = Community.objects.filter(
-                Q(name__iexact=community_name) | Q(name__icontains=community_name.split('.')[0] if '.' in community_name else community_name),
+                name=community_name,
                 brand=brand,
                 campaign=automatic_campaign
             ).first()
 
+            # If not found, try case-insensitive match
             if not community:
-                raise ValueError("No community found for pain point storage")
+                community = Community.objects.filter(
+                    name__iexact=community_name,
+                    brand=brand,
+                    campaign=automatic_campaign
+                ).first()
 
-            # Get month_year from pain point data
-            month_year_value = pain_point_data.get("month_year", "2025-10")
+            # If still not found, try removing/adding domain suffix
+            if not community and '.' in community_name:
+                base_name = community_name.split('.')[0]
+                community = Community.objects.filter(
+                    name__iexact=base_name,
+                    brand=brand,
+                    campaign=automatic_campaign
+                ).first()
 
-            # Debug logging
-            logger.debug(f"Saving PainPoint: keyword={pain_point_data['keyword']}, month_year={month_year_value}")
+            if not community and '.' not in community_name:
+                for suffix in ['.com', '.org', '.net']:
+                    community = Community.objects.filter(
+                        name__iexact=f"{community_name}{suffix}",
+                        brand=brand,
+                        campaign=automatic_campaign
+                    ).first()
+                    if community:
+                        break
 
-            return PainPoint.objects.update_or_create(
-                keyword=pain_point_data["keyword"],
-                campaign_id=automatic_campaign.id,
-                community=community,
-                month_year=month_year_value,  # Include in lookup for proper monthly separation
-                defaults={
-                    "brand": brand,  # Link to brand
-                    "mention_count": pain_point_data["mention_count"],
-                    "growth_percentage": pain_point_data.get("growth_percentage", 0.0),
-                    "sentiment_score": pain_point_data.get("sentiment_score", 0.0),
-                    "heat_level": pain_point_data.get("heat_level", 0),
-                    "example_content": pain_point_data.get("example", "")[:500] if pain_point_data.get("example") else "",
-                    "related_keywords": pain_point_data.get("related_keywords", []),
-                    "first_seen": timezone.now(),
-                    "last_seen": timezone.now()
-                }
-            )
+            if not community:
+                logger.warning(f"Community '{community_name}' not found for pain point extraction (tried variations)")
+                continue
 
-        pain_points_data = collected_data.get("pain_points", [])
-        if pain_points_data:
-            resilient_bulk_save(
-                items=pain_points_data,
-                save_function=save_pain_point,
-                item_type="PainPoint",
-                get_item_id=lambda x: f"{x.get('keyword', 'unknown')}_month{x.get('month_year', 0)}"
-            )
+            # Define expanded pain point patterns with flexible natural language matching
+            pain_point_patterns = {
+                "quality_issues": r'\b(?:quality|poor|cheap|flimsy|break(?:s|ing)?|broken|defective|falls? apart|terrible|awful|bad|worse|worst|decrease|thin|weak)\b',
+                "sizing_problems": r'\b(?:siz(?:e|ing)|fit(?:s|ting)?|too (?:small|large|big|tight)|runs? (?:small|big)|doesn\'?t fit|wrong size|narrow|wide)\b',
+                "durability": r'\b(?:durability|durables?|wear(?:ing)? out|wears? out|doesn\'?t last|fading|faded|worn|tear(?:ing)?|ripped|falling apart)\b',
+                "customer_service": r'\b(?:customer service|support|unhelpful|slow response|rude|no reply|ignored|terrible service|bad service|never respond)\b',
+                "shipping": r'\b(?:shipping|delivery|late|delayed|never arrived|lost|damaged|slow shipping|took forever)\b',
+                "price_value": r'\b(?:expensive|overpriced|too (?:much|expensive)|costly|not worth|waste of money|ripoff|too pricey|price)\b',
+                "comfort": r'\b(?:uncomfortable|uncomfy|hurts?|painful|tight|stiff|irritat(?:ing|ed)|chafing|annoying|bothers?)\b',
+                "design_issues": r'\b(?:design|ugly|looks? bad|poorly designed|weird|strange|odd|hideous|unattractive)\b',
+                "material_problems": r'\b(?:material|fabric|leather|plastic|rubber|feels? bad|texture|scratchy|itchy|synthetic)\b',
+                "performance": r'\b(?:performance|doesn\'?t work|failed|useless|ineffective|disappointing|disappointed|not good|doesn\'?t help)\b'
+            }
 
+            # Group threads by week for pain point extraction
+            from datetime import datetime, timedelta
+            from dateutil import parser as date_parser
+
+            now = timezone.now()
+            four_weeks_ago = now - timedelta(weeks=4)
+
+            # Group threads by week (1-4)
+            threads_by_week = {1: [], 2: [], 3: [], 4: []}
+            for thread in threads:
+                thread_date_str = thread.get('created_at')
+                if thread_date_str:
+                    try:
+                        # Parse ISO format datetime string
+                        thread_date = date_parser.parse(thread_date_str)
+
+                        # Make timezone-aware if needed
+                        if thread_date.tzinfo is None:
+                            thread_date = timezone.make_aware(thread_date)
+
+                        # Calculate which week this thread belongs to (1-4)
+                        # Week 1 = oldest (3-4 weeks ago), Week 4 = newest (0-1 weeks ago)
+                        days_ago = (now - thread_date).days
+
+                        if days_ago < 0:
+                            week_num = 4  # Future date, put in current week
+                        elif days_ago < 7:
+                            week_num = 4  # This week
+                        elif days_ago < 14:
+                            week_num = 3  # Last week
+                        elif days_ago < 21:
+                            week_num = 2  # 2 weeks ago
+                        else:
+                            week_num = 1  # 3+ weeks ago
+
+                        threads_by_week[week_num].append(thread)
+                        logger.debug(f"Thread dated {thread_date} ({days_ago} days ago) → Week {week_num}")
+                    except Exception as e:
+                        logger.warning(f"Failed to parse thread date '{thread_date_str}': {e}, defaulting to week 4")
+                        threads_by_week[4].append(thread)
+                else:
+                    threads_by_week[4].append(thread)
+
+            # Extract pain points for each week separately
+            for week_num, week_threads in threads_by_week.items():
+                if not week_threads:
+                    continue
+
+                # Combine content for this week
+                week_content = []
+                for thread in week_threads:
+                    content = f"{thread.get('title', '')} {thread.get('content', '')}"
+                    week_content.append(content)
+
+                combined_content = " ".join(week_content).lower()
+
+                # Extract pain points from this week's content
+                for keyword, pattern in pain_point_patterns.items():
+                    matches = re.findall(pattern, combined_content, re.IGNORECASE)
+
+                    if matches:
+                        mention_count = len(matches)
+
+                        # Calculate metrics
+                        growth_percentage = min(mention_count * 10, 100)
+                        heat_level = min(mention_count // 2 + 1, 5)
+                        sentiment_score = -0.3  # Default negative for pain points
+
+                        # Create separate pain point record for each week
+                        PainPoint.objects.update_or_create(
+                            keyword=keyword.replace("_", " ").title(),
+                            campaign=automatic_campaign,
+                            brand=brand,
+                            community=community,
+                            month_year=week_num,  # Unique per week (now in DB constraint)
+                            defaults={
+                                "mention_count": mention_count,
+                                "growth_percentage": growth_percentage,
+                                "sentiment_score": sentiment_score,
+                                "heat_level": heat_level,
+                                "example_content": matches[0][:500] if matches else "",
+                                "related_keywords": matches[:3],
+                                "first_seen": timezone.now(),
+                                "last_seen": timezone.now()
+                            }
+                        )
+
+        # Memory cleanup: Delete large objects and force garbage collection
+        del community_threads
+        gc.collect()
         logger.info("🧹 Memory cleanup after pain point extraction")
 
         # Store threads (link to brand + automatic campaign)
@@ -1300,8 +1388,7 @@ def store_brand_analytics_data(collected_data: Dict[str, Any], brand, automatic_
                 else:
                     published_at = published_at_raw
 
-                # Get month_year directly from thread_data (set by LLM scout)
-                month_year_value = thread_data.get("month_year", calculate_month_year(published_at))
+                week_num = calculate_month_year(published_at)
 
                 # Use unique_together fields (thread_id, community) for lookup
                 Thread.objects.update_or_create(
@@ -1319,7 +1406,7 @@ def store_brand_analytics_data(collected_data: Dict[str, Any], brand, automatic_
                         "sentiment_score": thread_data.get("sentiment_score", 0.0),
                         "published_at": published_at,
                         "analyzed_at": timezone.now(),
-                        "month_year": month_year_value,
+                        "month_year": week_num,
                         "token_count": thread_tokens,
                         "processing_cost": thread_tokens * 0.00001
                     }
@@ -1385,9 +1472,9 @@ def store_custom_campaign_data(collected_data: Dict[str, Any], brand, campaign) 
                 brand=brand,  # Link to brand
                 campaign=campaign,  # Link to THIS campaign
                 defaults={
-                    "url": community_data.get("url", f"https://reddit.com/{community_data["name"]}"),
-                    "member_count": community_data.get("member_count", 0),
-                    "echo_score": community_data.get("echo_score", 0.0),
+                    "url": community_data["url"],
+                    "member_count": community_data["member_count"],
+                    "echo_score": community_data["echo_score"],
                     "echo_score_change": community_data.get("echo_score_change", 0.0),
                     "description": f"Custom Campaign: {campaign.name} - {community_data['name']}",
                     "is_active": True,
@@ -1422,19 +1509,19 @@ def store_custom_campaign_data(collected_data: Dict[str, Any], brand, campaign) 
             ).first()
 
             if community:
-                month_year_value = pain_point_data.get("month_year", "2025-10")
+                week_num = pain_point_data.get("month_year", 4)
 
                 PainPoint.objects.update_or_create(
                     keyword=pain_point_data["keyword"],
                     campaign=campaign,
                     brand=brand,  # Link to brand
                     community=community,
-                    month_year=month_year_value,  # Include in lookup
                     defaults={
                         "mention_count": pain_point_data["mention_count"],
                         "growth_percentage": pain_point_data["growth_percentage"],
                         "sentiment_score": pain_point_data["sentiment_score"],
                         "heat_level": pain_point_data["heat_level"],
+                        "month_year": week_num,
                         "example_content": pain_point_data.get("example", "")[:500],
                         "related_keywords": pain_point_data.get("related_keywords", []),
                         "first_seen": timezone.now(),
@@ -2287,7 +2374,7 @@ async def monitoring_node(state: EchoChamberAnalystState) -> EchoChamberAnalystS
         # Initialize monitoring data if not present
         if not hasattr(state, 'monitoring_data'):
             state.monitoring_data = {
-                'workflow_start_time': timezone.now().isoformat(),
+                'workflow_start_time': datetime.now().isoformat(),
                 'node_execution_times': {},
                 'compliance_events': [],
                 'performance_metrics': {},
@@ -2295,7 +2382,7 @@ async def monitoring_node(state: EchoChamberAnalystState) -> EchoChamberAnalystS
             }
         
         # Track current workflow execution
-        current_time = timezone.now()
+        current_time = datetime.now()
         if state.current_node:
             state.monitoring_data['node_execution_times'][state.current_node] = current_time.isoformat()
         
@@ -2359,7 +2446,7 @@ async def monitoring_node(state: EchoChamberAnalystState) -> EchoChamberAnalystS
         # Still track the error in monitoring data
         if hasattr(state, 'monitoring_data'):
             error_event = {
-                'timestamp': timezone.now().isoformat(),
+                'timestamp': datetime.now().isoformat(),
                 'event_type': 'monitoring_error',
                 'error_message': str(e),
                 'status': 'failed'

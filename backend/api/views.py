@@ -555,7 +555,15 @@ def get_dashboard_kpis(campaign_id, date_from, date_to):
         active_campaigns = Campaign.objects.filter(status='active').count()
         high_echo_communities = Community.objects.filter(echo_score__gte=7.0).count()
         
-        pain_points_filter = {'created_at__date__range': [date_from, date_to]}
+        # Generate month_year values for the date range
+        from dateutil.relativedelta import relativedelta
+        month_years = []
+        current_date = datetime.now()
+        for i in range(6):  # Last 6 months
+            month_date = current_date - relativedelta(months=i)
+            month_years.append(month_date.strftime('%Y-%m'))
+        
+        pain_points_filter = {'month_year__in': month_years}
         if campaign_id:
             pain_points_filter['campaign_id'] = campaign_id
             
@@ -620,11 +628,23 @@ def get_top_pain_points(campaign_id, date_from, date_to):
     """Get top growing pain points."""
     from .serializers import TopPainPointSerializer
     from common.models import PainPoint
+    from datetime import datetime
     
     try:
-        pain_points_filter = {'created_at__date__range': [date_from, date_to]}
+        pain_points_filter = {}
         if campaign_id:
             pain_points_filter['campaign_id'] = campaign_id
+        
+        # Filter by month_year field (format: YYYY-MM) instead of created_at
+        # Generate list of month_year strings for the last 6 months
+        from dateutil.relativedelta import relativedelta
+        month_years = []
+        current_date = datetime.now()
+        for i in range(6):
+            month_date = current_date - relativedelta(months=i)
+            month_years.append(month_date.strftime('%Y-%m'))
+        
+        pain_points_filter['month_year__in'] = month_years
             
         pain_points = PainPoint.objects.filter(**pain_points_filter).order_by('-growth_percentage')[:10]
         
@@ -878,14 +898,22 @@ def get_brand_dashboard_kpis(brand_id, date_from, date_to):
     if previous_high_echo > 0:
         high_echo_change = ((high_echo_communities_count - previous_high_echo) / previous_high_echo) * 100
 
-    # ✅ FIX: Get brand-specific pain points (Brand Analytics only)
+    # ✅ FIX: Get brand-specific pain points using month_year (Brand Analytics only)
+    # Note: growth_percentage field is not populated, so we count all pain points
+    from dateutil.relativedelta import relativedelta
+    month_years = []
+    current_date = datetime.now()
+    for i in range(6):  # Last 6 months
+        month_date = current_date - relativedelta(months=i)
+        month_years.append(month_date.strftime('%Y-%m'))
+    
     brand_pain_points = PainPoint.objects.filter(
         brand_id=brand_id,
         campaign=automatic_campaign,
-        growth_percentage__gte=50,
-        created_at__gte=seven_days_ago
+        month_year__in=month_years
     )
-    high_growth_pain_points = brand_pain_points.count()
+    # Count unique pain point keywords (since growth is calculated dynamically)
+    high_growth_pain_points = brand_pain_points.values('keyword').distinct().count()
 
     # ✅ FIX: Calculate positivity ratio from brand-related threads (Brand Analytics only)
     brand_threads = Thread.objects.filter(
@@ -904,30 +932,37 @@ def get_brand_dashboard_kpis(brand_id, date_from, date_to):
     brand_token_usage = brand_threads.aggregate(total_tokens=Sum('token_count'))['total_tokens'] or 0
     brand_cost = brand_threads.aggregate(total_cost=Sum('processing_cost'))['total_cost'] or 0.0
     
-    # Calculate change metrics by comparing current vs 24h ago
-    twenty_four_hours_ago = datetime.now() - timedelta(hours=24)
-
-    # 1. Pain points change (current vs 24h ago) - Brand Analytics only
-    previous_pain_points = PainPoint.objects.filter(
+    # Calculate pain points change: compare this month vs last month
+    current_month = current_date.strftime('%Y-%m')
+    last_month = (current_date - relativedelta(months=1)).strftime('%Y-%m')
+    
+    # 1. Pain points change (current month vs last month) - Brand Analytics only
+    # Count unique keywords per month since growth_percentage field is not populated
+    current_month_pain_points = PainPoint.objects.filter(
         brand_id=brand_id,
         campaign=automatic_campaign,
-        growth_percentage__gte=50,
-        created_at__lt=twenty_four_hours_ago,
-        created_at__gte=seven_days_ago
-    ).count()
+        month_year=current_month
+    ).values('keyword').distinct().count()
+    
+    last_month_pain_points = PainPoint.objects.filter(
+        brand_id=brand_id,
+        campaign=automatic_campaign,
+        month_year=last_month
+    ).values('keyword').distinct().count()
 
     pain_points_change = 0
-    if previous_pain_points > 0:
-        pain_points_change = ((high_growth_pain_points - previous_pain_points) / previous_pain_points) * 100
-    elif high_growth_pain_points > 0:
+    if last_month_pain_points > 0:
+        pain_points_change = ((current_month_pain_points - last_month_pain_points) / last_month_pain_points) * 100
+    elif current_month_pain_points > 0:
         pain_points_change = 100  # If we had 0 before and now we have some, that's 100% increase
 
-    # 2. Positivity ratio change (current vs 24h ago) - Brand Analytics only
+    # 2. Positivity ratio change - compare recent threads (last 7 days vs previous 7 days)
+    fourteen_days_ago = datetime.now() - timedelta(days=14)
     previous_threads = Thread.objects.filter(
         brand_id=brand_id,
         campaign=automatic_campaign,
-        analyzed_at__gte=seven_days_ago,
-        analyzed_at__lt=twenty_four_hours_ago
+        analyzed_at__gte=fourteen_days_ago,
+        analyzed_at__lt=seven_days_ago
     )
 
     positivity_change_pp = 0.0
@@ -949,8 +984,15 @@ def get_brand_dashboard_kpis(brand_id, date_from, date_to):
     }
 
 
-def get_brand_top_pain_points(brand_id, date_from, date_to):
-    """Get top growing pain points for a specific brand - Brand Analytics ONLY."""
+def get_brand_top_pain_points(brand_id, date_from, date_to, limit=10):
+    """Get top growing pain points for a specific brand - Brand Analytics ONLY.
+    
+    Args:
+        brand_id: Brand ID
+        date_from: Start date (optional)
+        date_to: End date (optional)
+        limit: Number of top pain points to return (default: 10, was 5)
+    """
     from common.models import PainPoint
     from django.db.models import Sum
 
@@ -963,66 +1005,78 @@ def get_brand_top_pain_points(brand_id, date_from, date_to):
     if not automatic_campaign:
         return []
 
-    # Get all unique keywords
-    all_keywords = PainPoint.objects.filter(
+    # Get all unique keywords using aggregation to avoid duplicates
+    from django.db.models import Sum, Max
+    from collections import defaultdict
+    
+    # Group by keyword and aggregate monthly mentions
+    pain_point_data = defaultdict(lambda: {'months': {}})
+    
+    pain_points = PainPoint.objects.filter(
         brand_id=brand_id,
         campaign=automatic_campaign
-    ).values_list('keyword', flat=True).distinct()
-
-    # Calculate REAL week-over-week growth for each keyword
+    ).values('keyword', 'month_year', 'mention_count').order_by('keyword', 'month_year')
+    
+    # Aggregate mentions by keyword and month (sum up duplicates)
+    for pp in pain_points:
+        keyword = pp['keyword']
+        month_year = pp['month_year']
+        mention_count = pp['mention_count']
+        
+        if month_year not in pain_point_data[keyword]['months']:
+            pain_point_data[keyword]['months'][month_year] = 0
+        pain_point_data[keyword]['months'][month_year] += mention_count
+    
+    # Calculate month-over-month growth for each unique keyword
     pain_points_with_growth = []
 
-    for keyword in all_keywords:
-        # Get total mentions per week for this keyword across all communities
-        week_1_total = PainPoint.objects.filter(
-            brand_id=brand_id,
-            campaign=automatic_campaign,
-            keyword=keyword,
-            week_number=1
-        ).aggregate(total=Sum('mention_count'))['total'] or 0
+    for keyword, data in pain_point_data.items():
+        # Get sorted monthly data
+        monthly_data = sorted(data['months'].items())  # [(month_year, mention_count), ...]
+        
+        if not monthly_data:
+            continue
 
-        # Get most recent week with data (check weeks 4, 3, 2 in reverse)
-        recent_week_total = 0
-        recent_week_num = 1
+        previous_month_total = 0
+        current_month_total = 0
 
-        for week_num in [4, 3, 2]:
-            week_total = PainPoint.objects.filter(
-                brand_id=brand_id,
-                campaign=automatic_campaign,
-                keyword=keyword,
-                week_number=week_num
-            ).aggregate(total=Sum('mention_count'))['total'] or 0
+        if len(monthly_data) >= 2:
+            # Compare last 2 months (most recent growth)
+            previous_month_total = monthly_data[-2][1]
+            current_month_total = monthly_data[-1][1]
+        elif len(monthly_data) == 1:
+            # Only one month of data
+            current_month_total = monthly_data[0][1]
+            previous_month_total = 0
 
-            if week_total > 0:
-                recent_week_total = week_total
-                recent_week_num = week_num
-                break
+        # Calculate total mentions across all months
+        total_mentions = sum([m[1] for m in monthly_data])
 
-        # Calculate total mentions
-        total_mentions = PainPoint.objects.filter(
-            brand_id=brand_id,
-            campaign=automatic_campaign,
-            keyword=keyword
-        ).aggregate(total=Sum('mention_count'))['total'] or 0
-
-        # Calculate real growth (recent week vs Week 1)
-        if week_1_total > 0 and recent_week_num > 1:
-            growth = ((recent_week_total - week_1_total) / week_1_total) * 100
-        elif recent_week_total > 0 and week_1_total == 0:
+        # Calculate month-over-month growth (current vs previous month)
+        if previous_month_total > 0:
+            growth = ((current_month_total - previous_month_total) / previous_month_total) * 100
+        elif current_month_total > 0 and previous_month_total == 0:
             growth = 100.0  # New pain point appeared
         else:
-            growth = 0.0  # No growth or only Week 1 data
+            growth = 0.0  # No change
 
-        if total_mentions > 0:  # Only include pain points with mentions
+        # Only include pain points with actual mentions to avoid empty data
+        if total_mentions > 0:
             pain_points_with_growth.append({
                 'keyword': keyword,
                 'growth_percentage': round(growth, 1),
-                'mention_count': total_mentions
+                'mention_count': total_mentions,
+                'current_month_mentions': current_month_total,
+                'previous_month_mentions': previous_month_total
             })
 
-    # Sort by growth and return top 5
+    # Sort by growth percentage (highest growth first) - TOP-GROWING means increasing problems
+    # Positive growth = pain point is mentioned MORE (worse)
+    # Negative growth = pain point is mentioned LESS (better)
     pain_points_with_growth.sort(key=lambda x: x['growth_percentage'], reverse=True)
-    return pain_points_with_growth[:5]
+    
+    # Return top N growing pain points (configurable limit)
+    return pain_points_with_growth[:limit]
 
 
 def get_brand_heatmap_data(brand_id, date_from, date_to):
@@ -1058,23 +1112,17 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
     ).select_related('community').order_by('-heat_level', '-growth_percentage')
 
     # === TYPE A: Community × Pain Point Matrix (heat = mention count) ===
-    # UPDATED: Limit to top 4 communities by activity score for token efficiency
+    # Show top communities with most threads/activity (even if no pain points yet)
     community_matrix = []
-    communities_processed = set()
-
-    # ✅ FIX: Get communities that have pain points for this brand/campaign
-    # First get community IDs that have pain points
-    community_ids_with_pain_points = all_brand_pain_points.values_list('community_id', flat=True).distinct()
-
-    # Then get the top 4 communities by activity
+    
+    # Get top 5 communities by threads and echo score (not just those with pain points)
     top_communities = Community.objects.filter(
-        id__in=community_ids_with_pain_points,
         brand_id=brand_id,
         campaign=automatic_campaign
-    ).order_by('-activity_score', '-echo_score')[:4]
+    ).order_by('-threads_last_4_weeks', '-echo_score', '-activity_score')[:5]
 
     for community in top_communities:
-        # Get top pain points for this community, aggregated across all weeks
+        # Get top pain points for this community, aggregated across all months
         community_pain_points_raw = all_brand_pain_points.filter(
             community=community
         ).values('keyword').annotate(
@@ -1083,32 +1131,30 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
             avg_sentiment=Avg('sentiment_score')
         ).order_by('-total_mentions')[:5]
 
+        community_pain_points = []
+        
+        # If this community has pain points, calculate their growth
         if community_pain_points_raw:
-            # Calculate real growth for each pain point in this community
-            community_pain_points = []
             for pp in community_pain_points_raw:
-                # Get Week 1 and most recent week for this keyword in this community
-                week_1 = all_brand_pain_points.filter(
+                # Get first month and most recent month data for this keyword in this community
+                # Get all months for this keyword, sorted chronologically
+                monthly_data = list(all_brand_pain_points.filter(
                     community=community,
-                    keyword=pp['keyword'],
-                    week_number=1
-                ).aggregate(total=Sum('mention_count'))['total'] or 0
+                    keyword=pp['keyword']
+                ).order_by('month_year').values_list('month_year', 'mention_count'))
 
-                # Find most recent week with data
-                recent_week = 0
-                for week_num in [4, 3, 2]:
-                    week_total = all_brand_pain_points.filter(
-                        community=community,
-                        keyword=pp['keyword'],
-                        week_number=week_num
-                    ).aggregate(total=Sum('mention_count'))['total'] or 0
-                    if week_total > 0:
-                        recent_week = week_total
-                        break
+                first_month_count = 0
+                recent_month_count = 0
+
+                if monthly_data:
+                    # First month
+                    first_month_count = monthly_data[0][1] if len(monthly_data) > 0 else 0
+                    # Most recent month
+                    recent_month_count = monthly_data[-1][1] if len(monthly_data) > 0 else 0
 
                 # Calculate growth
-                if week_1 > 0 and recent_week > 0 and recent_week != week_1:
-                    growth = ((recent_week - week_1) / week_1) * 100
+                if first_month_count > 0 and recent_month_count > 0 and recent_month_count != first_month_count:
+                    growth = ((recent_month_count - first_month_count) / first_month_count) * 100
                 else:
                     growth = 0.0
 
@@ -1119,55 +1165,62 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
                     'sentiment_score': float(pp['avg_sentiment']),
                     'growth_percentage': round(growth, 1)
                 })
-
-            community_matrix.append({
-                'community_name': community.name,
-                'platform': community.platform,
-                'echo_score': float(community.echo_score),
-                'echo_score_delta': float(community.echo_score_delta),  # NEW: W-o-W delta
-                'activity_score': float(community.activity_score),  # NEW: Activity metric
-                'threads_4w': community.threads_last_4_weeks,  # NEW: Thread count
-                'pain_points': community_pain_points
-            })
-
-    # === TYPE B: Time Series Line Chart - Weekly Pain Points (4 weeks) ===
-    time_series_matrix = []
-
-    # Get top 5 pain point keywords by total mentions across all weeks
-    top_keywords = all_brand_pain_points.values('keyword').annotate(
-        total_mentions=Sum('mention_count')
-    ).order_by('-total_mentions')[:5]
-
-    all_pain_point_keywords = [kw['keyword'] for kw in top_keywords]
-
-    # Generate time buckets for last 4 weeks based on collection date
-    now = timezone.now()
-    time_buckets = []
-    for week_num in range(1, 5):  # Weeks 1-4
-        week_end = (now - timedelta(weeks=4-week_num)).replace(hour=23, minute=59, second=59)
-        week_start = week_end - timedelta(days=6)
-        week_start = week_start.replace(hour=0, minute=0, second=0)
-
-        time_buckets.append({
-            'week_number': week_num,
-            'week_label': f'Week {week_num}',
-            'date_range': f"{week_start.strftime('%m/%d')}-{week_end.strftime('%m/%d')}"
+        
+        # Always add community to matrix (even if no pain points)
+        community_matrix.append({
+            'community_name': community.name,
+            'platform': community.platform,
+            'echo_score': float(community.echo_score),
+            'echo_score_delta': float(community.echo_score_delta),  # NEW: W-o-W delta
+            'activity_score': float(community.activity_score),  # NEW: Activity metric
+            'threads_4w': community.threads_last_4_weeks,  # NEW: Thread count
+            'pain_points': community_pain_points  # May be empty list if no pain points
         })
 
-    # Calculate total mentions across all pain points for each week using week_number
+    # === TYPE B: Time Series Line Chart - Monthly Pain Points (6 months) ===
+    time_series_matrix = []
+
+    # Get top 10 pain point keywords BY GROWTH (same as TOP-GROWING PAINS chart)
+    # Increased from 5 to 10 to show more pain point trends
+    # This ensures consistency between the two charts
+    top_growing_pain_points = get_brand_top_pain_points(brand_id, date_from, date_to, limit=10)
+    all_pain_point_keywords = [pp['keyword'] for pp in top_growing_pain_points[:10]]
+    
+    # If no growing pain points, fall back to top by mentions
+    if not all_pain_point_keywords:
+        top_keywords = all_brand_pain_points.values('keyword').annotate(
+            total_mentions=Sum('mention_count')
+        ).order_by('-total_mentions')[:10]
+        all_pain_point_keywords = [kw['keyword'] for kw in top_keywords]
+
+    # Generate time buckets for last 6 complete months (excluding current month)
+    from dateutil.relativedelta import relativedelta
+    now = timezone.now()
+    time_buckets = []
+    for offset in range(6, 0, -1):  # 6 months ago to 1 month ago
+        target_date = now - relativedelta(months=offset)
+        month_year = target_date.strftime('%Y-%m')
+        month_label = target_date.strftime('%b %Y')
+
+        time_buckets.append({
+            'month_year': month_year,
+            'month_label': month_label
+        })
+
+    # Calculate total mentions across all pain points for each month
     total_mentions_series = []
     for bucket in time_buckets:
         total_count = all_brand_pain_points.filter(
-            week_number=bucket['week_number']
+            month_year=bucket['month_year']
         ).aggregate(total=Sum('mention_count'))['total'] or 0
 
         total_mentions_series.append({
-            'label': bucket['week_label'],
-            'date': bucket['date_range'],
+            'label': bucket['month_label'],
+            'date': bucket['month_label'],
             'total_mentions': total_count
         })
 
-    # For each pain point keyword, get mentions per week using week_number
+    # For each pain point keyword, get mentions per month using month_year
     for keyword in all_pain_point_keywords:
         pain_point_time_data = {
             'keyword': keyword,
@@ -1175,38 +1228,38 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
         }
 
         for bucket in time_buckets:
-            # Sum mention counts for this keyword and week_number across all communities
-            week_pain_points = all_brand_pain_points.filter(
+            # Sum mention counts for this keyword and month_year across all communities
+            month_pain_points = all_brand_pain_points.filter(
                 keyword=keyword,
-                week_number=bucket['week_number']
+                month_year=bucket['month_year']
             ).aggregate(
                 total_mentions=Sum('mention_count'),
                 avg_sentiment=Avg('sentiment_score'),
                 avg_heat=Avg('heat_level')
             )
 
-            mentions_count = week_pain_points['total_mentions'] or 0
-            avg_sentiment = week_pain_points['avg_sentiment'] or 0.0
-            avg_heat = week_pain_points['avg_heat'] or 1
+            mentions_count = month_pain_points['total_mentions'] or 0
+            avg_sentiment = month_pain_points['avg_sentiment'] or 0.0
+            avg_heat = month_pain_points['avg_heat'] or 1
 
             pain_point_time_data['time_series'].append({
-                'label': bucket['week_label'],
-                'date': bucket['date_range'],
+                'label': bucket['month_label'],
+                'date': bucket['month_label'],
                 'mention_count': mentions_count,
                 'sentiment_score': float(avg_sentiment),
                 'heat_level': int(avg_heat)
             })
 
-        # Calculate weekly growth rate (week 3 vs week 4)
+        # Calculate monthly growth rate (previous month vs current month)
         time_series = pain_point_time_data['time_series']
 
         if len(time_series) >= 2:
-            previous_week = time_series[-2]['mention_count']
-            current_week = time_series[-1]['mention_count']
+            previous_month = time_series[-2]['mention_count']
+            current_month = time_series[-1]['mention_count']
 
-            if previous_week > 0:
-                growth_rate = ((current_week - previous_week) / previous_week * 100)
-            elif current_week > 0:
+            if previous_month > 0:
+                growth_rate = ((current_month - previous_month) / previous_month * 100)
+            elif current_month > 0:
                 growth_rate = 100.0
             else:
                 growth_rate = 0.0

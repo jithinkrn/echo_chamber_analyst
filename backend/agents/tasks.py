@@ -97,33 +97,39 @@ def scout_reddit_task(self, campaign_id: Optional[int] = None, config: Optional[
                     logger.warning(f"Campaign {campaign.id} has no associated brand")
                     continue
 
-                # Prepare scout configuration - OPTIMIZED
+                # Prepare scout configuration with full brand context
                 scout_config = config or {
-                    # Existing config
+                    # Brand information for accurate searches
+                    'focus': 'brand_monitoring',
+                    'collection_months': 6,
+                    'brand_description': brand.description if brand.description else '',
+                    'brand_website': brand.website if brand.website else '',
+                    'industry': brand.industry if brand.industry else 'general',
+                    
+                    # Search configuration
                     'search_depth': 'comprehensive',
-                    'focus': 'comprehensive',
                     'include_sentiment': True,
                     'include_competitors': True,
                     'focus_areas': ['pain_points', 'feedback', 'sentiment'],
 
-                    # Token optimization (Phase 1 & 2)
-                    'max_communities': 10,  # Increased from 4
-                    'threads_per_community': 20,  # More threads collected
-                    'relevance_threshold': 3,  # Min score for quality filter
-                    'max_threads_to_analyze': 50,  # Cap on expensive LLM analysis
+                    # Token optimization
+                    'max_communities': 10,
+                    'threads_per_community': 20,
+                    'relevance_threshold': 3,
+                    'max_threads_to_analyze': 50,
 
-                    # Source diversity (Phase 1 & 2)
-                    'max_forum_sites': 5,  # Equal priority to forums
+                    # Source diversity
+                    'max_forum_sites': 5,
                     'max_queries_per_forum': 3,
                     'max_results_per_forum': 4,
-                    'min_threads_per_source': 5,  # Minimum from each source type
+                    'min_threads_per_source': 5,
                     'ensure_source_diversity': True,
 
-                    # Pain point tracking (Phase 3)
+                    # Pain point tracking
                     'track_pain_points_by_week': True,
                     'pain_point_weeks': 4,
 
-                    # LLM optimization (Phase 4)
+                    # LLM optimization
                     'use_batch_llm_processing': True,
                     'batch_size': 10,
                     'use_summary_based_insights': True,
@@ -785,10 +791,14 @@ def scout_brand_analytics_task(self, brand_id: int):
         brand = automatic_campaign.brand
         logger.info(f"Processing automatic campaign: {automatic_campaign.name} (ID: {automatic_campaign.id})")
 
-        # Prepare scout configuration for Brand Analytics
+        # Prepare scout configuration for Brand Analytics with full brand context
         scout_config = {
             'search_depth': 'comprehensive',
             'focus': 'brand_monitoring',
+            'collection_months': 6,
+            'brand_description': brand.description if brand.description else '',
+            'brand_website': brand.website if brand.website else '',
+            'industry': brand.industry if brand.industry else 'general',
             'include_sentiment': True,
             'include_competitors': True,
             'focus_areas': ['pain_points', 'feedback', 'sentiment', 'communities']
@@ -902,16 +912,19 @@ def scout_custom_campaign_task(self, campaign_id: int):
         if campaign.description:
             logger.info(f"📋 Campaign Objectives: {campaign.description[:200]}")
 
-        # Prepare scout configuration using campaign-specific parameters
-        # Include campaign objectives (from description) to guide data collection
+        # Prepare scout configuration using campaign-specific parameters with full brand context
         scout_config = {
             'search_depth': 'comprehensive',
             'focus': 'custom_campaign',
-            'campaign_objectives': campaign.description if campaign.description else None,  # NEW: Pass objectives
+            'collection_months': 6,
+            'brand_description': brand.description if brand.description else '',
+            'brand_website': brand.website if brand.website else '',
+            'industry': brand.industry if brand.industry else 'general',
+            'campaign_objectives': campaign.description if campaign.description else None,
             'sources': campaign.sources if campaign.sources else [],
             'exclude_keywords': campaign.exclude_keywords if campaign.exclude_keywords else [],
             'include_sentiment': True,
-            'focus_areas': ['pain_points', 'feedback', 'sentiment', 'objectives']  # Added objectives
+            'focus_areas': ['pain_points', 'feedback', 'sentiment', 'objectives']
         }
 
         # Collect data using campaign-specific keywords

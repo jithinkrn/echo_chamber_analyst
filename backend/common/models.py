@@ -125,7 +125,7 @@ class Campaign(BaseModel):
 
     # Data collection configuration
     monitored_communities = models.JSONField(default=list, blank=True)  # Top 4 selected communities
-    collection_weeks = models.IntegerField(default=4)  # Always collect 4 weeks of data
+    collection_months = models.IntegerField(default=6)  # Collect 6 months of historical data (excluding current month)
 
     # Budget and limits
     daily_budget = models.DecimalField(max_digits=10, decimal_places=2, default=10.00)
@@ -516,8 +516,8 @@ class PainPoint(BaseModel):
         help_text='Brand this pain point is tracked for (for Brand Analytics separation)'
     )
 
-    # Temporal tracking (NEW)
-    week_number = models.IntegerField(null=True, blank=True)  # 1-4 for weekly bucketing
+    # Temporal tracking - Monthly (UPDATED from weekly)
+    month_year = models.CharField(max_length=7, null=True, blank=True)  # Format: "YYYY-MM" (e.g., "2024-03")
 
     # Metrics
     mention_count = models.IntegerField(default=0)
@@ -528,7 +528,7 @@ class PainPoint(BaseModel):
     # Context
     example_content = models.TextField(blank=True)
     related_keywords = models.JSONField(default=list)
-    
+
     # Time tracking
     first_seen = models.DateTimeField(auto_now_add=True)
     last_seen = models.DateTimeField(auto_now=True)
@@ -540,7 +540,7 @@ class PainPoint(BaseModel):
 
     class Meta:
         db_table = 'pain_points'
-        unique_together = ['keyword', 'campaign', 'community', 'week_number']
+        unique_together = ['keyword', 'campaign', 'community', 'month_year']
         ordering = ['-growth_percentage', '-mention_count']
     
     def __str__(self):
@@ -565,8 +565,8 @@ class Thread(BaseModel):
         help_text='Brand this thread is tracked for (for Brand Analytics separation)'
     )
 
-    # Temporal tracking (NEW)
-    week_number = models.IntegerField(null=True, blank=True)  # 1-4 for weekly bucketing
+    # Temporal tracking - Monthly (UPDATED from weekly)
+    month_year = models.CharField(max_length=7, null=True, blank=True)  # Format: "YYYY-MM" (e.g., "2024-03")
 
     # Thread metadata
     author = models.CharField(max_length=100)

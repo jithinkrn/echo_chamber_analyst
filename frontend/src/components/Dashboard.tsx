@@ -583,7 +583,8 @@ export default function Dashboard() {
           <CardContent>
             {(dashboardData.top_pain_points || []).length > 0 ? (
               (() => {
-                const painPoints = dashboardData.top_pain_points || [];
+                // Limit to top 5 for bar chart clarity (backend returns 10, trend chart uses all)
+                const painPoints = (dashboardData.top_pain_points || []).slice(0, 5);
                 const chartHeight = Math.max(350, painPoints.length * 65);
                 const barColors = [
                   '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6',
@@ -591,7 +592,7 @@ export default function Dashboard() {
                 ];
                 return (
                   <ResponsiveContainer width="100%" height={chartHeight}>
-                    <BarChart data={painPoints} layout="vertical" margin={{ top: 5, right: 15, left: 5, bottom: 5 }}>
+                    <BarChart data={painPoints} layout="vertical" margin={{ top: 5, right: 60, left: 5, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                       <XAxis type="number" stroke="#6b7280" style={{ fontSize: '10px' }} tick={{ dy: 5 }} />
                       <YAxis type="category" dataKey="keyword" stroke="#6b7280" style={{ fontSize: '10px' }} width={110} tick={{ dx: -5 }} />
@@ -611,7 +612,7 @@ export default function Dashboard() {
                         }} />
                       <Bar dataKey="growth_percentage" radius={[0, 4, 4, 0]}
                         label={{ position: 'right', formatter: (value: any) => `+${Number(value).toFixed(0)}%`,
-                          style: { fontSize: '11px', fontWeight: 'bold' } }}>
+                          style: { fontSize: '11px', fontWeight: 'bold' }, fill: '#374151' }}>
                         {painPoints.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={barColors[index % barColors.length]} />
                         ))}
@@ -756,7 +757,7 @@ export default function Dashboard() {
                       </ScatterChart>
                     </ResponsiveContainer>
                     <div className="text-xs text-gray-500 text-center">
-                      Bubble size and number indicate mention count • Hover for details
+                      Bubble size and number indicate total mention count (last 6 months) • Hover for details
                     </div>
                   </div>
                 );
@@ -781,7 +782,7 @@ export default function Dashboard() {
             {(dashboardData.heatmap?.time_series_pain_points || []).length > 0 ? (
               <>
                 <div className="text-xs text-gray-600 mb-3">
-                  Last 4 weeks • Tracking mention trends for top pain points
+                  Last 6 Months • Tracking mention trends for top pain points
                 </div>
                 <ResponsiveContainer width="100%" height={400}>
                   <LineChart
@@ -915,7 +916,7 @@ export default function Dashboard() {
                   <th className="text-right py-2 px-2">Echo</th>
                   <th className="text-right py-2 px-2">Δ</th>
                   <th className="text-right py-2 px-2">Activity</th>
-                  <th className="text-right py-2 px-2">4wk Threads</th>
+                  <th className="text-right py-2 px-2">6mo Threads</th>
                   <th className="text-right py-2 px-2">Engagement</th>
                   <th className="text-left py-2 px-2">Key Influencer</th>
                 </tr>
