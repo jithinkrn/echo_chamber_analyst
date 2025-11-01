@@ -92,7 +92,7 @@ interface DashboardData {
     mention_count: number;
   }>;
   community_watchlist: Array<{
-    id: number;
+    id: string;
     rank: number;
     name: string;
     platform: string;
@@ -163,6 +163,11 @@ export default function Dashboard() {
   const [communityInfluencers, setCommunityInfluencers] = useState<any[]>([]);
   const [threadsLoading, setThreadsLoading] = useState(false);
   const [influencersLoading, setInfluencersLoading] = useState(false);
+  // Pain Points Modal
+  const [showPainPointsModal, setShowPainPointsModal] = useState(false);
+  const [painPointsCommunity, setPainPointsCommunity] = useState<any>(null);
+  const [communityPainPoints, setCommunityPainPoints] = useState<any[]>([]);
+  const [painPointsLoading, setPainPointsLoading] = useState(false);
 
   useEffect(() => {
     fetchBrands();
@@ -250,6 +255,45 @@ export default function Dashboard() {
       setAnalysisSummary(null);
     } finally {
       setSummaryLoading(false);
+    }
+  };
+
+  const fetchCommunityPainPoints = async (communityId: string, communityData: any) => {
+    try {
+      setPainPointsLoading(true);
+      setPainPointsCommunity(communityData);
+      setShowPainPointsModal(true);
+
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const url = `${API_BASE_URL}/api/v1/community/${communityId}/pain-points/`;
+      
+      console.log('Fetching pain points from:', url);
+      console.log('Community ID:', communityId);
+      
+      const response = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Error response:', errorData);
+        throw new Error('Failed to fetch pain points');
+      }
+
+      const data = await response.json();
+      console.log('Pain points data received:', data);
+      console.log('Pain points count:', data.pain_points?.length || 0);
+      
+      setCommunityPainPoints(data.pain_points || []);
+    } catch (error) {
+      console.error('Error fetching pain points:', error);
+      setCommunityPainPoints([]);
+    } finally {
+      setPainPointsLoading(false);
     }
   };
 
@@ -494,7 +538,7 @@ export default function Dashboard() {
               {(dashboardData.community_watchlist || []).slice(0, 2).map((community, index) => (
                 <div key={index} className="flex justify-between items-center">
                   <span className="text-gray-700 truncate">{community.name}</span>
-                  <span className="text-gray-900 font-medium">{community.echo_score.toFixed(1)}</span>
+                  <span className="text-gray-900 font-medium">{community.echo_score?.toFixed(1) || '0.0'}</span>
                 </div>
               ))}
             </div>
@@ -519,7 +563,7 @@ export default function Dashboard() {
               {(dashboardData.top_pain_points || []).slice(0, 3).map((pp, index) => (
                 <div key={index} className="flex justify-between items-center">
                   <span className="text-gray-700 truncate">{pp.keyword}</span>
-                  <span className="text-green-600 font-medium">+{pp.growth_percentage.toFixed(0)}%</span>
+                  <span className="text-green-600 font-medium">+{pp.growth_percentage?.toFixed(0) || 0}%</span>
                 </div>
               ))}
             </div>
@@ -925,10 +969,7 @@ export default function Dashboard() {
                     <td className="py-3 px-2 font-medium">{community.rank}</td>
                     <td 
                       className="py-3 px-2 font-medium text-blue-600 cursor-pointer hover:underline"
-                      onClick={() => {
-                        // TODO: Open pain points modal
-                        console.log('Open pain points for', community.id);
-                      }}
+                      onClick={() => fetchCommunityPainPoints(community.id, community)}
                     >
                       {community.name}
                     </td>
@@ -950,7 +991,7 @@ export default function Dashboard() {
                         community.echo_score >= 40 ? 'bg-yellow-100 text-yellow-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {community.echo_score.toFixed(1)}
+                        {community.echo_score?.toFixed(1) || '0.0'}
                       </span>
                     </td>
                     <td className="py-3 px-2 text-gray-900">
@@ -1449,6 +1490,95 @@ export default function Dashboard() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pain Points Modal */}
+      {showPainPointsModal && painPointsCommunity && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => setShowPainPointsModal(false)}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-5xl w-full mx-4 max-h-[80vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold">{painPointsCommunity.name}</h2>
+                  <p className="text-blue-100 mt-1">
+                    {painPointsCommunity.platform} · {painPointsCommunity.member_count >= 1000000
+                      ? `${(painPointsCommunity.member_count / 1000000).toFixed(1)}M`
+                      : painPointsCommunity.member_count >= 1000
+                      ? `${(painPointsCommunity.member_count / 1000).toFixed(1)}k`
+                      : painPointsCommunity.member_count} members · Echo Score: {painPointsCommunity.echo_score.toFixed(1)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowPainPointsModal(false)}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
+              {painPointsLoading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600">Loading pain points...</p>
+                </div>
+              ) : communityPainPoints.length === 0 ? (
+                <div className="text-center py-12">
+                  <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">No pain points found for this community</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b-2 text-xs font-medium text-gray-600">
+                        <th className="text-left py-3 px-3">Rank</th>
+                        <th className="text-left py-3 px-3">Pain Point</th>
+                        <th className="text-right py-3 px-3">Mentions</th>
+                        <th className="text-right py-3 px-3">Sentiment</th>
+                        <th className="text-left py-3 px-3">Example</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {communityPainPoints.map((painPoint: any, index: number) => (
+                        <tr key={index} className="border-b hover:bg-gray-50 transition-colors">
+                          <td className="py-4 px-3 font-medium text-gray-700">{index + 1}</td>
+                          <td className="py-4 px-3">
+                            <span className="font-medium text-gray-900">{painPoint.keyword}</span>
+                          </td>
+                          <td className="py-4 px-3 text-right font-medium text-gray-700">
+                            {painPoint.mention_count}
+                          </td>
+                          <td className="py-4 px-3 text-right">
+                            <span className={`font-medium ${
+                              painPoint.sentiment > 0.3 ? 'text-green-600' :
+                              painPoint.sentiment < -0.3 ? 'text-red-600' :
+                              'text-gray-600'
+                            }`}>
+                              {painPoint.sentiment > 0 ? '+' : ''}{painPoint.sentiment.toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="py-4 px-3 text-sm text-gray-600 max-w-md">
+                            <div className="truncate">{painPoint.example_quote || 'N/A'}</div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

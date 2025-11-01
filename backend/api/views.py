@@ -1103,8 +1103,7 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
     all_brand_pain_points = PainPoint.objects.filter(
         brand_id=brand_id,
         campaign=automatic_campaign
-        # Removed heat_level filter to show all pain points
-    ).select_related('community').order_by('-heat_level', '-growth_percentage')
+    ).select_related('community').order_by('-mention_count', '-sentiment_score')
 
     # === TYPE A: Community × Pain Point Matrix (heat = mention count) ===
     # Show top communities with most threads/activity (even if no pain points yet)
@@ -1311,7 +1310,7 @@ def get_brand_community_watchlist(brand_id):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def get_community_pain_points(request, community_id):
     """
     Get top pain points for a specific community.
@@ -1326,8 +1325,7 @@ def get_community_pain_points(request, community_id):
         pain_points = PainPoint.objects.filter(
             community=community
         ).values(
-            'keyword', 'mention_count', 'sentiment_score', 'heat_level', 
-            'growth_percentage', 'example_content'
+            'keyword', 'mention_count', 'sentiment_score', 'example_content'
         ).order_by('-mention_count')[:10]
         
         result = []
@@ -1335,9 +1333,7 @@ def get_community_pain_points(request, community_id):
             result.append({
                 'keyword': pp['keyword'],
                 'mention_count': pp['mention_count'],
-                'sentiment_score': float(pp['sentiment_score'] or 0),
-                'severity': pp['heat_level'],
-                'trend': 'increasing' if pp['growth_percentage'] > 10 else 'stable' if pp['growth_percentage'] > -10 else 'decreasing',
+                'sentiment': float(pp['sentiment_score'] or 0),
                 'example_quote': pp['example_content'][:200] if pp['example_content'] else ''
             })
         
@@ -1355,7 +1351,7 @@ def get_community_pain_points(request, community_id):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def get_community_threads(request, community_id):
     """
     Get all threads for a specific community with URLs.
@@ -1373,16 +1369,22 @@ def get_community_threads(request, community_id):
         
         result = []
         for thread in threads:
+            # Construct URL from thread_id and platform
+            if community.platform == 'reddit':
+                url = f"https://reddit.com/comments/{thread.thread_id}"
+            else:
+                url = f"#{thread.thread_id}"  # Fallback for other platforms
+            
             result.append({
-                'id': thread.id,
+                'id': str(thread.id),
                 'title': thread.title,
-                'url': thread.url if thread.url else f"https://reddit.com/comments/{thread.thread_id}",
+                'url': url,
                 'platform': community.platform,
-                'author': thread.author,
+                'author': thread.author or 'Unknown',
                 'published_date': thread.published_at.strftime('%Y-%m-%d') if thread.published_at else 'Unknown',
                 'upvotes': thread.upvotes or 0,
                 'comment_count': thread.comment_count or 0,
-                'sentiment_score': float(thread.sentiment_score or 0),
+                'sentiment': float(thread.sentiment_score or 0),
                 'echo_score': float(thread.echo_score or 0)
             })
         
@@ -1401,7 +1403,7 @@ def get_community_threads(request, community_id):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def get_community_influencers(request, community_id):
     """
     Get top influencers for a specific community.
@@ -2081,10 +2083,6 @@ async def _store_brand_scout_data(brand, scout_results):
                     growth_percentage=pain_point_data.get('growth_percentage', 0.0),
                     sentiment_score=pain_point_data.get('sentiment_score', 0.0),
                     heat_level=pain_point_data.get('heat_level', 1),
-                    severity=pain_point_data.get('severity', 'medium'),
-                    category=pain_point_data.get('category', 'general'),
-                    trend_direction=pain_point_data.get('trend_direction', 'stable'),
-                    priority_score=pain_point_data.get('priority_score', 0.0),
                     created_at=timezone.now()
                 )
                 pain_points_created.append(pain_point)
@@ -2485,8 +2483,7 @@ def get_pain_points(request):
                 'id': pp.id,
                 'keyword': pp.keyword,
                 'mention_count': pp.mention_count,
-                'growth_percentage': pp.growth_percentage,
-                'heat_level': pp.heat_level
+                'sentiment_score': pp.sentiment_score
             }
             for pp in pain_points
         ]
@@ -2610,7 +2607,8 @@ async def _store_campaign_scout_data(campaign, scout_results):
                 defaults={
                     'mention_count': pain_point_data.get('frequency', 1),
                     'growth_percentage': 0.0,
-                    'heat_level': pain_point_data.get('severity_score', 5)
+                    'heat_level': pain_point_data.get('severity_score', 5),
+                    'sentiment_score': pain_point_data.get('sentiment', 0.0)
                 }
             )
             if created:
@@ -2888,7 +2886,7 @@ def get_campaign_detail(request, campaign_id):
                     'id': str(pp.id),
                     'keyword': pp.keyword,
                     'mention_count': pp.mention_count,
-                    'heat_level': pp.heat_level
+                    'sentiment_score': pp.sentiment_score
                 }
                 for pp in pain_points[:10]  # Top 10 pain points
             ],

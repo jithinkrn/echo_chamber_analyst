@@ -263,7 +263,7 @@ Return JSON:
       "keyword": "pain point name",
       "mention_count": count,
       "sentiment_score": float,
-      "example_quotes": ["quote1", "quote2"],
+      "example": "short quote showing this pain point",
       "severity": "high/medium/low"
     }}
   ],

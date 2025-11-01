@@ -248,12 +248,12 @@ class CommunityHeatMapSerializer(serializers.ModelSerializer):
         pain_points = PainPoint.objects.filter(
             community=obj,
             created_at__gte=datetime.now() - timedelta(days=7)
-        ).order_by('-growth_percentage')[:3]
+        ).order_by('-mention_count')[:3]
         
         return [{
             'keyword': pp.keyword,
-            'growth_percentage': pp.growth_percentage,
-            'heat_level': pp.heat_level
+            'mention_count': pp.mention_count,
+            'sentiment_score': pp.sentiment_score
         } for pp in pain_points]
 
 
@@ -262,7 +262,7 @@ class TopPainPointSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = PainPoint
-        fields = ['keyword', 'growth_percentage', 'mention_count']
+        fields = ['keyword', 'mention_count']
 
 
 class InfluencerPulseSerializer(serializers.ModelSerializer):

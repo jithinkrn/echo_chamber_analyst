@@ -519,9 +519,9 @@ class PainPoint(BaseModel):
 
     # Metrics
     mention_count = models.IntegerField(default=0)
-    growth_percentage = models.FloatField(default=0.0)
     sentiment_score = models.FloatField(default=0.0)
-    heat_level = models.IntegerField(default=1)  # 1-5 for heat map visualization
+    growth_percentage = models.FloatField(default=0.0)  # Percentage growth from previous period
+    heat_level = models.IntegerField(default=1)  # 1-5 scale for severity/urgency
 
     # Context
     example_content = models.TextField(blank=True)
@@ -542,7 +542,7 @@ class PainPoint(BaseModel):
         ordering = ['-growth_percentage', '-mention_count']
     
     def __str__(self):
-        return f"{self.keyword} (+{self.growth_percentage}%)"
+        return f"{self.keyword} (Growth: {self.growth_percentage:.1f}%, {self.mention_count} mentions)"
 
 
 class Thread(BaseModel):

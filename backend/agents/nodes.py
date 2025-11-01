@@ -932,9 +932,9 @@ def _store_real_dashboard_data(collected_data: Dict[str, Any], campaign, brand_n
                 month_year=month_year_value,  # Include in lookup for proper monthly separation
                 defaults={
                     "mention_count": pain_point_data["mention_count"],
-                    "growth_percentage": pain_point_data["growth_percentage"],
                     "sentiment_score": pain_point_data["sentiment_score"],
-                    "heat_level": pain_point_data["heat_level"],
+                    "growth_percentage": pain_point_data.get("growth_percentage", 0.0),
+                    "heat_level": pain_point_data.get("heat_level", 3),
                     "example_content": pain_point_data.get("example", "")[:500],
                     "related_keywords": pain_point_data.get("related_keywords", []),
                     "first_seen": timezone.now(),
@@ -1218,9 +1218,9 @@ def store_brand_analytics_data(collected_data: Dict[str, Any], brand, automatic_
                 defaults={
                     "brand": brand,  # Link to brand
                     "mention_count": pain_point_data["mention_count"],
-                    "growth_percentage": pain_point_data.get("growth_percentage", 0.0),
                     "sentiment_score": pain_point_data.get("sentiment_score", 0.0),
-                    "heat_level": pain_point_data.get("heat_level", 0),
+                    "growth_percentage": pain_point_data.get("growth_percentage", 0.0),
+                    "heat_level": pain_point_data.get("heat_level", 3),
                     "example_content": pain_point_data.get("example", "")[:500] if pain_point_data.get("example") else "",
                     "related_keywords": pain_point_data.get("related_keywords", []),
                     "first_seen": timezone.now(),
@@ -1431,9 +1431,9 @@ def store_custom_campaign_data(collected_data: Dict[str, Any], brand, campaign) 
                     month_year=month_year_value,  # Include in lookup
                     defaults={
                         "mention_count": pain_point_data["mention_count"],
-                        "growth_percentage": pain_point_data["growth_percentage"],
                         "sentiment_score": pain_point_data["sentiment_score"],
-                        "heat_level": pain_point_data["heat_level"],
+                        "growth_percentage": pain_point_data.get("growth_percentage", 0.0),
+                        "heat_level": pain_point_data.get("heat_level", 3),
                         "example_content": pain_point_data.get("example", "")[:500],
                         "related_keywords": pain_point_data.get("related_keywords", []),
                         "first_seen": timezone.now(),

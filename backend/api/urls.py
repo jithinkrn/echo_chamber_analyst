@@ -37,9 +37,9 @@ urlpatterns = [
     path('communities/', views.get_communities, name='get_communities'),
     
     # Community detail endpoints
-    path('community/<int:community_id>/pain-points/', views.get_community_pain_points, name='get_community_pain_points'),
-    path('community/<int:community_id>/threads/', views.get_community_threads, name='get_community_threads'),
-    path('community/<int:community_id>/influencers/', views.get_community_influencers, name='get_community_influencers'),
+    path('community/<uuid:community_id>/pain-points/', views.get_community_pain_points, name='get_community_pain_points'),
+    path('community/<uuid:community_id>/threads/', views.get_community_threads, name='get_community_threads'),
+    path('community/<uuid:community_id>/influencers/', views.get_community_influencers, name='get_community_influencers'),
     
     path('pain-points/', views.get_pain_points, name='get_pain_points'),
     path('threads/', views.get_threads, name='get_threads'),
