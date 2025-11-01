@@ -2383,15 +2383,22 @@ def get_brand_analysis_summary(request, brand_id):
     Get comprehensive analysis summary with AI-powered insights for Brand Analytics.
 
     This generates insights based on Brand Analytics data (not campaign-specific data).
+    
+    Query Parameters:
+        - force_refresh: Set to 'true' to force regeneration of AI insights (bypasses cache)
     """
     try:
         brand = Brand.objects.get(id=brand_id)
+        
+        # Check if force refresh is requested
+        force_refresh = request.GET.get('force_refresh', 'false').lower() == 'true'
 
         # Get Brand Analytics data
         brand_kpis = get_brand_dashboard_kpis(brand_id, None, None)
         brand_communities = get_brand_community_watchlist(brand_id)
         brand_pain_points = get_brand_top_pain_points(brand_id, None, None)
         brand_influencers = get_brand_influencer_pulse(brand_id)
+        brand_heatmap = get_brand_heatmap_data(brand_id, None, None)  # ✅ NEW: Get chart data
 
         # Check if we have any data
         has_data = (
@@ -2416,12 +2423,23 @@ def get_brand_analysis_summary(request, brand_id):
         ).first()
 
         ai_insights = []
-        if automatic_campaign and automatic_campaign.metadata.get('ai_insights'):
+        
+        # Check cache validity: use cached insights only if not forcing refresh and insights exist
+        use_cached = (
+            not force_refresh and 
+            automatic_campaign and 
+            automatic_campaign.metadata.get('ai_insights') and
+            len(automatic_campaign.metadata.get('ai_insights', [])) > 0
+        )
+        
+        if use_cached:
             # Use stored insights from automatic campaign
             ai_insights = automatic_campaign.metadata.get('ai_insights', [])
-            logger.info(f"📊 Retrieved {len(ai_insights)} stored AI insights for Brand Analytics")
+            logger.info(f"📊 Retrieved {len(ai_insights)} cached AI insights for Brand Analytics")
         else:
             # Generate new AI-powered insights based on Brand Analytics data
+            if force_refresh:
+                logger.info(f"🔄 Force refresh requested - regenerating AI insights with latest data")
             from agents.analyst import generate_ai_powered_insights_from_brand_analytics
 
             try:
@@ -2430,7 +2448,8 @@ def get_brand_analysis_summary(request, brand_id):
                     kpis=brand_kpis,
                     communities=brand_communities,
                     pain_points=brand_pain_points,
-                    influencers=brand_influencers
+                    influencers=brand_influencers,
+                    heatmap_data=brand_heatmap  # ✅ NEW: Pass chart data for comprehensive analysis
                 )
 
                 # Store generated insights in automatic campaign

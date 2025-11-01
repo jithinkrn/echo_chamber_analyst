@@ -916,7 +916,6 @@ export default function Dashboard() {
                   <th className="text-right py-2 px-2">Members</th>
                   <th className="text-right py-2 px-2">Echo Score</th>
                   <th className="text-left py-2 px-2">Key Influencer</th>
-                  <th className="text-center py-2 px-2">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -961,27 +960,11 @@ export default function Dashboard() {
                         </span>
                       </div>
                     </td>
-                    <td className="py-3 px-2">
-                      <div className="flex gap-2 justify-center">
-                        <button
-                          onClick={() => window.open(`/community/${community.id}/threads`, '_blank')}
-                          className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
-                        >
-                          View Threads
-                        </button>
-                        <button
-                          onClick={() => window.open(`/community/${community.id}/influencers`, '_blank')}
-                          className="px-3 py-1 text-xs font-medium text-purple-700 bg-purple-50 rounded hover:bg-purple-100 transition-colors"
-                        >
-                          View Influencers
-                        </button>
-                      </div>
-                    </td>
                   </tr>
                 ))}
                 {(!dashboardData.community_watchlist || dashboardData.community_watchlist.length === 0) && (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-gray-500">
+                    <td colSpan={6} className="py-8 text-center text-gray-500">
                       <p className="text-sm">No communities in watchlist</p>
                       <p className="text-xs mt-1">Run a campaign to discover communities</p>
                     </td>

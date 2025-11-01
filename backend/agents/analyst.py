@@ -400,7 +400,8 @@ def generate_ai_powered_insights_from_brand_analytics(
     kpis: Dict[str, Any],
     communities: List[Dict],
     pain_points: List[Dict],
-    influencers: List[Dict]
+    influencers: List[Dict],
+    heatmap_data: Dict[str, Any] = None
 ) -> List[str]:
     """
     Generate AI-powered insights based on Brand Analytics dashboard data using OpenAI o1-mini reasoning model.
@@ -414,11 +415,20 @@ def generate_ai_powered_insights_from_brand_analytics(
         communities: List of community data (from get_brand_community_watchlist)
         pain_points: List of pain point data (from get_brand_top_pain_points)
         influencers: List of influencer data (from get_brand_influencer_pulse)
+        heatmap_data: Dictionary with chart data (community_pain_point_matrix, time_series_pain_points, total_mentions_series)
 
     Returns:
         List of 6 AI-generated insight strings for dashboard display
     """
     logger.info(f"🧠 Generating AI-powered insights using OpenAI o1-mini for Brand: {brand.name}")
+    
+    # Initialize heatmap_data if not provided
+    if heatmap_data is None:
+        heatmap_data = {
+            'community_pain_point_matrix': [],
+            'time_series_pain_points': [],
+            'total_mentions_series': []
+        }
 
     try:
         from openai import OpenAI
@@ -427,7 +437,52 @@ def generate_ai_powered_insights_from_brand_analytics(
         # Initialize OpenAI client
         client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         
-        # Prepare comprehensive dashboard data summary
+        # Prepare comprehensive dashboard data summary including all chart data
+        
+        # Extract community pain point matrix insights
+        community_pain_matrix_summary = ""
+        if heatmap_data.get('community_pain_point_matrix'):
+            community_pain_matrix_summary = "\n\n📈 COMMUNITY × PAIN POINT MATRIX (from bubble chart):\n" + "─" * 60 + "\n"
+            for comm in heatmap_data['community_pain_point_matrix'][:5]:
+                community_pain_matrix_summary += f"  • {comm.get('community_name', 'Unknown')} ({comm.get('platform', 'unknown')}) - Echo Score: {comm.get('echo_score', 0):.1f}\n"
+                if comm.get('pain_points'):
+                    for pp in comm['pain_points'][:3]:
+                        community_pain_matrix_summary += f"    └─ {pp.get('keyword', 'Unknown')}: {pp.get('mention_count', 0)} mentions, +{pp.get('growth_percentage', 0):.0f}% growth, sentiment {pp.get('sentiment_score', 0):.2f}\n"
+                else:
+                    community_pain_matrix_summary += "    └─ No pain points tracked yet\n"
+        
+        # Extract time series trends
+        time_series_summary = ""
+        if heatmap_data.get('time_series_pain_points'):
+            time_series_summary = "\n\n📊 PAIN POINT TRENDS OVER TIME (6-month time series):\n" + "─" * 60 + "\n"
+            for pp_series in heatmap_data['time_series_pain_points'][:5]:
+                keyword = pp_series.get('keyword', 'Unknown')
+                total_mentions = pp_series.get('total_mentions', 0)
+                growth_rate = pp_series.get('growth_rate', 0)
+                time_series_summary += f"  • {keyword}: {total_mentions} total mentions, {growth_rate:+.1f}% MoM growth\n"
+                
+                # Show month-by-month breakdown
+                if pp_series.get('time_series'):
+                    recent_months = pp_series['time_series'][-3:]  # Last 3 months
+                    month_data = ", ".join([f"{m['label']}: {m['mention_count']}" for m in recent_months])
+                    time_series_summary += f"    └─ Recent trend: {month_data}\n"
+        
+        # Extract total mentions trend
+        total_mentions_trend = ""
+        if heatmap_data.get('total_mentions_series'):
+            total_mentions_trend = "\n\n📉 TOTAL MENTION VOLUME TREND (all pain points combined):\n" + "─" * 60 + "\n"
+            for month_data in heatmap_data['total_mentions_series']:
+                total_mentions_trend += f"  • {month_data.get('label', 'Unknown')}: {month_data.get('total_mentions', 0):,} total mentions\n"
+            
+            # Calculate overall trend
+            if len(heatmap_data['total_mentions_series']) >= 2:
+                first_month = heatmap_data['total_mentions_series'][0].get('total_mentions', 0)
+                last_month = heatmap_data['total_mentions_series'][-1].get('total_mentions', 0)
+                if first_month > 0:
+                    overall_growth = ((last_month - first_month) / first_month) * 100
+                    trend_direction = "📈 INCREASING" if overall_growth > 0 else "📉 DECREASING"
+                    total_mentions_trend += f"\n  Overall 6-month trend: {trend_direction} ({overall_growth:+.1f}%)\n"
+        
         dashboard_data = f"""BRAND ANALYTICS DASHBOARD DATA - {brand.name}
 
 INDUSTRY: {brand.industry or 'Not specified'}
@@ -480,6 +535,12 @@ Top Influencers:
               f"     └─ Advocacy Score: {inf.get('advocacy_score', 0):.1f}/10"
                for inf in influencers[:5]])}
 
+═══════════════════════════════════════════════════════════════
+{community_pain_matrix_summary}
+═══════════════════════════════════════════════════════════════
+{time_series_summary}
+═══════════════════════════════════════════════════════════════
+{total_mentions_trend}
 ═══════════════════════════════════════════════════════════════"""
 
         # Use OpenAI reasoning model for deep analysis
@@ -497,34 +558,37 @@ Top Influencers:
 ANALYSIS INSTRUCTIONS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+Analyze ALL sections including the KPIs, Community Watchlist, Pain Point Trends, Influencer Pulse, AND the chart data (Community × Pain Point Matrix, Pain Point Trends Over Time, Total Mention Volume Trend).
+
 Generate exactly 6 insights that cover:
 
-1. BRAND HEALTH ASSESSMENT: Evaluate overall brand perception based on echo scores, positivity ratio, and community engagement patterns. Identify if the brand is in a strong, moderate, or concerning position.
+1. BRAND HEALTH ASSESSMENT: Evaluate overall brand perception based on echo scores, positivity ratio, community engagement patterns, and the 6-month mention volume trend. Identify if the brand is in a strong, moderate, or concerning position. Reference specific trend data.
 
-2. COMMUNITY ENGAGEMENT OPPORTUNITIES: Analyze the community watchlist data to identify which communities present the best opportunities for brand advocacy, partnerships, or crisis management. Look for patterns in echo scores and influencer activity.
+2. COMMUNITY ENGAGEMENT OPPORTUNITIES: Analyze the community watchlist AND the Community × Pain Point Matrix to identify which communities present the best opportunities for brand advocacy, partnerships, or crisis management. Look for communities with high pain points and growing mention counts.
 
-3. PAIN POINT ANALYSIS: Examine the pain points data to identify critical customer experience issues. Prioritize by growth rate and sentiment. Suggest if these are product quality issues, service gaps, or perception problems.
+3. PAIN POINT ANALYSIS: Examine BOTH the top growing pain points list AND the time series chart data to identify critical customer experience issues. Note patterns like accelerating growth, seasonal spikes, or consistent decline. Prioritize by growth trajectory and sentiment.
 
-4. INFLUENCER STRATEGY: Evaluate the influencer landscape to identify partnership opportunities, potential brand advocates, or areas where influencer engagement is weak. Consider reach, engagement, and advocacy scores.
+4. INFLUENCER STRATEGY: Evaluate the influencer landscape to identify partnership opportunities, potential brand advocates, or areas where influencer engagement is weak. Cross-reference with community data to see which communities lack strong influencer presence.
 
-5. DATA QUALITY & COVERAGE: Assess whether the monitoring coverage is sufficient. Look for gaps (e.g., zero campaigns, missing influencers, limited communities) that suggest need for expanded data collection.
+5. TREND ANALYSIS: Use the 6-month time series data to identify patterns: Are mentions increasing or decreasing overall? Which pain points show accelerating vs. decelerating trends? Are any pain points showing seasonal patterns?
 
-6. STRATEGIC RECOMMENDATIONS: Provide prioritized action items based on the most critical findings. Focus on immediate business impact and feasibility.
+6. STRATEGIC RECOMMENDATIONS: Provide prioritized action items based on the most critical findings from ALL data sources (KPIs, charts, trends). Focus on immediate business impact and feasibility. Reference specific numbers from the time series and matrix data.
 
 FORMAT REQUIREMENTS:
 • Return ONLY 6 insights, numbered 1-6
 • Each insight must be 1-2 sentences maximum
-• Be specific with actual numbers from the data
+• Be specific with actual numbers from the data (including chart data)
+• Reference trends, growth rates, and time series patterns
 • Focus on actionable recommendations
 • Use clear, executive-level language
 • NO introductions, NO conclusions, NO preamble
 • Start directly with "1. [insight]"
 
 Example format:
-1. [First insight with specific numbers and action]
-2. [Second insight with specific numbers and action]
+1. [First insight with specific KPI numbers and trend data]
+2. [Second insight with community matrix and growth patterns]
 ...
-6. [Sixth insight with specific numbers and action]"""
+6. [Sixth insight with time series insights and strategic action]"""
                     }
                 ]
             )
@@ -546,15 +610,23 @@ Example format:
 {dashboard_data}
 
 ANALYSIS INSTRUCTIONS:
-Generate exactly 6 insights covering: brand health assessment, community engagement opportunities, pain point analysis, influencer strategy, data quality assessment, and strategic recommendations.
+Analyze ALL sections including KPIs, Community Watchlist, Pain Point Trends, Influencer Pulse, AND chart data (Community × Pain Point Matrix, Pain Point Trends Over Time, Total Mention Volume Trend).
 
-FORMAT: Return ONLY 6 insights, numbered 1-6. Each must be 1-2 sentences maximum. Be specific with actual numbers from the data. Focus on actionable recommendations.
+Generate exactly 6 insights covering:
+1. Brand health with 6-month trend analysis
+2. Community engagement using matrix data
+3. Pain point analysis with time series patterns
+4. Influencer strategy
+5. Trend patterns from time series
+6. Strategic recommendations with chart insights
+
+FORMAT: Return ONLY 6 insights, numbered 1-6. Each must be 1-2 sentences maximum. Reference specific numbers from KPIs AND chart data (trends, growth rates, time series). Focus on actionable recommendations.
 
 Example:
-1. [insight with numbers and action]
-2. [insight with numbers and action]
+1. [insight with KPI and trend numbers]
+2. [insight with matrix and growth data]
 ...
-6. [insight with numbers and action]"""
+6. [insight with time series patterns and action]"""
                     }
                 ],
                 temperature=0.7,
