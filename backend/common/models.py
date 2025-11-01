@@ -540,7 +540,7 @@ class PainPoint(BaseModel):
 
     class Meta:
         db_table = 'pain_points'
-        unique_together = ['keyword', 'campaign', 'community']
+        unique_together = ['keyword', 'campaign', 'community', 'week_number']
         ordering = ['-growth_percentage', '-mention_count']
     
     def __str__(self):

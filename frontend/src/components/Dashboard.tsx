@@ -639,33 +639,77 @@ export default function Dashboard() {
               (() => {
                 const communities = dashboardData.heatmap?.community_pain_point_matrix || [];
                 const painPointColors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4'];
-                const chartData: any[] = [];
+
+                // Create unique lists for communities and pain points
+                const communityList = communities.map(c => c.community_name);
                 const painPointsSet = new Set<string>();
-                communities.forEach((community, commIdx) => {
-                  (community.pain_points || []).forEach((pp, ppIdx) => {
+                communities.forEach(community => {
+                  (community.pain_points || []).forEach(pp => {
                     painPointsSet.add(pp.keyword);
+                  });
+                });
+                const painPointsList = Array.from(painPointsSet);
+
+                // Create lookup maps for indices
+                const communityIndexMap: Record<string, number> = {};
+                communityList.forEach((name, idx) => {
+                  communityIndexMap[name] = idx;
+                });
+                const painPointIndexMap: Record<string, number> = {};
+                painPointsList.forEach((pp, idx) => {
+                  painPointIndexMap[pp] = idx;
+                });
+
+                // Build chart data with numeric indices
+                const chartData: any[] = [];
+                communities.forEach((community) => {
+                  (community.pain_points || []).forEach((pp) => {
                     chartData.push({
-                      community: community.community_name, communityIndex: commIdx,
-                      painPoint: pp.keyword, painPointIndex: ppIdx,
-                      mentions: pp.mention_count, sentiment: pp.sentiment_score,
+                      community: community.community_name,
+                      communityIndex: communityIndexMap[community.community_name],
+                      painPoint: pp.keyword,
+                      painPointIndex: painPointIndexMap[pp.keyword],
+                      mentions: pp.mention_count,
+                      sentiment: pp.sentiment_score,
                       growth: pp.growth_percentage
                     });
                   });
                 });
-                const painPointsList = Array.from(painPointsSet);
+
                 const painPointColorMap: Record<string, string> = {};
                 painPointsList.forEach((pp, idx) => {
                   painPointColorMap[pp] = painPointColors[idx % painPointColors.length];
                 });
+
                 return (
                   <div className="space-y-2">
                     <ResponsiveContainer width="100%" height={400}>
                       <ScatterChart margin={{ top: 10, right: 10, left: 10, bottom: 60 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis type="category" dataKey="community" name="Community" allowDuplicatedCategory={false}
-                          stroke="#6b7280" angle={-45} textAnchor="end" height={60} interval={0} style={{ fontSize: '11px' }} />
-                        <YAxis type="category" dataKey="painPoint" name="Pain Point" allowDuplicatedCategory={false}
-                          stroke="#6b7280" style={{ fontSize: '11px' }} width={100} />
+                        <XAxis
+                          type="number"
+                          dataKey="communityIndex"
+                          name="Community"
+                          domain={[0, communityList.length - 1]}
+                          ticks={communityList.map((_, idx) => idx)}
+                          tickFormatter={(value) => communityList[value] || ''}
+                          stroke="#6b7280"
+                          angle={-45}
+                          textAnchor="end"
+                          height={60}
+                          style={{ fontSize: '11px' }}
+                        />
+                        <YAxis
+                          type="number"
+                          dataKey="painPointIndex"
+                          name="Pain Point"
+                          domain={[0, painPointsList.length - 1]}
+                          ticks={painPointsList.map((_, idx) => idx)}
+                          tickFormatter={(value) => painPointsList[value] || ''}
+                          stroke="#6b7280"
+                          style={{ fontSize: '11px' }}
+                          width={100}
+                        />
                         <ZAxis type="number" dataKey="mentions" range={[200, 2000]} name="Mentions" />
                         <Tooltip cursor={{ strokeDasharray: '3 3' }}
                           content={({ active, payload }) => {
@@ -694,23 +738,21 @@ export default function Dashboard() {
                               ))}
                             </div>
                           )} />
-                        {painPointsList.map((painPoint) => {
-                          const ppData = chartData.filter(d => d.painPoint === painPoint);
-                          return (
-                            <Scatter key={painPoint} name={painPoint} data={ppData} fill={painPointColorMap[painPoint]}
-                              shape={(props: any) => {
-                                const { cx, cy, fill, payload } = props;
-                                const radius = Math.sqrt(payload.mentions) * 2.5;
-                                return (
-                                  <g>
-                                    <circle cx={cx} cy={cy} r={radius} fill={fill} opacity={0.8} />
-                                    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
-                                      fill="white" fontSize="11" fontWeight="bold">{payload.mentions}</text>
-                                  </g>
-                                );
-                              }} />
-                          );
-                        })}
+                        <Scatter
+                          data={chartData}
+                          shape={(props: any) => {
+                            const { cx, cy, payload } = props;
+                            const radius = Math.sqrt(payload.mentions) * 2.5;
+                            const fill = painPointColorMap[payload.painPoint];
+                            return (
+                              <g>
+                                <circle cx={cx} cy={cy} r={radius} fill={fill} opacity={0.8} />
+                                <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
+                                  fill="white" fontSize="11" fontWeight="bold">{payload.mentions}</text>
+                              </g>
+                            );
+                          }}
+                        />
                       </ScatterChart>
                     </ResponsiveContainer>
                     <div className="text-xs text-gray-500 text-center">

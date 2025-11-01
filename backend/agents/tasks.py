@@ -97,13 +97,36 @@ def scout_reddit_task(self, campaign_id: Optional[int] = None, config: Optional[
                     logger.warning(f"Campaign {campaign.id} has no associated brand")
                     continue
 
-                # Prepare scout configuration
+                # Prepare scout configuration - OPTIMIZED
                 scout_config = config or {
+                    # Existing config
                     'search_depth': 'comprehensive',
                     'focus': 'comprehensive',
                     'include_sentiment': True,
                     'include_competitors': True,
-                    'focus_areas': ['pain_points', 'feedback', 'sentiment']
+                    'focus_areas': ['pain_points', 'feedback', 'sentiment'],
+
+                    # Token optimization (Phase 1 & 2)
+                    'max_communities': 10,  # Increased from 4
+                    'threads_per_community': 20,  # More threads collected
+                    'relevance_threshold': 3,  # Min score for quality filter
+                    'max_threads_to_analyze': 50,  # Cap on expensive LLM analysis
+
+                    # Source diversity (Phase 1 & 2)
+                    'max_forum_sites': 5,  # Equal priority to forums
+                    'max_queries_per_forum': 3,
+                    'max_results_per_forum': 4,
+                    'min_threads_per_source': 5,  # Minimum from each source type
+                    'ensure_source_diversity': True,
+
+                    # Pain point tracking (Phase 3)
+                    'track_pain_points_by_week': True,
+                    'pain_point_weeks': 4,
+
+                    # LLM optimization (Phase 4)
+                    'use_batch_llm_processing': True,
+                    'batch_size': 10,
+                    'use_summary_based_insights': True,
                 }
 
                 # Collect real brand data

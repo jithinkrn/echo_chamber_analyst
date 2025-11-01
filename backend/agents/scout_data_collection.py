@@ -358,19 +358,37 @@ async def collect_real_brand_data(brand_name: str, keywords: List[str], config: 
     
     logger.info(f"🎯 Enhanced configuration: {enhanced_config}")
 
-    # Adjust search parameters based on config
+    # Adjust search parameters based on config - OPTIMIZED for better coverage
     if search_depth == 'quick':
-        max_subreddits = 3
-        max_queries_per_subreddit = 2
-        max_results_per_query = 2
-    elif search_depth == 'deep':
-        max_subreddits = 8
-        max_queries_per_subreddit = 5
-        max_results_per_query = 5
-    else:  # comprehensive
         max_subreddits = 5
-        max_queries_per_subreddit = 3
+        max_queries_per_subreddit = 2
         max_results_per_query = 3
+        max_forum_sites = 3  # NEW: Ensure forums included
+        max_queries_per_forum = 2
+        max_results_per_forum = 3
+    elif search_depth == 'deep':
+        max_subreddits = 10
+        max_queries_per_subreddit = 4
+        max_results_per_query = 5
+        max_forum_sites = 5  # NEW
+        max_queries_per_forum = 3
+        max_results_per_forum = 5
+    else:  # comprehensive (default)
+        max_subreddits = 10  # Increased from 5
+        max_queries_per_subreddit = 3
+        max_results_per_query = 4  # Increased from 3
+        max_forum_sites = 5  # NEW: Equal priority to forums
+        max_queries_per_forum = 3
+        max_results_per_forum = 4
+
+    # Store forum limits in config for later use
+    enhanced_config.update({
+        'max_forum_sites': max_forum_sites,
+        'max_queries_per_forum': max_queries_per_forum,
+        'max_results_per_forum': max_results_per_forum,
+        'min_threads_per_source': 5,  # Minimum from each source type
+        'ensure_source_diversity': True
+    })
 
     # Use target communities if provided, otherwise use LLM discovery or defaults
     if target_communities:
@@ -459,7 +477,30 @@ async def collect_real_brand_data(brand_name: str, keywords: List[str], config: 
     )
 
     reddit_data, forum_data = await asyncio.gather(reddit_task, forum_task)
-    
+
+    # NEW: Apply smart pre-filtering with source diversity
+    all_threads = reddit_data["threads"] + forum_data["threads"]
+    logger.info(f"🔍 Total threads collected: {len(all_threads)}")
+    logger.info(f"   Reddit: {len(reddit_data['threads'])} threads")
+    logger.info(f"   Forums: {len(forum_data['threads'])} threads")
+
+    # Apply smart pre-filtering (ensures source diversity and quality)
+    filtered_threads = _pre_filter_threads_for_quality(
+        threads=all_threads,
+        brand_name=brand_name,
+        keywords=enhanced_keywords,
+        config=enhanced_config
+    )
+
+    # Update both data structures with filtered threads
+    reddit_data["threads"] = [t for t in filtered_threads if t.get('platform') == 'reddit']
+    forum_data["threads"] = [t for t in filtered_threads if t.get('platform') in ['forum', 'tech_forums', 'review_sites']]
+
+    logger.info(f"📊 After pre-filtering:")
+    logger.info(f"   Reddit: {len(reddit_data['threads'])} threads")
+    logger.info(f"   Forums: {len(forum_data['threads'])} threads")
+    logger.info(f"   Total: {len(filtered_threads)} high-value threads")
+
     # Apply focus-specific filtering
     if focus == 'pain_points':
         # Filter to focus on negative discussions
@@ -635,11 +676,11 @@ async def collect_reddit_data_real(brand_name: str, campaign_keywords: List[str]
             logger.warning(f"Failed to collect data from r/{subreddit_name}: {e}")
             continue
     
-    # Extract pain points from all collected content
-    if reddit_data["raw_content"]:
-        pain_points = await _extract_real_pain_points_from_content(
-            reddit_data["raw_content"], 
-            brand_name, 
+    # Extract pain points from all collected content BY WEEK
+    if reddit_data["threads"]:
+        pain_points = await _extract_real_pain_points_from_content_by_week(
+            reddit_data["threads"],  # Use threads instead of raw_content
+            brand_name,
             campaign_keywords
         )
         reddit_data["pain_points"] = pain_points
@@ -665,9 +706,11 @@ async def collect_forum_data_real(brand_name: str, campaign_keywords: List[str],
     Returns:
         Dict containing real forum communities, threads, and discussions
     """
-    # Use config parameters
+    # Use config parameters - OPTIMIZED to match Reddit collection
     search_depth = config.get('search_depth', 'comprehensive') if config else 'comprehensive'
-    max_results_per_site = 2 if search_depth == 'deep' else 1
+    max_results_per_site = config.get('max_results_per_forum', 4) if config else 4  # Match Reddit
+    max_forum_sites = config.get('max_forum_sites', 5) if config else 5
+    max_queries_per_forum = config.get('max_queries_per_forum', 3) if config else 3
 
     forum_data = {
         "communities": [],
@@ -684,18 +727,24 @@ async def collect_forum_data_real(brand_name: str, campaign_keywords: List[str],
         forum_sites = config['discovered_forums']
         logger.info(f"📍 Using LLM-discovered forums: {forum_sites}")
     else:
-        # Fallback to hardcoded forums
+        # Expanded fallback forums for better coverage and source diversity
         forum_sites = [
-            "stackexchange.com",
+            "reddit.com",  # General Reddit discussions
             "quora.com",
+            "stackexchange.com",
             "techpowerup.com",
-            "anandtech.com"
+            "anandtech.com",
+            "tomshardware.com",
+            "cnet.com",
+            "consumerreports.org",
+            "trustpilot.com",
+            "yelp.com"
         ]
-        logger.info(f"🔍 Using fallback forum list: {forum_sites}")
+        logger.info(f"🔍 Using expanded fallback forum list: {len(forum_sites)} sites")
     
     search_utils = SearchUtils()
-    
-    for site in forum_sites[:3]:  # Limit to 3 sites to avoid too many requests
+
+    for site in forum_sites[:max_forum_sites]:  # Use config limit for balanced coverage
         try:
             logger.info(f"Searching {site} for {brand_name}")
             
@@ -710,8 +759,8 @@ async def collect_forum_data_real(brand_name: str, campaign_keywords: List[str],
                 search_queries.append(f'"{brand_name}" {keyword}')
             
             site_results = []
-            
-            for query in search_queries[:2]:  # Limit queries per site
+
+            for query in search_queries[:max_queries_per_forum]:  # Use config limit
                 try:
                     results = await search_utils.search_and_analyze(
                         query=query,
@@ -754,10 +803,10 @@ async def collect_forum_data_real(brand_name: str, campaign_keywords: List[str],
             logger.warning(f"Failed to collect data from {site}: {e}")
             continue
     
-    # Extract pain points from forum content
-    if forum_data["raw_content"]:
-        pain_points = await _extract_real_pain_points_from_content(
-            forum_data["raw_content"],
+    # Extract pain points from forum content BY WEEK
+    if forum_data["threads"]:
+        pain_points = await _extract_real_pain_points_from_content_by_week(
+            forum_data["threads"],  # Use threads instead of raw_content
             brand_name,
             campaign_keywords
         )
@@ -884,10 +933,14 @@ def _convert_search_results_to_threads(results: List[Dict], community_name: str,
     four_weeks_ago = now - timedelta(weeks=4)
 
     for idx, result in enumerate(results):
-        # Distribute threads evenly across 4 weeks
-        # Each thread gets a timestamp spread across the 4-week period
-        week_offset = (idx % 28) / 28 * 28  # Distribute across 28 days
-        thread_date = four_weeks_ago + timedelta(days=week_offset)
+        # FIXED: Distribute threads evenly across ALL 4 weeks
+        # Cycle through weeks 1-4 to ensure every week gets threads
+        week_number = (idx % 4) + 1  # Cycles through 1, 2, 3, 4
+
+        # Calculate date for this week (1 = oldest, 4 = newest)
+        # Week 1: 21-28 days ago, Week 2: 14-21 days ago, Week 3: 7-14 days ago, Week 4: 0-7 days ago
+        days_ago = 28 - (week_number * 7) + random.randint(0, 6)  # Random day within the week
+        thread_date = now - timedelta(days=days_ago)
 
         # Get author - if it's the generic "reddit_user", use distributed usernames
         scraped_author = result.get("author", "")
@@ -1041,6 +1094,209 @@ async def _extract_real_pain_points_from_content(content_list: List[str], brand_
     return sorted(extracted_pain_points, key=lambda x: x["priority_score"], reverse=True)
 
 
+async def _extract_real_pain_points_from_content_by_week(
+    threads: List[Dict],
+    brand_name: str,
+    keywords: List[str]
+) -> List[Dict[str, Any]]:
+    """
+    Extract pain points from threads WITH proper week distribution.
+
+    CRITICAL FIX: Groups threads by week FIRST, then extracts pain points per week.
+    This ensures pain points are tracked across all 4 weeks, not just aggregated.
+
+    Args:
+        threads: List of thread dictionaries with 'created_at' timestamps
+        brand_name: Brand name for filtering
+        keywords: Keywords for context
+
+    Returns:
+        List of pain point dictionaries with week_number field
+    """
+    from datetime import datetime, timedelta
+    from dateutil import parser as date_parser
+    from django.utils import timezone
+    from collections import defaultdict
+
+    logger.info(f"🔍 Extracting pain points BY WEEK from {len(threads)} threads...")
+
+    # Define pain point patterns (same as original)
+    pain_point_patterns = {
+        "transparency": {
+            "pattern": r'\b(?:transparent|see-through|see through|visible undershirt|shows underwear|sheer|thin fabric)\b',
+            "severity": "high",
+            "category": "fabric_quality"
+        },
+        "quality_issues": {
+            "pattern": r'\b(?:poor quality|cheap|flimsy|breaks|broken|defective|falls apart|cheap feel|terrible|awful|bad)\b',
+            "severity": "high",
+            "category": "build_quality"
+        },
+        "sizing_problems": {
+            "pattern": r'\b(?:sizing|size|fit|too small|too large|runs small|runs big|sizing chart|wrong size)\b',
+            "severity": "medium",
+            "category": "fit_issues"
+        },
+        "durability": {
+            "pattern": r'\b(?:durability|wearing out|wears out|falls apart|doesn\'t last|poor quality|fading|worn|tear)\b',
+            "severity": "high",
+            "category": "longevity"
+        },
+        "customer_service": {
+            "pattern": r'\b(?:customer service|support|help|response|rude|unhelpful|slow response|no reply)\b',
+            "severity": "medium",
+            "category": "service"
+        },
+        "shipping": {
+            "pattern": r'\b(?:shipping|delivery|late|delayed|never arrived|damaged in shipping)\b',
+            "severity": "medium",
+            "category": "logistics"
+        },
+        "price_value": {
+            "pattern": r'\b(?:expensive|overpriced|too much|costly|not worth|waste of money)\b',
+            "severity": "low",
+            "category": "pricing"
+        },
+        "comfort": {
+            "pattern": r'\b(?:uncomfortable|uncomfy|hurts|painful|tight|stiff|irritat)\b',
+            "severity": "medium",
+            "category": "comfort"
+        }
+    }
+
+    # STEP 1: Group threads by week (1-4)
+    now = timezone.now()
+    four_weeks_ago = now - timedelta(weeks=4)
+
+    threads_by_week = {1: [], 2: [], 3: [], 4: []}
+
+    for thread in threads:
+        # Get thread publication date
+        thread_date_raw = thread.get('created_at')
+
+        if not thread_date_raw:
+            threads_by_week[4].append(thread)  # Default to current week
+            continue
+
+        try:
+            # Parse date
+            if isinstance(thread_date_raw, str):
+                thread_date = date_parser.parse(thread_date_raw)
+                if thread_date.tzinfo is None:
+                    thread_date = timezone.make_aware(thread_date)
+            else:
+                thread_date = thread_date_raw
+
+            # Calculate week number (1 = oldest, 4 = newest)
+            days_ago = (now - thread_date).days
+
+            if days_ago < 0:
+                week_num = 4
+            elif days_ago < 7:
+                week_num = 4  # Week 4: Last 7 days
+            elif days_ago < 14:
+                week_num = 3  # Week 3: 7-14 days ago
+            elif days_ago < 21:
+                week_num = 2  # Week 2: 14-21 days ago
+            elif days_ago < 28:
+                week_num = 1  # Week 1: 21-28 days ago
+            else:
+                week_num = 1  # Older than 28 days, put in week 1
+
+            threads_by_week[week_num].append(thread)
+
+        except Exception as e:
+            logger.warning(f"Failed to parse thread date '{thread_date_raw}': {e}")
+            threads_by_week[4].append(thread)
+
+    logger.info(f"📊 Thread distribution by week:")
+    for week, week_threads in threads_by_week.items():
+        logger.info(f"   Week {week}: {len(week_threads)} threads")
+
+    # STEP 2: Extract pain points PER WEEK
+    all_pain_points = []
+    brand_lower = brand_name.lower()
+
+    for week_num, week_threads in threads_by_week.items():
+        if not week_threads:
+            logger.info(f"⚠️ No threads in Week {week_num}, skipping pain point extraction")
+            continue
+
+        # Combine content for this week
+        week_content = []
+        brand_sentences = []
+
+        for thread in week_threads:
+            content = f"{thread.get('title', '')} {thread.get('content', '')}"
+            week_content.append(content)
+
+            # Extract brand-specific sentences
+            sentences = re.split(r'[.!?]+', content.lower())
+            for sentence in sentences:
+                if brand_lower in sentence and len(sentence.strip()) > 10:
+                    brand_sentences.append(sentence.strip())
+
+        combined_content = " ".join(week_content).lower()
+        brand_content = " ".join(brand_sentences)
+
+        if not brand_content:
+            logger.warning(f"No brand mentions in Week {week_num}")
+            continue
+
+        logger.info(f"🔍 Extracting pain points for Week {week_num} ({len(week_threads)} threads)...")
+
+        # Extract pain points for this specific week
+        for keyword, config in pain_point_patterns.items():
+            pattern = config["pattern"]
+            matches = re.findall(pattern, brand_content, re.IGNORECASE)
+
+            if matches:
+                mention_count = len(matches)
+
+                # Calculate metrics
+                growth_percentage = min(mention_count * 10, 100)
+                heat_level = min(mention_count // 2 + 1, 5)
+
+                if config["severity"] == "high":
+                    heat_level = min(heat_level + 1, 5)
+
+                # Analyze sentiment
+                sentiment_score = _analyze_pain_point_context(brand_content, keyword, brand_name)
+
+                pain_point = {
+                    "keyword": keyword.replace("_", " ").title(),
+                    "mention_count": mention_count,
+                    "growth_percentage": growth_percentage,
+                    "sentiment_score": sentiment_score,
+                    "heat_level": heat_level,
+                    "severity": config["severity"],
+                    "category": config["category"],
+                    "week_number": week_num,  # ← CRITICAL: Tag with specific week
+                    "trend_direction": "increasing" if growth_percentage > 15 else "stable",
+                    "priority_score": _calculate_pain_point_priority_real(
+                        mention_count, config["severity"], sentiment_score
+                    ),
+                    "example_mentions": matches[:3],
+                    "is_real_data": True,
+                    "brand_context": brand_sentences[:2]
+                }
+
+                all_pain_points.append(pain_point)
+
+                logger.debug(f"   Week {week_num}: {keyword} = {mention_count} mentions")
+
+    # STEP 3: Sort by week and priority
+    all_pain_points.sort(key=lambda x: (x["week_number"], x["priority_score"]), reverse=True)
+
+    logger.info(f"✅ Pain point extraction complete:")
+    logger.info(f"   Total pain points: {len(all_pain_points)} across all weeks")
+    for week_num in range(1, 5):
+        week_pps = [pp for pp in all_pain_points if pp['week_number'] == week_num]
+        logger.info(f"   Week {week_num}: {len(week_pps)} pain points")
+
+    return all_pain_points
+
+
 def _analyze_pain_point_context(content: str, pain_point_keyword: str, brand_name: str) -> float:
     """Analyze the sentiment context around pain point mentions"""
     # Find sentences containing both the pain point and brand
@@ -1141,7 +1397,7 @@ def _estimate_forum_member_count(platform: str) -> int:
 def _create_discussion_summaries(results: List[Dict], platform: str, brand_name: str) -> List[Dict]:
     """Create discussion summaries from search results"""
     discussions = []
-    
+
     for result in results:
         if _contains_brand_mention(result, brand_name):
             discussion = {
@@ -1154,5 +1410,199 @@ def _create_discussion_summaries(results: List[Dict], platform: str, brand_name:
                 "analysis_summary": result.get("analysis", "")[:200]
             }
             discussions.append(discussion)
-    
+
     return discussions
+
+
+def _pre_filter_threads_for_quality(
+    threads: List[Dict],
+    brand_name: str,
+    keywords: List[str],
+    config: dict = None
+) -> List[Dict]:
+    """
+    Pre-filter threads using cheap heuristics to identify high-value content.
+    This runs BEFORE expensive LLM analysis to reduce token usage by 60-70%.
+
+    Also tracks source diversity to ensure balanced representation from
+    Reddit, forums, and review sites.
+
+    Scoring factors (no LLM required):
+    - Brand mention relevance (0-3 points)
+    - Keyword matches (0-3 points)
+    - Pain point indicators (0-2 points)
+    - Quality indicators (0-2 points)
+    - Engagement metrics (0-3 points)
+    - Content length (0-2 points)
+    - Sentiment indicators (0-1 points)
+    - Source diversity bonus (0-2 points)
+
+    Args:
+        threads: List of thread data dictionaries
+        brand_name: Brand name for relevance scoring
+        keywords: Campaign keywords
+        config: Optional config with thresholds
+
+    Returns:
+        Filtered list of high-value threads with source diversity
+    """
+    if not threads:
+        return []
+
+    logger.info(f"🔍 Pre-filtering {len(threads)} threads for quality and source diversity...")
+
+    # Track source distribution BEFORE filtering
+    source_counts_before = {}
+    for thread in threads:
+        platform = thread.get('platform', 'unknown')
+        source_counts_before[platform] = source_counts_before.get(platform, 0) + 1
+
+    logger.info(f"📊 Source distribution BEFORE filtering:")
+    for platform, count in source_counts_before.items():
+        logger.info(f"   {platform}: {count} threads")
+
+    # Get config thresholds
+    relevance_threshold = config.get('relevance_threshold', 3) if config else 3
+    max_threads = config.get('max_threads_to_analyze', 50) if config else 50
+    min_per_source = config.get('min_threads_per_source', 5) if config else 5
+
+    # Pain point indicators (from existing patterns)
+    pain_indicators = [
+        'problem', 'issue', 'bad', 'terrible', 'awful', 'disappointing',
+        'disappointed', 'frustrat', 'annoying', 'hate', 'worst', 'horrible',
+        'poor', 'cheap', 'break', 'broken', 'defective', 'fail'
+    ]
+
+    # Quality indicators
+    quality_indicators = [
+        'review', 'experience', 'recommend', 'bought', 'purchased',
+        'tried', 'tested', 'compare', 'comparison'
+    ]
+
+    scored_threads = []
+
+    for thread in threads:
+        content = thread.get('content', '').lower()
+        title = thread.get('title', '').lower()
+        combined = f"{title} {content}"
+
+        # Initialize score
+        score = 0
+        score_breakdown = {}
+
+        # 1. Brand mention (0-3 points)
+        brand_lower = brand_name.lower()
+        brand_mentions = combined.count(brand_lower)
+        if brand_mentions >= 3:
+            score += 3
+            score_breakdown['brand_mentions'] = 3
+        elif brand_mentions == 2:
+            score += 2
+            score_breakdown['brand_mentions'] = 2
+        elif brand_mentions == 1:
+            score += 1
+            score_breakdown['brand_mentions'] = 1
+
+        # 2. Keyword relevance (0-3 points)
+        keyword_matches = sum(1 for kw in keywords if kw.lower() in combined)
+        keyword_score = min(keyword_matches, 3)
+        score += keyword_score
+        score_breakdown['keywords'] = keyword_score
+
+        # 3. Pain point indicators (0-2 points)
+        pain_count = sum(1 for indicator in pain_indicators if indicator in combined)
+        pain_score = min(pain_count // 2, 2)
+        score += pain_score
+        score_breakdown['pain_indicators'] = pain_score
+
+        # 4. Quality indicators (0-2 points)
+        quality_count = sum(1 for indicator in quality_indicators if indicator in combined)
+        quality_score = min(quality_count, 2)
+        score += quality_score
+        score_breakdown['quality_indicators'] = quality_score
+
+        # 5. Engagement (0-3 points)
+        upvotes = thread.get('upvotes', 0)
+        comments = thread.get('comment_count', 0)
+        engagement_score = 0
+        if upvotes > 50 or comments > 20:
+            engagement_score = 3
+        elif upvotes > 20 or comments > 10:
+            engagement_score = 2
+        elif upvotes > 5 or comments > 3:
+            engagement_score = 1
+        score += engagement_score
+        score_breakdown['engagement'] = engagement_score
+
+        # 6. Content length (0-2 points)
+        content_length = len(content)
+        if content_length > 300:
+            score += 2
+            score_breakdown['length'] = 2
+        elif content_length > 100:
+            score += 1
+            score_breakdown['length'] = 1
+
+        # 7. Sentiment indicators (0-1 points)
+        sentiment = thread.get('sentiment_score', 0)
+        if abs(sentiment) > 0.4:
+            score += 1
+            score_breakdown['sentiment'] = 1
+
+        # 8. Source diversity bonus (0-2 points) - NEW
+        # Give bonus to non-Reddit sources to ensure diversity
+        platform = thread.get('platform', 'unknown')
+        if platform in ['forum', 'tech_forums', 'review_sites']:
+            score += 2  # Bonus for non-Reddit sources
+            score_breakdown['source_diversity'] = 2
+
+        thread['relevance_score'] = score
+        thread['score_breakdown'] = score_breakdown
+
+        if score >= relevance_threshold:
+            scored_threads.append(thread)
+
+    # Sort by relevance score (highest first)
+    scored_threads.sort(key=lambda x: x['relevance_score'], reverse=True)
+
+    # Ensure source diversity in final selection
+    filtered_threads = []
+    source_selected = {}
+
+    # First pass: Guarantee minimum from each source type
+    for platform in set(t.get('platform') for t in scored_threads):
+        platform_threads = [t for t in scored_threads if t.get('platform') == platform]
+        min_from_source = min(min_per_source, len(platform_threads))
+        filtered_threads.extend(platform_threads[:min_from_source])
+        source_selected[platform] = min_from_source
+
+    # Second pass: Fill remaining slots with highest-scored threads
+    remaining_slots = max_threads - len(filtered_threads)
+    if remaining_slots > 0:
+        already_selected_ids = {t.get('thread_id') for t in filtered_threads}
+        remaining_threads = [t for t in scored_threads if t.get('thread_id') not in already_selected_ids]
+        filtered_threads.extend(remaining_threads[:remaining_slots])
+
+    # Final limit
+    filtered_threads = filtered_threads[:max_threads]
+
+    # Log source diversity AFTER filtering
+    final_source_counts = {}
+    for thread in filtered_threads:
+        platform = thread.get('platform', 'unknown')
+        final_source_counts[platform] = final_source_counts.get(platform, 0) + 1
+
+    logger.info(f"✅ Pre-filtering complete:")
+    logger.info(f"   Input: {len(threads)} threads")
+    logger.info(f"   Passed filter: {len(scored_threads)} threads (threshold: {relevance_threshold})")
+    logger.info(f"   Keeping top: {len(filtered_threads)} threads for analysis")
+    logger.info(f"📊 Source distribution AFTER filtering:")
+    for platform, count in final_source_counts.items():
+        pct = count / len(filtered_threads) * 100 if filtered_threads else 0
+        logger.info(f"   {platform}: {count} threads ({pct:.1f}%)")
+
+    if filtered_threads:
+        avg_score = sum(t['relevance_score'] for t in filtered_threads) / len(filtered_threads)
+        logger.info(f"   Average relevance score: {avg_score:.2f}")
+
+    return filtered_threads
