@@ -688,7 +688,6 @@ export default function Dashboard() {
                                 <p className="font-bold text-gray-900">{data.keyword}</p>
                                 <p className="text-gray-700">Recent mentions: <span className="font-medium text-red-600">{data.recent_avg_mentions}</span>/month avg</p>
                                 <p className="text-gray-700">Total mentions: <span className="font-medium">{data.mention_count}</span></p>
-                                <p className="text-gray-700">Growth: <span className="font-medium text-green-600">+{data.growth_percentage.toFixed(1)}%</span></p>
                               </div>
                             );
                           }
@@ -805,7 +804,6 @@ export default function Dashboard() {
                                   <p className="font-bold text-gray-900">{data.community}</p>
                                   <p className="text-gray-700">Pain Point: <span className="font-medium">{data.painPoint}</span></p>
                                   <p className="text-gray-700">Mentions: <span className="font-medium">{data.mentions}</span></p>
-                                  <p className="text-gray-700">Growth: <span className="font-medium text-green-600">+{data.growth.toFixed(1)}%</span></p>
                                   <p className="text-gray-700">Sentiment: <span className="font-medium">{data.sentiment.toFixed(2)}</span></p>
                                 </div>
                               );
