@@ -686,15 +686,16 @@ export default function Dashboard() {
                             return (
                               <div className="bg-white p-3 border border-gray-200 rounded shadow-lg text-xs">
                                 <p className="font-bold text-gray-900">{data.keyword}</p>
+                                <p className="text-gray-700">Recent mentions: <span className="font-medium text-red-600">{data.recent_avg_mentions}</span>/month avg</p>
+                                <p className="text-gray-700">Total mentions: <span className="font-medium">{data.mention_count}</span></p>
                                 <p className="text-gray-700">Growth: <span className="font-medium text-green-600">+{data.growth_percentage.toFixed(1)}%</span></p>
-                                <p className="text-gray-700">Mentions: <span className="font-medium">{data.mention_count}</span></p>
                               </div>
                             );
                           }
                           return null;
                         }} />
-                      <Bar dataKey="growth_percentage" radius={[0, 4, 4, 0]}
-                        label={{ position: 'right', formatter: (value: any) => `+${Number(value).toFixed(0)}%`,
+                      <Bar dataKey="recent_avg_mentions" radius={[0, 4, 4, 0]}
+                        label={{ position: 'right', formatter: (value: any) => `${Number(value).toFixed(1)}`,
                           style: { fontSize: '11px', fontWeight: 'bold' }, fill: '#374151' }}>
                         {painPoints.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={barColors[index % barColors.length]} />

@@ -37,66 +37,178 @@ STANDARD_PAIN_POINT_KEYWORDS = [
 ]
 
 
-def _normalize_and_deduplicate_keywords(keywords: List[str]) -> List[str]:
+def _normalize_and_deduplicate_keywords(keywords: List[str]) -> Tuple[List[str], Dict[str, List[str]]]:
     """
-    Normalize and deduplicate pain point keywords to avoid variations like:
-    - "price", "Price concerns", "price concerns" -> "price concerns"
-    - "availability", "availability in India" -> keep both (different specificity)
+    Use LLM to semantically deduplicate pain point keywords.
     
-    Strategy:
-    1. Convert to lowercase for comparison
-    2. Group keywords that are substrings of each other
-    3. Keep the most descriptive version (longest)
-    4. Handle exact case-insensitive duplicates
+    Returns:
+        Tuple of (deduplicated_keywords, keyword_mapping)
+        - deduplicated_keywords: List of unique keywords
+        - keyword_mapping: Dict mapping each deduplicated keyword to its original variants
+            Example: {"Price concerns": ["price", "pricing", "Price concerns"]}
+    
+    This handles cases like:
+    - "price", "Price concerns", "pricing" -> "Price concerns"
+    - "availability in India" (duplicate) -> single entry
+    - "engine performance", "Engine performance" -> "Engine performance"
     """
     if not keywords:
-        return []
+        return [], {}
     
-    # Create mapping of normalized -> original keywords
-    keyword_map = {}
+    # Quick dedup for exact matches (case-insensitive)
+    seen = {}
     for kw in keywords:
         normalized = kw.strip().lower()
-        if normalized not in keyword_map:
-            keyword_map[normalized] = []
-        keyword_map[normalized].append(kw)
+        if normalized not in seen:
+            seen[normalized] = []
+        seen[normalized].append(kw)
     
-    # Deduplicated result
-    deduplicated = []
-    processed = set()
+    # Track original keywords for each normalized version
+    original_variants = {}
+    unique_keywords = []
+    for normalized, variants in seen.items():
+        # Pick best variant (prefer proper capitalization)
+        best = max(variants, key=lambda x: (x[0].isupper() if x else False, len(x)))
+        unique_keywords.append(best)
+        original_variants[best] = variants
     
-    # Sort by length (longest first) to prefer more descriptive versions
-    sorted_keywords = sorted(keyword_map.keys(), key=len, reverse=True)
+    # If only a few keywords, no need for LLM deduplication
+    if len(unique_keywords) <= 3:
+        logger.info(f"   Only {len(unique_keywords)} keywords, skipping LLM deduplication")
+        # Return simple mapping
+        keyword_mapping = {k: original_variants[k] for k in unique_keywords}
+        return sorted(unique_keywords, key=lambda x: x.lower()), keyword_mapping
     
-    for norm_keyword in sorted_keywords:
-        if norm_keyword in processed:
-            continue
-            
-        # Check if this keyword is a substring of any already processed keyword
-        is_substring = False
-        for processed_kw in processed:
-            if norm_keyword in processed_kw or processed_kw in norm_keyword:
-                # If current is more specific (longer), replace
-                if len(norm_keyword) > len(processed_kw):
-                    deduplicated.remove(next(k for k in deduplicated if k.lower() == processed_kw))
-                    processed.remove(processed_kw)
-                    break
-                else:
-                    is_substring = True
+    logger.info(f"   Using LLM to deduplicate {len(unique_keywords)} keywords...")
+    
+    try:
+        from langchain_openai import ChatOpenAI
+        
+        llm = ChatOpenAI(
+            model="gpt-4o-mini",
+            temperature=0,
+            max_tokens=1500
+        )
+        
+        prompt = f"""You are a data cleaning expert. Review this list of pain point keywords and merge semantically similar ones.
+
+CRITICAL RULES:
+1. Merge exact duplicates with different capitalization (e.g., "Engine performance" + "engine performance" → "Engine performance")
+2. Merge semantically similar keywords (e.g., "price", "pricing", "Pricing concerns" → "Pricing concerns")
+3. Keep the most descriptive/specific version when merging
+4. If two keywords are completely different concepts, keep both (e.g., "price" and "availability")
+5. Preserve proper capitalization for the canonical version
+6. BE AGGRESSIVE - merge anything that refers to the same concept
+
+INPUT KEYWORDS:
+{json.dumps(unique_keywords, indent=2)}
+
+OUTPUT FORMAT - JSON ONLY (no markdown, no explanations):
+{{
+  "merged": [
+    {{
+      "canonical": "Engine performance",
+      "variants": ["Engine performance", "engine performance"]
+    }},
+    {{
+      "canonical": "Pricing concerns", 
+      "variants": ["price", "pricing", "Pricing concerns"]
+    }}
+  ]
+}}
+
+IMPORTANT: Every keyword from the input MUST appear in at least one variants list. Return ONLY valid JSON."""
+        
+        response = llm.invoke(prompt)
+        content = response.content.strip()
+        
+        logger.info(f"   LLM response length: {len(content)} chars")
+        
+        # Parse JSON response
+        if content.startswith('```'):
+            # Remove markdown code blocks
+            parts = content.split('```')
+            for part in parts:
+                part = part.strip()
+                if part.startswith('json'):
+                    content = part[4:].strip()
+                elif part.startswith('{'):
+                    content = part
                     break
         
-        if not is_substring:
-            # Pick the original keyword with best capitalization (prefer Title Case over lowercase)
-            original_variants = keyword_map[norm_keyword]
-            # Prefer keywords with proper capitalization
-            best_variant = max(original_variants, key=lambda x: (x[0].isupper() if x else False, len(x)))
-            deduplicated.append(best_variant)
-            processed.add(norm_keyword)
-    
-    logger.debug(f"   Deduplicated {len(keywords)} keywords to {len(deduplicated)}")
-    return sorted(deduplicated)
+        content = content.strip()
+        
+        try:
+            result = json.loads(content)
+        except json.JSONDecodeError as e:
+            logger.error(f"   Failed to parse LLM JSON response: {e}")
+            logger.error(f"   Response was: {content[:500]}")
+            raise
+        
+        if 'merged' not in result:
+            logger.error(f"   LLM response missing 'merged' key: {result}")
+            raise ValueError("LLM response missing 'merged' key")
+        
+        deduplicated = []
+        keyword_mapping = {}
+        all_mapped_keywords = set()
+        
+        for item in result['merged']:
+            canonical = str(item['canonical']).strip()
+            variants = [str(v).strip() for v in item.get('variants', [canonical])]
+            
+            # Make sure all original variants are included
+            all_variants = []
+            for variant in variants:
+                if variant in original_variants:
+                    all_variants.extend(original_variants[variant])
+                else:
+                    all_variants.append(variant)
+                all_mapped_keywords.add(variant.lower())
+            
+            deduplicated.append(canonical)
+            keyword_mapping[canonical] = list(set(all_variants))  # Remove duplicates
+        
+        # Verify all input keywords were mapped
+        input_keywords_lower = set(k.lower() for k in unique_keywords)
+        if all_mapped_keywords != input_keywords_lower:
+            missing = input_keywords_lower - all_mapped_keywords
+            logger.warning(f"   LLM didn't map all keywords. Missing: {missing}")
+            # Add missing keywords as-is
+            for kw in unique_keywords:
+                if kw.lower() in missing:
+                    deduplicated.append(kw)
+                    keyword_mapping[kw] = original_variants.get(kw, [kw])
+        
+        logger.info(f"   ✨ LLM deduplicated {len(unique_keywords)} → {len(deduplicated)} keywords")
+        if len(unique_keywords) != len(deduplicated):
+            removed = len(unique_keywords) - len(deduplicated)
+            logger.info(f"   Merged {removed} similar/duplicate keywords")
+            # Log merge examples
+            merge_examples = []
+            for canonical, variants in keyword_mapping.items():
+                if len(variants) > 1:
+                    merge_examples.append(f"{canonical} ← {variants}")
+            if merge_examples:
+                logger.info(f"   Merge examples:")
+                for ex in merge_examples[:5]:  # Show first 5
+                    logger.info(f"      {ex}")
+        
+        return sorted(deduplicated, key=lambda x: x.lower()), keyword_mapping
+        
+    except Exception as e:
+        logger.warning(f"   LLM deduplication failed: {e}, falling back to basic dedup")
+        logger.exception(e)  # Full traceback
+        # Fallback: just use the case-insensitive dedup
+        keyword_mapping = {k: original_variants[k] for k in unique_keywords}
+        return sorted(unique_keywords, key=lambda x: x.lower()), keyword_mapping
 
 
-def calculate_mention_counts_for_keywords(threads: List[Dict], keywords: List[str]) -> Tuple[Dict[Tuple[str, str], int], Dict[Tuple[str, str, str], int]]:
+def calculate_mention_counts_for_keywords(
+    threads: List[Dict], 
+    keywords: List[str],
+    keyword_mapping: Dict[str, List[str]] = None
+) -> Tuple[Dict[Tuple[str, str], int], Dict[Tuple[str, str, str], int]]:
     """
     Calculate mention counts for pain point keywords based on actual thread content.
     
@@ -112,6 +224,10 @@ def calculate_mention_counts_for_keywords(threads: List[Dict], keywords: List[st
     mention_counts = {}
     community_mention_counts = {}
     
+    # If no mapping provided, create identity mapping
+    if keyword_mapping is None:
+        keyword_mapping = {k: [k] for k in keywords}
+    
     logger.debug(f"   Analyzing {len(threads)} threads for {len(keywords)} pain point keywords...")
     
     for thread in threads:
@@ -120,20 +236,30 @@ def calculate_mention_counts_for_keywords(threads: List[Dict], keywords: List[st
         thread_text = f"{thread.get('title', '')} {thread.get('content', '')}".lower()
         pain_points_mentioned = thread.get('pain_points_mentioned', [])
         
-        # Count mentions for each keyword
+        # Count mentions for each deduplicated keyword
         for keyword in keywords:
             key = (month_year, keyword)
             community_key = (month_year, keyword, community)
-            keyword_lower = keyword.lower()
             
-            # Check if this keyword was explicitly mentioned in the thread's pain_points_mentioned field
-            # OR check if keyword appears in the thread text (flexible matching)
-            is_mentioned = (
-                keyword in pain_points_mentioned or
-                keyword_lower in thread_text or
-                # Check for partial word matches (e.g., "quality" matches "Quality Issues")
-                any(word.lower() in thread_text for word in keyword.split() if len(word) > 3)
-            )
+            # Get all variants for this keyword (e.g., "Price concerns" includes "price", "pricing")
+            variants = keyword_mapping.get(keyword, [keyword])
+            
+            # Check if ANY variant is mentioned in the thread
+            is_mentioned = False
+            
+            for variant in variants:
+                variant_lower = variant.lower()
+                
+                # Check multiple ways a keyword might be mentioned
+                if (
+                    variant in pain_points_mentioned or  # Explicitly tagged by LLM
+                    variant_lower in pain_points_mentioned or
+                    variant_lower in thread_text or  # Appears in text
+                    # Check for partial word matches (e.g., "quality" matches "Quality Issues")
+                    any(word.lower() in thread_text for word in variant.split() if len(word) > 3)
+                ):
+                    is_mentioned = True
+                    break
             
             if is_mentioned:
                 mention_counts[key] = mention_counts.get(key, 0) + 1
@@ -517,7 +643,7 @@ async def collect_real_brand_data(
             keywords=keywords,
             industry=industry,
             campaign_objectives=campaign_objectives,
-            max_results=10
+            max_results=30  # Increased from 10 to 30 (10 results per query × 3 queries)
         )
         monthly_results.append(month_data)
 
@@ -555,18 +681,28 @@ async def collect_real_brand_data(
     logger.info(f"🔍 LLM identified {len(raw_keywords)} raw pain point keywords")
     
     # Normalize and deduplicate keywords (case-insensitive, merge similar phrases)
-    identified_keywords = _normalize_and_deduplicate_keywords(list(raw_keywords))
+    # Returns: (deduplicated_keywords, keyword_mapping)
+    # keyword_mapping maps each deduplicated keyword to ALL its original variants
+    identified_keywords, keyword_mapping = _normalize_and_deduplicate_keywords(list(raw_keywords))
     
     logger.info(f"✨ After normalization: {len(identified_keywords)} unique pain point keywords: {list(identified_keywords)[:5]}...")
     
     # Calculate mention counts from threads for the identified keywords
+    # Pass keyword_mapping so it can search for all variants when counting
     logger.info(f"🔢 Calculating mention counts from {len(all_threads)} threads...")
-    pain_point_mention_counts, community_mention_counts = calculate_mention_counts_for_keywords(all_threads, list(identified_keywords))
+    pain_point_mention_counts, community_mention_counts = calculate_mention_counts_for_keywords(
+        all_threads, 
+        list(identified_keywords),
+        keyword_mapping
+    )
     logger.info(f"   Found {len(pain_point_mention_counts)} pain point-month combinations with mentions")
     logger.info(f"   Found {len(community_mention_counts)} pain point-community combinations")
     
     # Create complete pain point records (one per keyword per month per community) with calculated mentions
     complete_pain_points = []
+    
+    # Use a set to track what we've already created (prevent duplicates)
+    created_pain_points = set()
     
     # Get unique communities from threads
     thread_communities = set(t.get('community', 'Unknown') for t in all_threads)
@@ -578,17 +714,30 @@ async def collect_real_brand_data(
             # Create one pain point per community that mentioned this keyword
             for community in thread_communities:
                 community_key = (month_year, keyword, community)
+                
+                # Skip if we've already created this exact pain point
+                if community_key in created_pain_points:
+                    continue
+                
                 mention_count = community_mention_counts.get(community_key, 0)
                 
                 # Only create pain point if this community mentioned this keyword (skip zero mentions)
                 if mention_count > 0:
                     # Try to find existing pain point data from LLM for this keyword/month
-                    existing_pp = next((pp for pp in all_pain_points 
-                                      if pp.get('keyword') == keyword and pp.get('month_year') == month_year), None)
+                    # Check both the canonical keyword and any of its variants
+                    variants = keyword_mapping.get(keyword, [keyword])
+                    existing_pp = None
+                    for variant in variants:
+                        existing_pp = next((pp for pp in all_pain_points 
+                                          if pp.get('keyword', '').lower() == variant.lower() 
+                                          and pp.get('month_year') == month_year), None)
+                        if existing_pp:
+                            break
                     
                     if existing_pp:
                         # Use LLM data but override mention_count with community-specific value
                         pp_copy = existing_pp.copy()
+                        pp_copy['keyword'] = keyword  # Use canonical keyword
                         pp_copy['mention_count'] = mention_count
                         pp_copy['community'] = community
                         complete_pain_points.append(pp_copy)
@@ -605,9 +754,30 @@ async def collect_real_brand_data(
                             'heat_level': 0,
                             'growth_percentage': 0.0
                         })
+                    
+                    # Mark this combination as created
+                    created_pain_points.add(community_key)
     
     logger.info(f"✅ Created {len(complete_pain_points)} complete pain point records (with community associations)")
     logger.info(f"   Total mentions counted: {sum(community_mention_counts.values())}")
+    
+    # Debug: Check for duplicates in complete_pain_points
+    seen_combinations = {}
+    duplicate_count = 0
+    for idx, pp in enumerate(complete_pain_points):
+        key = (pp['month_year'], pp['keyword'], pp.get('community', 'Unknown'))
+        if key in seen_combinations:
+            duplicate_count += 1
+            logger.warning(f"   ⚠️  DUPLICATE #{duplicate_count} at index {idx}: {pp['keyword']} in '{pp.get('community')}' for {pp['month_year']}")
+            logger.warning(f"      First occurrence (index {seen_combinations[key]['idx']}): mentions={seen_combinations[key]['mentions']}")
+            logger.warning(f"      This occurrence: mentions={pp.get('mention_count', 0)}")
+        else:
+            seen_combinations[key] = {'idx': idx, 'mentions': pp.get('mention_count', 0)}
+    
+    if duplicate_count > 0:
+        logger.error(f"   ❌ Found {duplicate_count} DUPLICATES in complete_pain_points list!")
+    else:
+        logger.info(f"   ✅ No duplicates found in complete_pain_points list")
 
     result = {
         'brand_name': brand_name,

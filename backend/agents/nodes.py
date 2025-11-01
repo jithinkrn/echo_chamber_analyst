@@ -1201,20 +1201,28 @@ def store_brand_analytics_data(collected_data: Dict[str, Any], brand, automatic_
             """Save single pain point"""
             # Find community for this pain point
             community_name = pain_point_data.get("community", "")
-            community = Community.objects.filter(
+            
+            # Debug: Check how many communities match
+            matching_communities = Community.objects.filter(
                 Q(name__iexact=community_name) | Q(name__icontains=community_name.split('.')[0] if '.' in community_name else community_name),
                 brand=brand,
                 campaign=automatic_campaign
-            ).first()
-
+            )
+            
+            community = matching_communities.first()
+            
             if not community:
-                raise ValueError("No community found for pain point storage")
+                raise ValueError(f"No community found for pain point storage: '{community_name}'")
+            
+            # Debug: Log if multiple communities matched
+            if matching_communities.count() > 1:
+                logger.warning(f"   ⚠️  Multiple communities ({matching_communities.count()}) matched for '{community_name}': {[c.name for c in matching_communities]}")
 
             # Get month_year from pain point data
             month_year_value = pain_point_data.get("month_year", "2025-10")
 
             # Debug logging
-            logger.debug(f"Saving PainPoint: keyword={pain_point_data['keyword']}, month_year={month_year_value}")
+            logger.debug(f"Saving PainPoint: keyword={pain_point_data['keyword']}, month_year={month_year_value}, community={community.name} (ID: {community.id})")
 
             return PainPoint.objects.update_or_create(
                 keyword=pain_point_data["keyword"],

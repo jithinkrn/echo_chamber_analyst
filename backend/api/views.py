@@ -1072,64 +1072,68 @@ def get_brand_top_pain_points(brand_id, date_from, date_to, limit=10):
     # This identifies pain points that are TRENDING UP over time
     pain_points_with_growth = []
 
+    # Get the last 6 complete months for comparison
+    from dateutil.relativedelta import relativedelta
+    now = timezone.now()
+    last_6_months = []
+    for offset in range(6, 0, -1):
+        target_date = now - relativedelta(months=offset)
+        month_year = target_date.strftime('%Y-%m')
+        last_6_months.append(month_year)
+    
+    # Split into two periods: recent 3 vs previous 3
+    previous_3_months = last_6_months[:3]  # Oldest 3 months
+    recent_3_months = last_6_months[3:]    # Most recent 3 months
+
     for keyword, data in pain_point_data.items():
-        # Get sorted monthly data
-        monthly_data = sorted(data['months'].items())  # [(month_year, mention_count), ...]
+        # Calculate average mentions for each period
+        previous_mentions = [data['months'].get(month, 0) for month in previous_3_months]
+        recent_mentions = [data['months'].get(month, 0) for month in recent_3_months]
         
-        if not monthly_data:
-            continue
-
-        # Need at least 4 months to compare trends (ideally 6)
-        if len(monthly_data) < 4:
-            # Skip pain points without enough history
-            continue
-
-        # Split data into two periods
-        # Recent 3 months: last 3 months
-        # Previous 3 months: 3 months before that
-        total_months = len(monthly_data)
+        previous_avg = sum(previous_mentions) / len(previous_mentions) if previous_mentions else 0
+        recent_avg = sum(recent_mentions) / len(recent_mentions) if recent_mentions else 0
         
-        if total_months >= 6:
-            # Ideal case: 6 months of data
-            # Previous period: months 0-2 (oldest 3)
-            # Recent period: months 3-5 (newest 3)
-            previous_period = monthly_data[:3]
-            recent_period = monthly_data[3:6]
-        else:
-            # 4-5 months of data: split in half
-            mid_point = total_months // 2
-            previous_period = monthly_data[:mid_point]
-            recent_period = monthly_data[mid_point:]
-
-        # Calculate averages
-        previous_avg = sum(m[1] for m in previous_period) / len(previous_period) if previous_period else 0
-        recent_avg = sum(m[1] for m in recent_period) / len(recent_period) if recent_period else 0
-
+        # Skip pain points with no recent activity
+        if recent_avg == 0:
+            continue
+        
+        # Skip pain points with very low activity (less than 0.5 avg = less than 2 total mentions in 3 months)
+        # This filters out one-off mentions that aren't real trends
+        if recent_avg < 0.5:
+            continue
+        
         # Calculate growth percentage based on averages
         if previous_avg > 0:
+            # Standard growth calculation
             growth = ((recent_avg - previous_avg) / previous_avg) * 100
-        elif recent_avg > 0 and previous_avg == 0:
-            growth = 100.0  # New pain point in recent period
         else:
-            growth = 0.0
+            # New pain point (no previous data)
+            # Instead of showing +100%, show the actual increase from 0
+            # For display purposes, we'll calculate based on recent_avg
+            # If recent_avg = 1.33, that means it went from 0 to 1.33 avg mentions
+            growth = 100.0  # Still show as 100% for "new" items
 
         # Only include pain points that are TRENDING UP (recent > previous)
+        # We want to see pain points that are getting worse
         if recent_avg > previous_avg:
-            total_mentions = sum([m[1] for m in monthly_data])
+            total_mentions = sum(data['months'].values())
             pain_points_with_growth.append({
                 'keyword': keyword,
                 'growth_percentage': round(growth, 1),
                 'mention_count': total_mentions,
                 'recent_avg_mentions': round(recent_avg, 1),
                 'previous_avg_mentions': round(previous_avg, 1),
-                'trend_direction': 'up'
+                'trend_direction': 'up',
+                'recent_period': f"{recent_3_months[0]} to {recent_3_months[-1]}",
+                'previous_period': f"{previous_3_months[0]} to {previous_3_months[-1]}"
             })
 
-    # Sort by growth percentage (highest growth first)
-    # These are pain points getting WORSE over time
-    pain_points_with_growth.sort(key=lambda x: x['growth_percentage'], reverse=True)
+    # Sort by recent average mentions (most critical issues by volume)
+    # This shows the most talked-about pain points in recent months, regardless of growth rate
+    # Secondary sort by growth percentage as tie-breaker
+    pain_points_with_growth.sort(key=lambda x: (x['recent_avg_mentions'], x['growth_percentage']), reverse=True)
     
-    # Return top N growing pain points (configurable limit)
+    # Return top N pain points by recent mention volume (configurable limit)
     return pain_points_with_growth[:limit]
 
 
@@ -1232,11 +1236,12 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
 
     # Get ALL unique pain point keywords (not filtered by growth) for comprehensive trend view
     # This shows ALL pain points regardless of whether they're trending up or down
-    all_pain_point_keywords = list(
-        all_brand_pain_points.values('keyword')
-        .distinct()
-        .values_list('keyword', flat=True)
-    )
+    # NOTE: SQLite doesn't support DISTINCT with values_list properly, so we deduplicate in Python
+    all_keywords_raw = all_brand_pain_points.values_list('keyword', flat=True)
+    all_pain_point_keywords = list(dict.fromkeys(all_keywords_raw))  # Preserves order, removes duplicates
+    
+    # Debug: Log keywords to verify no duplicates
+    logger.info(f"📊 Generating time series for {len(all_pain_point_keywords)} unique keywords: {all_pain_point_keywords}")
 
     # Generate time buckets for last 6 complete months (excluding current month)
     from dateutil.relativedelta import relativedelta
