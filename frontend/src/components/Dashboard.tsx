@@ -706,8 +706,8 @@ export default function Dashboard() {
               })()
             ) : (
               <div className="text-center text-gray-500 py-4">
-                <p className="text-sm">No pain points data available for this brand</p>
-                <p className="text-xs mt-1">Try selecting a different brand or check back later</p>
+                <p className="text-sm">No growing pain points detected</p>
+                <p className="text-xs mt-1">Pain points are stable or declining - good news!</p>
               </div>
             )}
           </CardContent>
@@ -865,9 +865,9 @@ export default function Dashboard() {
             {(dashboardData.heatmap?.time_series_pain_points || []).length > 0 ? (
               <>
                 <div className="text-xs text-gray-600 mb-3">
-                  Last 6 Months • Tracking mention trends for top pain points
+                  Last 6 Months • Tracking mention trends for all pain points ({(dashboardData.heatmap?.time_series_pain_points || []).length} total)
                 </div>
-                <ResponsiveContainer width="100%" height={400}>
+                <ResponsiveContainer width="100%" height={500}>
                   <LineChart
                     data={(() => {
                       // Transform data for line chart
@@ -935,41 +935,49 @@ export default function Dashboard() {
                     />
                     {/* Individual pain point lines - different colors */}
                     {(dashboardData.heatmap?.time_series_pain_points || []).map((pp, idx) => {
-                      const colors = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#06b6d4'];
+                      // Extended color palette for many pain points
+                      const colors = [
+                        '#ef4444', '#f97316', '#eab308', '#84cc16', '#06b6d4',
+                        '#8b5cf6', '#ec4899', '#f43f5e', '#14b8a6', '#f59e0b',
+                        '#10b981', '#6366f1', '#d946ef', '#0ea5e9', '#f472b6',
+                        '#a855f7', '#22d3ee', '#fb923c', '#34d399', '#818cf8'
+                      ];
                       return (
                         <Line
-                          key={pp.keyword}
+                          key={`${pp.keyword}-${idx}`}
                           type="monotone"
                           dataKey={pp.keyword}
                           stroke={colors[idx % colors.length]}
-                          strokeWidth={2}
-                          dot={{ r: 4 }}
-                          activeDot={{ r: 6 }}
+                          strokeWidth={1.5}
+                          dot={{ r: 3 }}
+                          activeDot={{ r: 5 }}
                         />
                       );
                     })}
                   </LineChart>
                 </ResponsiveContainer>
-                {/* Legend with growth rates */}
-                <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t">
-                  {(dashboardData.heatmap?.time_series_pain_points || []).map((pp) => (
-                    <div key={pp.keyword} className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700">{pp.keyword}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-600">{pp.total_mentions} mentions</span>
-                        <div className={`flex items-center text-xs ${
-                          pp.growth_rate >= 0 ? 'text-red-600' : 'text-green-600'
-                        }`}>
-                          {pp.growth_rate >= 0 ? (
-                            <TrendingUp className="h-3 w-3 mr-1" />
-                          ) : (
-                            <TrendingDown className="h-3 w-3 mr-1" />
-                          )}
-                          {pp.growth_rate >= 0 ? '+' : ''}{pp.growth_rate}%
+                {/* Legend with growth rates - scrollable for many pain points */}
+                <div className="max-h-96 overflow-y-auto">
+                  <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t">
+                    {(dashboardData.heatmap?.time_series_pain_points || []).map((pp, idx) => (
+                      <div key={`${pp.keyword}-legend-${idx}`} className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">{pp.keyword}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-600">{pp.total_mentions} mentions</span>
+                          <div className={`flex items-center text-xs ${
+                            pp.growth_rate >= 0 ? 'text-red-600' : 'text-green-600'
+                          }`}>
+                            {pp.growth_rate >= 0 ? (
+                              <TrendingUp className="h-3 w-3 mr-1" />
+                            ) : (
+                              <TrendingDown className="h-3 w-3 mr-1" />
+                            )}
+                            {pp.growth_rate >= 0 ? '+' : ''}{pp.growth_rate}%
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </>
             ) : (

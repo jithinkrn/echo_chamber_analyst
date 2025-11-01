@@ -4,17 +4,20 @@ import { useState } from 'react';
 import {
   Users,
   Activity,
-  Settings
+  Settings,
+  Trash2
 } from 'lucide-react';
 import UserManager from './admin/UserManager';
 import AuditLogViewer from './admin/AuditLogViewer';
 import SettingsManager from './admin/SettingsManager';
+import DeleteData from './DeleteData';
 
 export default function AdminInterface() {
   const [activeSection, setActiveSection] = useState('settings');
 
   const adminSections = [
     { id: 'settings', label: 'Settings', icon: Settings, description: 'Campaign schedule settings' },
+    { id: 'delete-data', label: 'Delete Data', icon: Trash2, description: 'Remove brand analytics or campaign data' },
     { id: 'users', label: 'Users', icon: Users, description: 'Manage user accounts' },
     { id: 'audit', label: 'Audit Logs', icon: Activity, description: 'System activity logs' },
   ];
@@ -23,6 +26,8 @@ export default function AdminInterface() {
     switch (activeSection) {
       case 'settings':
         return <SettingsManager />;
+      case 'delete-data':
+        return <DeleteData />;
       case 'users':
         return <UserManager />;
       case 'audit':

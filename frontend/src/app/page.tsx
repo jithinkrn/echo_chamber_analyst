@@ -11,7 +11,8 @@ import DashboardComponent from '@/components/Dashboard';
 import BrandManager from '@/components/admin/BrandManager';
 import CampaignManager from '@/components/admin/CampaignManager';
 import SourceManager from '@/components/admin/SourceManager';
-import { Activity, MessageSquare, BarChart3, LogOut, User, Settings, Building, TrendingUp, Globe } from 'lucide-react';
+import DeleteData from '@/components/DeleteData';
+import { Activity, MessageSquare, BarChart3, LogOut, User, Settings, Building, TrendingUp, Globe, Trash2 } from 'lucide-react';
 
 function DashboardContent() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -151,6 +152,13 @@ function DashboardContent() {
         {activeTab === 'sources' && (
           <div>
             <SourceManager />
+          </div>
+        )}
+
+        {/* Delete Data Tab */}
+        {activeTab === 'delete-data' && (
+          <div>
+            <DeleteData />
           </div>
         )}
 

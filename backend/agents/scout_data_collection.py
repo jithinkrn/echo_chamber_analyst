@@ -37,6 +37,65 @@ STANDARD_PAIN_POINT_KEYWORDS = [
 ]
 
 
+def _normalize_and_deduplicate_keywords(keywords: List[str]) -> List[str]:
+    """
+    Normalize and deduplicate pain point keywords to avoid variations like:
+    - "price", "Price concerns", "price concerns" -> "price concerns"
+    - "availability", "availability in India" -> keep both (different specificity)
+    
+    Strategy:
+    1. Convert to lowercase for comparison
+    2. Group keywords that are substrings of each other
+    3. Keep the most descriptive version (longest)
+    4. Handle exact case-insensitive duplicates
+    """
+    if not keywords:
+        return []
+    
+    # Create mapping of normalized -> original keywords
+    keyword_map = {}
+    for kw in keywords:
+        normalized = kw.strip().lower()
+        if normalized not in keyword_map:
+            keyword_map[normalized] = []
+        keyword_map[normalized].append(kw)
+    
+    # Deduplicated result
+    deduplicated = []
+    processed = set()
+    
+    # Sort by length (longest first) to prefer more descriptive versions
+    sorted_keywords = sorted(keyword_map.keys(), key=len, reverse=True)
+    
+    for norm_keyword in sorted_keywords:
+        if norm_keyword in processed:
+            continue
+            
+        # Check if this keyword is a substring of any already processed keyword
+        is_substring = False
+        for processed_kw in processed:
+            if norm_keyword in processed_kw or processed_kw in norm_keyword:
+                # If current is more specific (longer), replace
+                if len(norm_keyword) > len(processed_kw):
+                    deduplicated.remove(next(k for k in deduplicated if k.lower() == processed_kw))
+                    processed.remove(processed_kw)
+                    break
+                else:
+                    is_substring = True
+                    break
+        
+        if not is_substring:
+            # Pick the original keyword with best capitalization (prefer Title Case over lowercase)
+            original_variants = keyword_map[norm_keyword]
+            # Prefer keywords with proper capitalization
+            best_variant = max(original_variants, key=lambda x: (x[0].isupper() if x else False, len(x)))
+            deduplicated.append(best_variant)
+            processed.add(norm_keyword)
+    
+    logger.debug(f"   Deduplicated {len(keywords)} keywords to {len(deduplicated)}")
+    return sorted(deduplicated)
+
+
 def calculate_mention_counts_for_keywords(threads: List[Dict], keywords: List[str]) -> Tuple[Dict[Tuple[str, str], int], Dict[Tuple[str, str, str], int]]:
     """
     Calculate mention counts for pain point keywords based on actual thread content.
@@ -487,12 +546,18 @@ async def collect_real_brand_data(
                 all_communities[comm_key]['thread_count'] = all_communities[comm_key].get('thread_count', 0) + comm.get('thread_count', 0)
 
     # Extract unique pain point keywords identified by LLM across all months
-    identified_keywords = set()
+    # Apply normalization and deduplication to merge similar keywords
+    raw_keywords = set()
     for pp in all_pain_points:
         if pp.get('keyword'):
-            identified_keywords.add(pp['keyword'])
+            raw_keywords.add(pp['keyword'])
     
-    logger.info(f"🔍 LLM identified {len(identified_keywords)} unique pain point keywords: {list(identified_keywords)[:5]}...")
+    logger.info(f"🔍 LLM identified {len(raw_keywords)} raw pain point keywords")
+    
+    # Normalize and deduplicate keywords (case-insensitive, merge similar phrases)
+    identified_keywords = _normalize_and_deduplicate_keywords(list(raw_keywords))
+    
+    logger.info(f"✨ After normalization: {len(identified_keywords)} unique pain point keywords: {list(identified_keywords)[:5]}...")
     
     # Calculate mention counts from threads for the identified keywords
     logger.info(f"🔢 Calculating mention counts from {len(all_threads)} threads...")

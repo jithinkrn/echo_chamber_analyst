@@ -76,4 +76,7 @@ urlpatterns = [
     # LLM Source Discovery Endpoints
     path('discovered-sources/', views.get_discovered_sources, name='get_discovered_sources'),
     path('discover-sources/', views.discover_sources_api, name='discover_sources_api'),
+    
+    # Admin Data Management
+    path('admin/delete-data/', views.admin_delete_data, name='admin_delete_data'),
 ]

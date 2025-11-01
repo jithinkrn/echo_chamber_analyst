@@ -1068,7 +1068,8 @@ def get_brand_top_pain_points(brand_id, date_from, date_to, limit=10):
             pain_point_data[keyword]['months'][month_year] = 0
         pain_point_data[keyword]['months'][month_year] += mention_count
     
-    # Calculate month-over-month growth for each unique keyword
+    # NEW LOGIC: Compare recent 3 months vs previous 3 months average
+    # This identifies pain points that are TRENDING UP over time
     pain_points_with_growth = []
 
     for keyword, data in pain_point_data.items():
@@ -1078,42 +1079,54 @@ def get_brand_top_pain_points(brand_id, date_from, date_to, limit=10):
         if not monthly_data:
             continue
 
-        previous_month_total = 0
-        current_month_total = 0
+        # Need at least 4 months to compare trends (ideally 6)
+        if len(monthly_data) < 4:
+            # Skip pain points without enough history
+            continue
 
-        if len(monthly_data) >= 2:
-            # Compare last 2 months (most recent growth)
-            previous_month_total = monthly_data[-2][1]
-            current_month_total = monthly_data[-1][1]
-        elif len(monthly_data) == 1:
-            # Only one month of data
-            current_month_total = monthly_data[0][1]
-            previous_month_total = 0
-
-        # Calculate total mentions across all months
-        total_mentions = sum([m[1] for m in monthly_data])
-
-        # Calculate month-over-month growth (current vs previous month)
-        if previous_month_total > 0:
-            growth = ((current_month_total - previous_month_total) / previous_month_total) * 100
-        elif current_month_total > 0 and previous_month_total == 0:
-            growth = 100.0  # New pain point appeared
+        # Split data into two periods
+        # Recent 3 months: last 3 months
+        # Previous 3 months: 3 months before that
+        total_months = len(monthly_data)
+        
+        if total_months >= 6:
+            # Ideal case: 6 months of data
+            # Previous period: months 0-2 (oldest 3)
+            # Recent period: months 3-5 (newest 3)
+            previous_period = monthly_data[:3]
+            recent_period = monthly_data[3:6]
         else:
-            growth = 0.0  # No change
+            # 4-5 months of data: split in half
+            mid_point = total_months // 2
+            previous_period = monthly_data[:mid_point]
+            recent_period = monthly_data[mid_point:]
 
-        # Only include pain points with actual mentions to avoid empty data
-        if total_mentions > 0:
+        # Calculate averages
+        previous_avg = sum(m[1] for m in previous_period) / len(previous_period) if previous_period else 0
+        recent_avg = sum(m[1] for m in recent_period) / len(recent_period) if recent_period else 0
+
+        # Calculate growth percentage based on averages
+        if previous_avg > 0:
+            growth = ((recent_avg - previous_avg) / previous_avg) * 100
+        elif recent_avg > 0 and previous_avg == 0:
+            growth = 100.0  # New pain point in recent period
+        else:
+            growth = 0.0
+
+        # Only include pain points that are TRENDING UP (recent > previous)
+        if recent_avg > previous_avg:
+            total_mentions = sum([m[1] for m in monthly_data])
             pain_points_with_growth.append({
                 'keyword': keyword,
                 'growth_percentage': round(growth, 1),
                 'mention_count': total_mentions,
-                'current_month_mentions': current_month_total,
-                'previous_month_mentions': previous_month_total
+                'recent_avg_mentions': round(recent_avg, 1),
+                'previous_avg_mentions': round(previous_avg, 1),
+                'trend_direction': 'up'
             })
 
-    # Sort by growth percentage (highest growth first) - TOP-GROWING means increasing problems
-    # Positive growth = pain point is mentioned MORE (worse)
-    # Negative growth = pain point is mentioned LESS (better)
+    # Sort by growth percentage (highest growth first)
+    # These are pain points getting WORSE over time
     pain_points_with_growth.sort(key=lambda x: x['growth_percentage'], reverse=True)
     
     # Return top N growing pain points (configurable limit)
@@ -1217,18 +1230,13 @@ def get_brand_heatmap_data(brand_id, date_from, date_to):
     # === TYPE B: Time Series Line Chart - Monthly Pain Points (6 months) ===
     time_series_matrix = []
 
-    # Get top 10 pain point keywords BY GROWTH (same as TOP-GROWING PAINS chart)
-    # Increased from 5 to 10 to show more pain point trends
-    # This ensures consistency between the two charts
-    top_growing_pain_points = get_brand_top_pain_points(brand_id, date_from, date_to, limit=10)
-    all_pain_point_keywords = [pp['keyword'] for pp in top_growing_pain_points[:10]]
-    
-    # If no growing pain points, fall back to top by mentions
-    if not all_pain_point_keywords:
-        top_keywords = all_brand_pain_points.values('keyword').annotate(
-            total_mentions=Sum('mention_count')
-        ).order_by('-total_mentions')[:10]
-        all_pain_point_keywords = [kw['keyword'] for kw in top_keywords]
+    # Get ALL unique pain point keywords (not filtered by growth) for comprehensive trend view
+    # This shows ALL pain points regardless of whether they're trending up or down
+    all_pain_point_keywords = list(
+        all_brand_pain_points.values('keyword')
+        .distinct()
+        .values_list('keyword', flat=True)
+    )
 
     # Generate time buckets for last 6 complete months (excluding current month)
     from dateutil.relativedelta import relativedelta
@@ -4134,5 +4142,192 @@ def discover_sources_api(request):
         logger.error(f"Failed to discover sources: {e}")
         return Response(
             {'error': f'Failed to discover sources: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST', 'GET'])
+@permission_classes([IsAuthenticated])
+def admin_delete_data(request):
+    """
+    Admin endpoint to delete brand data.
+    
+    GET: Returns list of brands with data counts
+    POST: Deletes data for specified brand/campaign
+    
+    Query params (POST):
+    - brand_id: Brand ID (required)
+    - delete_type: 'brand_analytics' (automatic campaign data) or 'campaign' (custom campaign data)
+    - campaign_id: Campaign ID (required if delete_type='campaign')
+    """
+    try:
+        if request.method == 'GET':
+            # Return list of brands with data statistics
+            brands = Brand.objects.all()
+            brand_data = []
+            
+            for brand in brands:
+                # Count automatic campaign data (brand analytics)
+                auto_campaigns = Campaign.objects.filter(
+                    brand=brand,
+                    campaign_type='automatic'
+                )
+                auto_communities = Community.objects.filter(brand=brand).count()
+                auto_threads = Thread.objects.filter(campaign__brand=brand, campaign__campaign_type='automatic').count()
+                auto_pain_points = PainPoint.objects.filter(campaign__brand=brand, campaign__campaign_type='automatic').count()
+                
+                # Count custom campaigns
+                custom_campaigns = Campaign.objects.filter(
+                    brand=brand,
+                    campaign_type='custom'
+                )
+                
+                custom_campaign_data = []
+                for campaign in custom_campaigns:
+                    campaign_threads = Thread.objects.filter(campaign=campaign).count()
+                    campaign_pain_points = PainPoint.objects.filter(campaign=campaign).count()
+                    campaign_communities = Community.objects.filter(campaign=campaign).count()
+                    
+                    custom_campaign_data.append({
+                        'id': campaign.id,
+                        'name': campaign.name,
+                        'threads': campaign_threads,
+                        'pain_points': campaign_pain_points,
+                        'communities': campaign_communities
+                    })
+                
+                brand_data.append({
+                    'id': brand.id,
+                    'name': brand.name,
+                    'brand_analytics': {
+                        'campaigns': auto_campaigns.count(),
+                        'communities': auto_communities,
+                        'threads': auto_threads,
+                        'pain_points': auto_pain_points
+                    },
+                    'custom_campaigns': custom_campaign_data
+                })
+            
+            return Response({
+                'brands': brand_data
+            })
+        
+        elif request.method == 'POST':
+            # Delete data
+            brand_id = request.data.get('brand_id')
+            delete_type = request.data.get('delete_type')  # 'brand_analytics' or 'campaign'
+            campaign_id = request.data.get('campaign_id')  # Required if delete_type='campaign'
+            
+            if not brand_id:
+                return Response(
+                    {'error': 'brand_id is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if not delete_type or delete_type not in ['brand_analytics', 'campaign']:
+                return Response(
+                    {'error': 'delete_type must be "brand_analytics" or "campaign"'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            brand = Brand.objects.filter(id=brand_id).first()
+            if not brand:
+                return Response(
+                    {'error': 'Brand not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            deleted_counts = {}
+            
+            if delete_type == 'brand_analytics':
+                # Delete all automatic campaign data for this brand
+                logger.info(f"🗑️ Deleting brand analytics data for {brand.name}")
+                
+                # Get automatic campaigns
+                auto_campaigns = Campaign.objects.filter(
+                    brand=brand,
+                    campaign_type='automatic'
+                )
+                
+                # Delete threads from automatic campaigns
+                threads_deleted = Thread.objects.filter(
+                    campaign__in=auto_campaigns
+                ).delete()
+                deleted_counts['threads'] = threads_deleted[0] if threads_deleted else 0
+                
+                # Delete pain points from automatic campaigns
+                pain_points_deleted = PainPoint.objects.filter(
+                    campaign__in=auto_campaigns
+                ).delete()
+                deleted_counts['pain_points'] = pain_points_deleted[0] if pain_points_deleted else 0
+                
+                # Delete communities associated with the brand
+                communities_deleted = Community.objects.filter(
+                    brand=brand
+                ).delete()
+                deleted_counts['communities'] = communities_deleted[0] if communities_deleted else 0
+                
+                # Delete influencers
+                influencers_deleted = Influencer.objects.filter(
+                    brand=brand
+                ).delete()
+                deleted_counts['influencers'] = influencers_deleted[0] if influencers_deleted else 0
+                
+                logger.info(f"✅ Deleted brand analytics data for {brand.name}: {deleted_counts}")
+                
+                return Response({
+                    'success': True,
+                    'message': f'Brand analytics data deleted for {brand.name}',
+                    'deleted_counts': deleted_counts
+                })
+            
+            elif delete_type == 'campaign':
+                # Delete specific custom campaign data
+                if not campaign_id:
+                    return Response(
+                        {'error': 'campaign_id is required for campaign deletion'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                campaign = Campaign.objects.filter(
+                    id=campaign_id,
+                    brand=brand,
+                    campaign_type='custom'
+                ).first()
+                
+                if not campaign:
+                    return Response(
+                        {'error': 'Custom campaign not found'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+                
+                logger.info(f"🗑️ Deleting custom campaign data for {campaign.name}")
+                
+                # Delete threads from this campaign
+                threads_deleted = Thread.objects.filter(campaign=campaign).delete()
+                deleted_counts['threads'] = threads_deleted[0] if threads_deleted else 0
+                
+                # Delete pain points from this campaign
+                pain_points_deleted = PainPoint.objects.filter(campaign=campaign).delete()
+                deleted_counts['pain_points'] = pain_points_deleted[0] if pain_points_deleted else 0
+                
+                # Delete communities from this campaign
+                communities_deleted = Community.objects.filter(campaign=campaign).delete()
+                deleted_counts['communities'] = communities_deleted[0] if communities_deleted else 0
+                
+                logger.info(f"✅ Deleted campaign data for {campaign.name}: {deleted_counts}")
+                
+                return Response({
+                    'success': True,
+                    'message': f'Campaign data deleted for {campaign.name}',
+                    'campaign_id': campaign.id,
+                    'campaign_name': campaign.name,
+                    'deleted_counts': deleted_counts
+                })
+    
+    except Exception as e:
+        logger.error(f"Failed to delete data: {e}", exc_info=True)
+        return Response(
+            {'error': f'Failed to delete data: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
