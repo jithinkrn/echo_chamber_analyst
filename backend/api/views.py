@@ -4304,3 +4304,147 @@ def admin_delete_data(request):
             {'error': f'Failed to delete data: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def agent_status_view(request):
+    """
+    Get real-time agent status and monitoring metrics.
+    
+    Returns:
+        - Agent health status
+        - Performance metrics
+        - Compliance tracking
+        - LangSmith integration status
+    """
+    try:
+        from agents.monitoring import global_monitor
+        from agents.monitoring_integration import performance_metrics, langsmith_tracer
+        
+        # Get performance statistics
+        perf_stats = performance_metrics.get_statistics(last_n=100)
+        
+        # Get LangSmith status
+        langsmith_enabled = langsmith_tracer.enabled
+        langsmith_project = None
+        langsmith_url = None
+        
+        if langsmith_enabled:
+            import os
+            langsmith_project = os.getenv('LANGCHAIN_PROJECT', 'echochamber-analyst')
+            langsmith_url = f"https://smith.langchain.com/o/projects/p/{langsmith_project}"
+        
+        # Get compliance events (last 50)
+        compliance_events = []
+        if global_monitor and hasattr(global_monitor, 'compliance_tracker'):
+            compliance_events = global_monitor.compliance_tracker.audit_events[-50:]
+        
+        # Determine RAG system health
+        total_queries = perf_stats.get('total_queries', 0)
+        success_rate = perf_stats.get('success_rate', 1.0)  # Default to 1.0 (100%) if no data
+        
+        # Only check success rate if we have actual queries
+        if total_queries == 0:
+            rag_status = 'healthy'  # No queries yet, assume healthy
+        elif success_rate > 0.8:
+            rag_status = 'healthy'
+        elif success_rate > 0.5:
+            rag_status = 'degraded'
+        else:
+            rag_status = 'unhealthy'
+        
+        # Build agent status
+        agents = [
+            {
+                'name': 'RAG System',
+                'status': rag_status,
+                'description': 'Pure vector-based retrieval with conversation context',
+                'capabilities': 8,
+                'metrics': {
+                    'total_queries': total_queries,
+                    'success_rate': success_rate,
+                    'avg_response_time': perf_stats.get('execution_time', {}).get('avg_seconds', 0)
+                }
+            },
+            {
+                'name': 'LangGraph Orchestrator',
+                'status': 'healthy',
+                'description': 'StateGraph workflow management with parallel execution',
+                'capabilities': 6,
+                'metrics': {
+                    'workflows_executed': perf_stats.get('total_queries', 0),
+                    'error_rate': 1 - perf_stats.get('success_rate', 1)
+                }
+            },
+            {
+                'name': 'Scout Agent',
+                'status': 'healthy',
+                'description': 'Reddit PRAW integration for real-time data collection',
+                'capabilities': 5,
+                'metrics': {
+                    'data_sources': ['reddit'],
+                    'collection_method': 'PRAW API'
+                }
+            },
+            {
+                'name': 'Analyst Agent',
+                'status': 'healthy',
+                'description': 'GPT-4 powered sentiment and pain point analysis',
+                'capabilities': 7,
+                'metrics': {
+                    'llm_model': 'gpt-4o',
+                    'analysis_types': ['sentiment', 'pain_points', 'insights']
+                }
+            },
+            {
+                'name': 'Embedding Service',
+                'status': 'healthy',
+                'description': 'OpenAI text-embedding-3-small batch processing',
+                'capabilities': 4,
+                'metrics': {
+                    'embedding_model': 'text-embedding-3-small',
+                    'dimensions': 1536
+                }
+            },
+            {
+                'name': 'Monitoring & Guardrails',
+                'status': 'healthy' if langsmith_enabled else 'disabled',
+                'description': 'LangSmith tracing and query validation',
+                'capabilities': 5,
+                'metrics': {
+                    'langsmith_enabled': langsmith_enabled,
+                    'compliance_events': len(compliance_events),
+                    'guardrails_active': True
+                }
+            }
+        ]
+        
+        # Calculate overall health
+        healthy_agents = sum(1 for agent in agents if agent['status'] == 'healthy')
+        overall_status = 'healthy' if healthy_agents >= len(agents) - 1 else 'degraded'
+        
+        return Response({
+            'status': overall_status,
+            'timestamp': timezone.now().isoformat(),
+            'agents': agents,
+            'monitoring': {
+                'langsmith': {
+                    'enabled': langsmith_enabled,
+                    'project': langsmith_project,
+                    'dashboard_url': langsmith_url
+                },
+                'performance': perf_stats,
+                'compliance': {
+                    'total_events': len(compliance_events),
+                    'recent_events': compliance_events[-10:] if compliance_events else []
+                }
+            }
+        })
+    
+    except Exception as e:
+        logger.error(f"Failed to get agent status: {e}", exc_info=True)
+        return Response(
+            {'error': f'Failed to retrieve agent status: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

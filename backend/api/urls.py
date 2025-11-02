@@ -64,6 +64,9 @@ urlpatterns = [
     path('monitoring/workflows/metrics/', views.workflow_metrics, name='workflow_metrics'),
     path('monitoring/agents/health/', views.agent_health, name='agent_health'),
     path('monitoring/agents/<str:agent_name>/restart/', views.restart_agent, name='restart_agent'),
+    
+    # Admin Agent Status (NEW)
+    path('admin/agents/status/', views.agent_status_view, name='agent_status'),
 
     # Source Management Endpoints
     path('sources/', views.get_all_sources, name='get_all_sources'),

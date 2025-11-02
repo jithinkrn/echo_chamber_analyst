@@ -159,7 +159,34 @@ export default function SystemStatus() {
       
       if (response.ok) {
         const data = await response.json();
-        setAgentsData(data);
+        
+        // Transform the new API format to our component format
+        if (data.agents && Array.isArray(data.agents)) {
+          const transformedAgents: LegacyAgentInfo[] = data.agents.map((agent: any) => ({
+            name: agent.name,
+            status: agent.status,
+            capabilities: agent.capabilities,
+            description: agent.description,
+            capabilitiesList: [] // Will use the expanded format from fallbackAgents
+          }));
+          
+          // Merge with fallback data to get capabilitiesList
+          const mergedAgents = transformedAgents.map(apiAgent => {
+            const fallbackAgent = fallbackAgents.find(fa => fa.name === apiAgent.name);
+            return {
+              ...apiAgent,
+              capabilitiesList: fallbackAgent?.capabilitiesList || []
+            };
+          });
+          
+          // Update fallback agents with live status
+          fallbackAgents.forEach(agent => {
+            const liveAgent = mergedAgents.find(ma => ma.name === agent.name);
+            if (liveAgent) {
+              agent.status = liveAgent.status;
+            }
+          });
+        }
       } else {
         // Fallback to hardcoded data
         console.warn('Could not fetch agents status, using fallback data');
