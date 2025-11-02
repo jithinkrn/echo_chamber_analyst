@@ -258,7 +258,7 @@ class HybridRAGTool:
                     tool_map[len(tasks) - 1] = "brand_analytics"
 
                 elif tool_name == "community_query":
-                    task = sync_to_async(community_query_tool.run)(
+                    task = community_query_tool.run(
                         brand_id=brand_id,
                         campaign_id=campaign_id,
                         sort_by="echo_score",
@@ -268,7 +268,7 @@ class HybridRAGTool:
                     tool_map[len(tasks) - 1] = "community_query"
 
                 elif tool_name == "influencer_query":
-                    task = sync_to_async(influencer_query_tool.run)(
+                    task = influencer_query_tool.run(
                         brand_id=brand_id,
                         campaign_id=campaign_id,
                         sort_by="advocacy_score",
@@ -278,17 +278,17 @@ class HybridRAGTool:
                     tool_map[len(tasks) - 1] = "influencer_query"
 
                 elif tool_name == "pain_point_analysis":
-                    task = sync_to_async(pain_point_analysis_tool.run)(
+                    task = pain_point_analysis_tool.run(
                         brand_id=brand_id,
                         campaign_id=campaign_id,
-                        sort_by="mentions",
+                        sort_by="mention_count",
                         limit=limit
                     )
                     tasks.append(task)
                     tool_map[len(tasks) - 1] = "pain_point_analysis"
 
                 elif tool_name == "campaign_analytics":
-                    task = sync_to_async(campaign_analytics_tool.run)(
+                    task = campaign_analytics_tool.run(
                         campaign_id=campaign_id,
                         brand_id=brand_id,
                         sort_by="created_at",
@@ -299,7 +299,7 @@ class HybridRAGTool:
 
                 elif tool_name == "trend_analysis":
                     time_period = entities.get("time_period", "30d")
-                    task = sync_to_async(trend_analysis_tool.run)(
+                    task = trend_analysis_tool.run(
                         brand_id=brand_id,
                         campaign_id=campaign_id,
                         period=time_period,

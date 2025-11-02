@@ -93,7 +93,7 @@ class BrandAnalyticsTool:
                 if include_kpis:
                     # Get content statistics
                     content_stats = ProcessedContent.objects.filter(
-                        brand=brand
+                        raw_content__campaign__brand=brand
                     ).aggregate(
                         total_posts=Count('id'),
                         avg_sentiment=Avg('sentiment_score'),
@@ -452,25 +452,35 @@ class PainPointAnalysisTool:
                 queryset = queryset.filter(campaign_id=campaign_id)
 
             if min_severity is not None:
-                queryset = queryset.filter(severity__gte=min_severity)
+                queryset = queryset.filter(heat_level__gte=min_severity)
 
             if growth_trend:
-                queryset = queryset.filter(growth_trend=growth_trend)
+                # Map trend names to growth_percentage ranges
+                if growth_trend == "rising":
+                    queryset = queryset.filter(growth_percentage__gt=10)
+                elif growth_trend == "stable":
+                    queryset = queryset.filter(growth_percentage__gte=-10, growth_percentage__lte=10)
+                elif growth_trend == "declining":
+                    queryset = queryset.filter(growth_percentage__lt=-10)
 
             # Sort
             sort_field_map = {
-                "mentions": "-mentions",
-                "severity": "-severity",
-                "growth_rate": "-growth_rate"
+                "mentions": "-mention_count",
+                "mention_count": "-mention_count",
+                "severity": "-heat_level",
+                "heat_level": "-heat_level",
+                "growth_rate": "-growth_percentage",
+                "growth_percentage": "-growth_percentage"
             }
-            sort_field = sort_field_map.get(sort_by, "-mentions")
+            sort_field = sort_field_map.get(sort_by, "-mention_count")
             queryset = queryset.order_by(sort_field)
 
             pain_points = list(queryset[:limit].values(
-                'id', 'keyword', 'category', 'mentions',
-                'severity', 'growth_rate', 'growth_trend',
-                'sentiment_distribution', 'example_content',
-                'brand_id', 'campaign_id', 'created_at'
+                'id', 'keyword', 'mention_count',
+                'heat_level', 'growth_percentage',
+                'sentiment_score', 'example_content',
+                'brand_id', 'campaign_id', 'created_at',
+                'related_keywords'
             ))
 
             if not pain_points:
@@ -483,27 +493,26 @@ class PainPointAnalysisTool:
             # Calculate statistics
             all_pain_points = queryset.aggregate(
                 total=Count('id'),
-                avg_severity=Avg('severity'),
-                total_mentions=Sum('mentions'),
-                avg_growth_rate=Avg('growth_rate')
+                avg_severity=Avg('heat_level'),
+                total_mentions=Sum('mention_count'),
+                avg_growth_rate=Avg('growth_percentage')
             )
 
-            # Count by trend
-            trend_distribution = queryset.values('growth_trend').annotate(
-                count=Count('id')
-            )
+            # Count by growth trend ranges
+            rising_count = queryset.filter(growth_percentage__gt=10).count()
+            stable_count = queryset.filter(growth_percentage__gte=-10, growth_percentage__lte=10).count()
+            declining_count = queryset.filter(growth_percentage__lt=-10).count()
 
             results = [
                 {
                     "id": str(p["id"]),
                     "keyword": p["keyword"],
-                    "category": p["category"],
-                    "mentions": p["mentions"] or 0,
-                    "severity": p["severity"] or 0,
-                    "growth_rate": round(p["growth_rate"] or 0.0, 2),
-                    "growth_trend": p["growth_trend"],
-                    "sentiment_distribution": p["sentiment_distribution"],
+                    "mention_count": p["mention_count"] or 0,
+                    "heat_level": p["heat_level"] or 0,
+                    "growth_percentage": round(p["growth_percentage"] or 0.0, 2),
+                    "sentiment_score": round(p["sentiment_score"] or 0.0, 2),
                     "example_content": p["example_content"][:200] if p["example_content"] else None,
+                    "related_keywords": p["related_keywords"] or [],
                     "brand_id": str(p["brand_id"]) if p["brand_id"] else None,
                     "campaign_id": str(p["campaign_id"]) if p["campaign_id"] else None,
                     "created_at": p["created_at"].isoformat() if p["created_at"] else None
@@ -520,9 +529,9 @@ class PainPointAnalysisTool:
                     "total_mentions": all_pain_points["total_mentions"] or 0,
                     "avg_growth_rate": round(all_pain_points["avg_growth_rate"] or 0.0, 2),
                     "trend_distribution": {
-                        t["growth_trend"]: t["count"]
-                        for t in trend_distribution
-                        if t["growth_trend"]
+                        "rising": rising_count,
+                        "stable": stable_count,
+                        "declining": declining_count
                     }
                 },
                 "pain_points": results
