@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { apiService } from '@/lib/api';
-import { CheckCircle, XCircle, AlertCircle, RefreshCw, Activity, Cpu, Database, Zap } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, RefreshCw, Activity, Cpu, Database, Zap, ChevronDown, CheckCircle2 } from 'lucide-react';
 
 interface SystemInfo {
   message: string;
@@ -23,6 +23,7 @@ interface LegacyAgentInfo {
   status: 'healthy' | 'unhealthy' | 'unknown';
   capabilities: number;
   description: string;
+  capabilitiesList?: string[];
 }
 
 export default function SystemStatus() {
@@ -32,44 +33,92 @@ export default function SystemStatus() {
   const [error, setError] = useState<string | null>(null);
   const [agentsData, setAgentsData] = useState<AgentInfo[]>([]);
   const [isLoadingAgents, setIsLoadingAgents] = useState(true);
+  const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
 
-  // Fallback agent data for when API is not available
+  // Current system architecture - Pure RAG with LangGraph orchestration
   const fallbackAgents: LegacyAgentInfo[] = [
     {
-      name: 'Orchestrator Agent',
+      name: 'RAG System',
       status: 'healthy',
-      capabilities: 9,
-      description: 'StateGraph orchestration and workflow management',
+      capabilities: 8,
+      description: 'Pure vector-based Retrieval Augmented Generation system',
+      capabilitiesList: [
+        'OpenAI text-embedding-3-small (1536 dimensions)',
+        'pgvector cosine similarity search',
+        'Semantic search across ProcessedContent, Insights, PainPoints, Threads',
+        'Query intent classification (conversational, semantic, hybrid)',
+        'Conversational query rewriting with context',
+        'Configurable similarity thresholds (0.3-0.5)',
+        'LangSmith tracing and monitoring',
+        'Greeting/chitchat detection and handling'
+      ]
+    },
+    {
+      name: 'LangGraph Orchestrator',
+      status: 'healthy',
+      capabilities: 6,
+      description: 'StateGraph-based workflow orchestration and agent coordination',
+      capabilitiesList: [
+        'Campaign workflow management',
+        'Chat workflow with conversation history',
+        'Parallel task execution',
+        'State management and persistence',
+        'Error handling and retry mechanisms',
+        'Compliance tracking and audit trails'
+      ]
     },
     {
       name: 'Scout Agent',
       status: 'healthy',
       capabilities: 5,
-      description: 'Content discovery and web scraping',
-    },
-    {
-      name: 'Data Cleaner Agent',
-      status: 'healthy',
-      capabilities: 7,
-      description: 'Content cleaning and validation',
+      description: 'Reddit data collection and community discovery',
+      capabilitiesList: [
+        'PRAW Reddit API integration',
+        'Subreddit search and filtering',
+        'Thread and comment scraping',
+        'Real-time data collection',
+        'Community metadata extraction'
+      ]
     },
     {
       name: 'Analyst Agent',
       status: 'healthy',
-      capabilities: 10,
-      description: 'LLM-powered content analysis',
-    },
-    {
-      name: 'Chatbot Agent',
-      status: 'healthy',
       capabilities: 7,
-      description: 'RAG-powered conversational interface',
+      description: 'GPT-4 powered content analysis and insight generation',
+      capabilitiesList: [
+        'Sentiment analysis (positive/negative scoring)',
+        'Pain point extraction and categorization',
+        'Keyword and topic extraction',
+        'Strategic report generation',
+        'Content summarization',
+        'Insight validation and confidence scoring',
+        'Campaign performance analysis'
+      ]
     },
     {
-      name: 'Monitoring Agent',
+      name: 'Embedding Service',
       status: 'healthy',
-      capabilities: 8,
-      description: 'LangSmith integration and observability',
+      capabilities: 4,
+      description: 'Vector embedding generation and management',
+      capabilitiesList: [
+        'Batch embedding generation',
+        'ProcessedContent embedding',
+        'Insight (strategic reports) embedding',
+        'PainPoint embedding with context'
+      ]
+    },
+    {
+      name: 'Monitoring & Guardrails',
+      status: 'healthy',
+      capabilities: 5,
+      description: 'LangSmith integration and content safety',
+      capabilitiesList: [
+        'LangSmith tracing for all LLM calls',
+        'Query validation and sanitization',
+        'Output safety checks',
+        'Token usage and cost tracking',
+        'Performance monitoring'
+      ]
     },
   ];
 
@@ -278,7 +327,7 @@ export default function SystemStatus() {
       {/* Agent Status */}
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">AI Agents Status</h3>
+          <h3 className="text-lg font-medium text-gray-900">AI Agents and Services - Status</h3>
           <p className="mt-1 text-sm text-gray-500">
             Multi-agent system for content analysis and echo chamber detection
           </p>
@@ -287,25 +336,53 @@ export default function SystemStatus() {
         <div className="px-6 py-4">
           <div className="space-y-4">
             {displayAgents.map((agent: any, index: number) => (
-              <div key={index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  {getStatusIcon(agent.status)}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900">{agent.name}</h4>
-                    <p className="text-xs text-gray-500">{agent.description}</p>
+              <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setExpandedAgent(expandedAgent === agent.name ? null : agent.name)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center space-x-3">
+                    {getStatusIcon(agent.status)}
+                    <div className="text-left">
+                      <h4 className="text-sm font-medium text-gray-900">{agent.name}</h4>
+                      <p className="text-xs text-gray-500">{agent.description}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm text-gray-900 font-medium">
-                    {agent.capabilities} capabilities
+                  <div className="flex items-center space-x-4">
+                    <div className="text-right">
+                      <div className="text-sm text-gray-900 font-medium">
+                        {agent.capabilitiesList?.length || agent.capabilities} capabilities
+                      </div>
+                      <div className={`text-xs capitalize ${
+                        agent.status === 'healthy' ? 'text-green-600' :
+                        agent.status === 'unhealthy' ? 'text-red-600' : 'text-yellow-600'
+                      }`}>
+                        {agent.status}
+                      </div>
+                    </div>
+                    <ChevronDown 
+                      className={`w-5 h-5 text-gray-400 transition-transform ${
+                        expandedAgent === agent.name ? 'transform rotate-180' : ''
+                      }`}
+                    />
                   </div>
-                  <div className={`text-xs capitalize ${
-                    agent.status === 'healthy' ? 'text-green-600' :
-                    agent.status === 'unhealthy' ? 'text-red-600' : 'text-yellow-600'
-                  }`}>
-                    {agent.status}
+                </button>
+                
+                {expandedAgent === agent.name && agent.capabilitiesList && (
+                  <div className="px-4 pb-4 bg-gray-50">
+                    <div className="pt-3 border-t border-gray-200">
+                      <h5 className="text-xs font-medium text-gray-700 mb-2">Capabilities:</h5>
+                      <ul className="space-y-2">
+                        {agent.capabilitiesList.map((capability: string, capIndex: number) => (
+                          <li key={capIndex} className="flex items-start space-x-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                            <span className="text-xs text-gray-700">{capability}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             ))}
           </div>
