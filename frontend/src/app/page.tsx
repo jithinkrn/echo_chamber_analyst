@@ -10,9 +10,8 @@ import AdminInterface from '@/components/AdminInterface';
 import DashboardComponent from '@/components/Dashboard';
 import BrandManager from '@/components/admin/BrandManager';
 import CampaignManager from '@/components/admin/CampaignManager';
-import SourceManager from '@/components/admin/SourceManager';
 import DeleteData from '@/components/DeleteData';
-import { Activity, MessageSquare, BarChart3, LogOut, User, Settings, Building, TrendingUp, Globe, Trash2 } from 'lucide-react';
+import { Activity, MessageSquare, BarChart3, LogOut, User, Settings, Building, TrendingUp, Trash2 } from 'lucide-react';
 
 function DashboardContent() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -48,7 +47,6 @@ function DashboardContent() {
     { id: 'chat', label: 'AI Chat', icon: MessageSquare },
     { id: 'brands', label: 'Brands', icon: Building },
     { id: 'campaigns', label: 'Campaigns', icon: TrendingUp },
-    { id: 'sources', label: 'Sources', icon: Globe },
     { id: 'status', label: 'System Status', icon: Activity },
   ];
 
@@ -151,13 +149,6 @@ function DashboardContent() {
         {activeTab === 'campaigns' && (
           <div>
             <CampaignManager />
-          </div>
-        )}
-
-        {/* Sources Tab */}
-        {activeTab === 'sources' && (
-          <div>
-            <SourceManager />
           </div>
         )}
 

@@ -311,28 +311,6 @@ export default function SystemStatus() {
           </div>
         </div>
       </div>
-
-      {/* API Endpoints */}
-      {systemInfo && (
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">Available Endpoints</h3>
-          </div>
-
-          <div className="px-6 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Object.entries(systemInfo.endpoints).map(([name, path]) => (
-                <div key={name} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="text-sm font-medium text-gray-900 capitalize">{name}</span>
-                  <code className="text-xs text-gray-600 bg-white px-2 py-1 rounded border">
-                    {path}
-                  </code>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
