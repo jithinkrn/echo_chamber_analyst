@@ -256,7 +256,7 @@ class VectorSearchTool:
         brand_id: Optional[str] = None,
         campaign_id: Optional[str] = None,
         min_severity: Optional[int] = None,
-        min_similarity: float = 0.7,
+        min_similarity: float = 0.3,  # Lower threshold for pain points (keyword-based)
         limit: int = 10
     ) -> Dict[str, Any]:
         """
@@ -509,11 +509,12 @@ class VectorSearchTool:
                 limit=limit_per_type
             )
 
+            # Use lower threshold for pain points (keyword-based content needs lenient matching)
             pain_points_task = self.search_pain_points(
                 query=query,
                 brand_id=brand_id,
                 campaign_id=campaign_id,
-                min_similarity=min_similarity,
+                min_similarity=0.3,  # Lower threshold for better recall
                 limit=limit_per_type
             )
 

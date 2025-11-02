@@ -53,6 +53,7 @@ class IntentClassifier:
 
 Analyze the user's query and extract:
 1. **intent_type**: One of:
+   - "conversational": Greetings, chitchat, off-topic (e.g., "hi", "hello", "how are you", "thanks")
    - "semantic": Questions about content meaning, themes, sentiment (e.g., "What are people saying about X?")
    - "keyword": Exact keyword/phrase searches (e.g., "Find posts mentioning 'product launch'")
    - "hybrid": Combination of semantic + keyword (default for most queries)
@@ -65,6 +66,7 @@ Analyze the user's query and extract:
    - content_type: What to search for (threads, pain_points, all)
 
 3. **search_strategy**: Which vector search strategy to use:
+   - "conversational": No search needed, respond with greeting/help
    - "vector_search": Pure semantic similarity search across all content types
    - "hybrid_search": Combined semantic + keyword search (USE THIS AS DEFAULT)
 
@@ -73,13 +75,14 @@ Analyze the user's query and extract:
 IMPORTANT: This is a RAG-based system. ALL queries should use vector embeddings search.
 Do NOT use analytics tools - use "hybrid_search" for all queries by default.
 
+For greetings/chitchat: Use "conversational" intent and "conversational" strategy.
 For pain point queries: Use "hybrid_search" to find pain points in the embedded content.
 For brand analytics: Use "hybrid_search" to find relevant content about the brand.
 For campaign questions: Use "hybrid_search" with campaign_name entity.
 
 Respond in JSON format:
 {
-    "intent_type": "semantic|keyword|hybrid",
+    "intent_type": "conversational|semantic|keyword|hybrid",
     "entities": {
         "brand_name": "...",
         "campaign_name": "...",
@@ -87,7 +90,7 @@ Respond in JSON format:
         "keywords": ["...", "..."],
         "content_type": "threads|pain_points|all"
     },
-    "search_strategy": "vector_search|hybrid_search",
+    "search_strategy": "conversational|vector_search|hybrid_search",
     "confidence": 0.95,
     "reasoning": "Brief explanation of classification"
 }"""
@@ -226,6 +229,28 @@ Conversation history:
             entities = classification.get("entities", {})
             search_strategy = classification.get("search_strategy", "hybrid_search")
             content_type = entities.get("content_type", "all")
+
+            # Handle conversational intent (greetings, chitchat) without search
+            if intent_type == "conversational" or search_strategy == "conversational":
+                greeting_responses = [
+                    "Hello! I'm your EchoChamber Analyst assistant. I can help you analyze brand sentiment, pain points, and campaign insights. What would you like to know?",
+                    "Hi there! I'm here to help you understand your brand's social media presence. You can ask me about pain points, sentiment analysis, campaign performance, or specific discussions.",
+                    "Hey! I'm ready to assist you with brand analytics. Try asking me about customer pain points, trending topics, or campaign insights.",
+                ]
+                import random
+                response = random.choice(greeting_responses)
+                
+                return {
+                    "success": True,
+                    "answer": response,
+                    "sources": [],
+                    "metadata": {
+                        "intent_type": "conversational",
+                        "search_strategy": "conversational",
+                        "search_time_ms": 0,
+                        "processing_time_ms": int((datetime.now() - start_time).total_seconds() * 1000)
+                    }
+                }
 
             # Extract entity filters using sync_to_async for database queries
             from asgiref.sync import sync_to_async
