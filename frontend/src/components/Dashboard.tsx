@@ -531,9 +531,6 @@ export default function Dashboard() {
           <div className="text-sm text-gray-600">
             Brand: {dashboardData?.brand?.name || dashboardData?.filters?.brand || (selectedBrand ? brands.find(b => b.id === selectedBrand)?.name : 'All Brands')}
           </div>
-          <div className="text-sm text-gray-600">
-            Source: {dashboardData?.filters?.sources?.join(' + ') || 'Reddit + Discord + TikTok'}
-          </div>
         </div>
       </div>
 
@@ -1035,7 +1032,6 @@ export default function Dashboard() {
                   <th className="text-left py-2 px-2">Platform</th>
                   <th className="text-right py-2 px-2">Members</th>
                   <th className="text-right py-2 px-2">Echo Score</th>
-                  <th className="text-left py-2 px-2">Key Influencer</th>
                 </tr>
               </thead>
               <tbody>
@@ -1072,32 +1068,11 @@ export default function Dashboard() {
                         {community.echo_score?.toFixed(1) || '0.0'}
                       </span>
                     </td>
-                    <td className="py-3 px-2 text-gray-900">
-                      <div className="flex flex-col">
-                        <span className="font-medium">{community.key_influencer}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-500">
-                            {community.influencer_post_count} posts · {community.influencer_engagement} engagement
-                          </span>
-                          {community.influencer_url && (
-                            <a
-                              href={community.influencer_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              View Post →
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    </td>
                   </tr>
                 ))}
                 {(!dashboardData.community_watchlist || dashboardData.community_watchlist.length === 0) && (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-gray-500">
+                    <td colSpan={5} className="py-8 text-center text-gray-500">
                       <p className="text-sm">No communities in watchlist</p>
                       <p className="text-xs mt-1">Run a campaign to discover communities</p>
                     </td>
