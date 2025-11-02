@@ -149,7 +149,7 @@ class VectorSearchTool:
         brand_id: Optional[str] = None,
         campaign_id: Optional[str] = None,
         insight_type: Optional[str] = None,
-        min_similarity: float = 0.7,
+        min_similarity: float = 0.3,  # Lower threshold for insights (strategic reports)
         limit: int = 10
     ) -> Dict[str, Any]:
         """
@@ -171,9 +171,13 @@ class VectorSearchTool:
             from django.db.models import FloatField, ExpressionWrapper
             from django.db.models.expressions import RawSQL
             
+            logger.info(f"Searching insights: query='{query[:50]}...', min_similarity={min_similarity}")
+            
             query_embedding = await embedding_service.generate_embedding(query)
 
             queryset = Insight.objects.exclude(embedding__isnull=True)
+            
+            logger.info(f"Found {await sync_to_async(queryset.count)()} insights with embeddings")
 
             if brand_id:
                 queryset = queryset.filter(brand_id=brand_id)
@@ -202,6 +206,8 @@ class VectorSearchTool:
                 'confidence_score', 'impact_score', 'priority_score',
                 'campaign_id', 'created_at', 'similarity'
             )))()
+
+            logger.info(f"Insight vector search: found {len(results)} results with min_similarity={min_similarity}")
 
             if not results:
                 return {
@@ -492,11 +498,12 @@ class VectorSearchTool:
                 limit=limit_per_type
             )
 
+            # Use lower threshold for insights (strategic reports need more lenient matching)
             insights_task = self.search_insights(
                 query=query,
                 brand_id=brand_id,
                 campaign_id=campaign_id,
-                min_similarity=min_similarity,
+                min_similarity=0.3,  # Lower threshold for strategic reports
                 limit=limit_per_type
             )
 
