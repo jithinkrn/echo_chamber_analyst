@@ -729,45 +729,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* LLM Usage & Cost Tracking */}
-      {(dashboardData.kpis.llm_tokens_used > 0 || dashboardData.kpis.llm_cost_usd > 0) && (
-        <div className="grid grid-cols-2 gap-4 mt-4">
-          <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-indigo-900 flex items-center justify-between">
-                LLM Token Usage (Last 7 Days)
-                <MessageSquare className="h-4 w-4 text-indigo-600" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-indigo-900">
-                {dashboardData.kpis.llm_tokens_used}K
-              </div>
-              <div className="text-xs text-indigo-700 mt-2">
-                Tokens processed by AI agents
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-emerald-900 flex items-center justify-between">
-                LLM Cost (Last 7 Days)
-                <DollarSign className="h-4 w-4 text-emerald-600" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-emerald-900">
-                ${dashboardData.kpis.llm_cost_usd.toFixed(3)}
-              </div>
-              <div className="text-xs text-emerald-700 mt-2">
-                OpenAI API usage cost
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* Heat Map and Top Pain Points */}
       <div className="grid grid-cols-2 gap-6">
         {/* Top Growing Pains */}
