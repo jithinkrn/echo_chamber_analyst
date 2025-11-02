@@ -195,11 +195,13 @@ class HybridRAGTool:
             entities = classification.get("entities", {})
             tools_needed = classification.get("tools_needed", ["hybrid_search"])
 
-            # Extract entity filters
+            # Extract entity filters using sync_to_async for database queries
+            from asgiref.sync import sync_to_async
+            
             if not brand_id and entities.get("brand_name"):
                 # Look up brand by name
                 from common.models import Brand
-                brand = Brand.objects.filter(name__icontains=entities["brand_name"]).first()
+                brand = await sync_to_async(Brand.objects.filter(name__icontains=entities["brand_name"]).first)()
                 if brand:
                     brand_id = str(brand.id)
 
@@ -209,11 +211,14 @@ class HybridRAGTool:
                 campaign_queryset = Campaign.objects.filter(name__icontains=entities["campaign_name"])
                 if brand_id:
                     campaign_queryset = campaign_queryset.filter(brand_id=brand_id)
-                campaign = campaign_queryset.first()
+                campaign = await sync_to_async(campaign_queryset.first)()
                 if campaign:
                     campaign_id = str(campaign.id)
 
             # Step 2: Execute tools in parallel
+            # Use sync_to_async for database-heavy tools
+            from asgiref.sync import sync_to_async
+            
             tasks = []
             tool_map = {}
 
@@ -242,7 +247,7 @@ class HybridRAGTool:
                     tool_map[len(tasks) - 1] = "hybrid_search"
 
                 elif tool_name == "brand_analytics":
-                    task = brand_analytics_tool.run(
+                    task = sync_to_async(brand_analytics_tool.run)(
                         brand_id=brand_id,
                         brand_name=entities.get("brand_name"),
                         include_campaigns=True,
@@ -253,7 +258,7 @@ class HybridRAGTool:
                     tool_map[len(tasks) - 1] = "brand_analytics"
 
                 elif tool_name == "community_query":
-                    task = community_query_tool.run(
+                    task = sync_to_async(community_query_tool.run)(
                         brand_id=brand_id,
                         campaign_id=campaign_id,
                         sort_by="echo_score",
@@ -263,7 +268,7 @@ class HybridRAGTool:
                     tool_map[len(tasks) - 1] = "community_query"
 
                 elif tool_name == "influencer_query":
-                    task = influencer_query_tool.run(
+                    task = sync_to_async(influencer_query_tool.run)(
                         brand_id=brand_id,
                         campaign_id=campaign_id,
                         sort_by="advocacy_score",
@@ -273,7 +278,7 @@ class HybridRAGTool:
                     tool_map[len(tasks) - 1] = "influencer_query"
 
                 elif tool_name == "pain_point_analysis":
-                    task = pain_point_analysis_tool.run(
+                    task = sync_to_async(pain_point_analysis_tool.run)(
                         brand_id=brand_id,
                         campaign_id=campaign_id,
                         sort_by="mentions",
@@ -283,7 +288,7 @@ class HybridRAGTool:
                     tool_map[len(tasks) - 1] = "pain_point_analysis"
 
                 elif tool_name == "campaign_analytics":
-                    task = campaign_analytics_tool.run(
+                    task = sync_to_async(campaign_analytics_tool.run)(
                         campaign_id=campaign_id,
                         brand_id=brand_id,
                         sort_by="created_at",
@@ -294,7 +299,7 @@ class HybridRAGTool:
 
                 elif tool_name == "trend_analysis":
                     time_period = entities.get("time_period", "30d")
-                    task = trend_analysis_tool.run(
+                    task = sync_to_async(trend_analysis_tool.run)(
                         brand_id=brand_id,
                         campaign_id=campaign_id,
                         period=time_period,

@@ -24,6 +24,10 @@ app.conf.beat_schedule = {
         'task': 'agents.tasks.check_and_execute_scheduled_campaigns',
         'schedule': 60.0,  # Run every minute to check for campaigns that need execution
     },
+    'update-dashboard-metrics': {
+        'task': 'agents.tasks.update_dashboard_metrics_task',
+        'schedule': 300.0,  # Run every 5 minutes to keep dashboard fresh
+    },
     'cleanup-old-data': {
         'task': 'agents.tasks.cleanup_old_data_task',
         'schedule': 86400.0,  # Run daily

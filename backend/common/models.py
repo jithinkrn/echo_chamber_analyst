@@ -548,7 +548,7 @@ class PainPoint(BaseModel):
 class Thread(BaseModel):
     """Individual threads/posts from communities."""
 
-    thread_id = models.CharField(max_length=100)
+    thread_id = models.CharField(max_length=255)  # Increased from 100 to 255
     title = models.CharField(max_length=500)
     content = models.TextField()
     url = models.URLField(max_length=500, blank=True, null=True, help_text='Direct link to the thread/post')
@@ -568,7 +568,7 @@ class Thread(BaseModel):
     month_year = models.CharField(max_length=7, null=True, blank=True)  # Format: "YYYY-MM" (e.g., "2024-03")
 
     # Thread metadata
-    author = models.CharField(max_length=100)
+    author = models.CharField(max_length=255)  # Increased from 100 to 255
     author_karma = models.IntegerField(default=0)
     comment_count = models.IntegerField(default=0)
     upvotes = models.IntegerField(default=0)
@@ -592,6 +592,11 @@ class Thread(BaseModel):
     # Engagement metrics
     engagement_rate = models.FloatField(default=0.0)
     controversy_score = models.FloatField(default=0.0)
+    
+    # Vector embedding for semantic search (for chatbot RAG)
+    embedding = VectorField(dimensions=1536, null=True, blank=True)
+    embedding_model = models.CharField(max_length=100, default='text-embedding-3-small')
+    embedding_created_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
         db_table = 'threads'

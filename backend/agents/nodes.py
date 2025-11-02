@@ -36,6 +36,7 @@ from .scout_data_collection import collect_real_brand_data
 # Import Django models for dashboard data
 from common.models import Campaign, Community, PainPoint, Influencer, Thread, DashboardMetrics
 from django.db.models import Q
+from django.db import IntegrityError
 
 logger = logging.getLogger(__name__)
 
@@ -1164,25 +1165,36 @@ def store_brand_analytics_data(collected_data: Dict[str, Any], brand, automatic_
                 else:
                     community_url = f"https://{community_name}"
 
-            community, created = Community.objects.get_or_create(
-                name=community_name,
-                platform=platform,
-                brand=brand,  # Link to brand
-                campaign=automatic_campaign,  # Link to automatic campaign
-                defaults={
-                    "url": community_url,
-                    "member_count": community_data.get("member_count", 0),
-                    "echo_score": 0.0,  # Will be calculated after all data is saved
-                    "description": f"Brand Analytics - Community for {brand.name}",
-                    "is_active": True,
-                    "last_analyzed": timezone.now(),
-                    "category": community_data.get("category", "general"),
-                    "language": community_data.get("language", "en"),
-                    "key_influencer": community_data.get("key_influencer", None),
-                    "influencer_post_count": community_data.get("influencer_post_count", 0),
-                    "influencer_engagement": community_data.get("influencer_engagement", 0)
-                }
-            )
+            try:
+                community, created = Community.objects.get_or_create(
+                    name=community_name,
+                    platform=platform,
+                    brand=brand,  # Link to brand
+                    campaign=automatic_campaign,  # Link to automatic campaign
+                    defaults={
+                        "url": community_url,
+                        "member_count": community_data.get("member_count", 0),
+                        "echo_score": 0.0,  # Will be calculated after all data is saved
+                        "description": f"Brand Analytics - Community for {brand.name}",
+                        "is_active": True,
+                        "last_analyzed": timezone.now(),
+                        "category": community_data.get("category", "general"),
+                        "language": community_data.get("language", "en"),
+                        "key_influencer": community_data.get("key_influencer", None),
+                        "influencer_post_count": community_data.get("influencer_post_count", 0),
+                        "influencer_engagement": community_data.get("influencer_engagement", 0)
+                    }
+                )
+            except IntegrityError:
+                # Race condition: community already exists (case-insensitive duplicate)
+                # Fetch the existing one using case-insensitive match
+                community = Community.objects.get(
+                    name__iexact=community_name,
+                    platform=platform,
+                    brand=brand,
+                    campaign=automatic_campaign
+                )
+                created = False
 
             if not created:
                 # Update existing community with new data
@@ -1398,25 +1410,35 @@ def store_custom_campaign_data(collected_data: Dict[str, Any], brand, campaign) 
 
         # Store communities (link to this campaign)
         for community_data in collected_data.get("communities", []):
-            community, created = Community.objects.get_or_create(
-                name=community_data["name"],
-                platform=community_data["platform"],
-                brand=brand,  # Link to brand
-                campaign=campaign,  # Link to THIS campaign
-                defaults={
-                    "url": community_data.get("url", f"https://reddit.com/{community_data["name"]}"),
-                    "member_count": community_data.get("member_count", 0),
-                    "echo_score": 0.0,  # Will be calculated after all data is saved
-                    "description": f"Custom Campaign: {campaign.name} - {community_data['name']}",
-                    "is_active": True,
-                    "last_analyzed": timezone.now(),
-                    "category": community_data.get("category", "custom_campaign"),
-                    "language": community_data.get("language", "en"),
-                    "key_influencer": community_data.get("key_influencer", None),
-                    "influencer_post_count": community_data.get("influencer_post_count", 0),
-                    "influencer_engagement": community_data.get("influencer_engagement", 0)
-                }
-            )
+            try:
+                community, created = Community.objects.get_or_create(
+                    name=community_data["name"],
+                    platform=community_data["platform"],
+                    brand=brand,  # Link to brand
+                    campaign=campaign,  # Link to THIS campaign
+                    defaults={
+                        "url": community_data.get("url", f"https://reddit.com/{community_data['name']}"),
+                        "member_count": community_data.get("member_count", 0),
+                        "echo_score": 0.0,  # Will be calculated after all data is saved
+                        "description": f"Custom Campaign: {campaign.name} - {community_data['name']}",
+                        "is_active": True,
+                        "last_analyzed": timezone.now(),
+                        "category": community_data.get("category", "custom_campaign"),
+                        "language": community_data.get("language", "en"),
+                        "key_influencer": community_data.get("key_influencer", None),
+                        "influencer_post_count": community_data.get("influencer_post_count", 0),
+                        "influencer_engagement": community_data.get("influencer_engagement", 0)
+                    }
+                )
+            except IntegrityError:
+                # Race condition: community already exists
+                community = Community.objects.get(
+                    name__iexact=community_data["name"],
+                    platform=community_data["platform"],
+                    brand=brand,
+                    campaign=campaign
+                )
+                created = False
 
             if not created:
                 community.member_count = community_data.get("member_count", community.member_count)
@@ -1509,17 +1531,34 @@ def store_custom_campaign_data(collected_data: Dict[str, Any], brand, campaign) 
         # Store influencers (link to this campaign)
         influencer_count = _extract_and_store_influencers(collected_data, campaign, brand.name)
 
+        # Clear large data from memory before strategic report generation
+        logger.info("🧹 Memory cleanup before strategic report generation")
+        import gc
+        gc.collect()
+
         # Generate Custom Campaign insights using LLM (with campaign objectives)
+        # Use a smaller data subset for strategic report to reduce memory usage
         import asyncio
         import concurrent.futures
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        # Only pass necessary data, not the entire collected_data dict
+        strategic_subset = {
+            'threads': collected_data.get('threads', [])[:50],  # Limit to 50 most recent threads
+            'pain_points': collected_data.get('pain_points', [])[:30],  # Limit to 30 pain points
+            'communities': collected_data.get('communities', [])
+        }
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(
                 lambda: asyncio.run(_generate_and_store_custom_campaign_insights(
-                    collected_data, campaign, brand.name
+                    strategic_subset, campaign, brand.name
                 ))
             )
-            future.result()
+            future.result(timeout=300)  # 5 minute timeout
+
+        # Clear memory after strategic report
+        del strategic_subset
+        gc.collect()
 
         # Calculate echo scores for all communities after data is saved
         from common.utils import recalculate_all_community_scores
@@ -2076,7 +2115,7 @@ async def chatbot_node(state: Dict[str, Any]) -> Dict[str, Any]:
         validation = guardrails.validate_query(query=user_query, user_id=campaign_id)
         if not validation["valid"]:
             logger.warning(f"Query failed guardrails: {validation['error']}")
-            # Return error response
+            # Return friendly error response
             error_response = f"I'm sorry, but I can't process this query: {validation['error']}"
 
             conversation_history.extend([
@@ -2086,8 +2125,11 @@ async def chatbot_node(state: Dict[str, Any]) -> Dict[str, Any]:
             state["conversation_history"] = conversation_history
 
             state["rag_context"] = {
+                "response": error_response,  # Add response key for API compatibility
                 "error": validation["error"],
-                "error_code": validation["code"]
+                "error_code": validation["code"],
+                "sources": [],
+                "search_results": {"results": []}
             }
 
             return state

@@ -45,8 +45,8 @@ class Guardrails:
     - Sensitive data exposure
     """
 
-    # Query length limits
-    MIN_QUERY_LENGTH = 3
+    # Query length limits (allow short greetings like "hi")
+    MIN_QUERY_LENGTH = 2
     MAX_QUERY_LENGTH = 500
 
     # Blocked patterns (simple injection prevention)

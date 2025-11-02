@@ -461,9 +461,9 @@ def update_dashboard_metrics_task(campaign_id: Optional[int] = None):
                 raw_content__campaign=campaign
             ).count()
 
+            # Fixed: Insight model doesn't have is_archived field, just count all insights
             total_insights = Insight.objects.filter(
-                campaign=campaign,
-                is_archived=False
+                campaign=campaign
             ).count()
 
             avg_sentiment = ProcessedContent.objects.filter(
@@ -474,15 +474,18 @@ def update_dashboard_metrics_task(campaign_id: Optional[int] = None):
                 campaign=campaign
             ).count()
 
-            # Update or create dashboard metrics
+            # Count threads and communities for this campaign
+            threads_count = Thread.objects.filter(campaign=campaign).count()
+            communities_count = Community.objects.filter(campaign=campaign).count()
+
+            # Update or create dashboard metrics using correct field names
             DashboardMetrics.objects.update_or_create(
                 campaign=campaign,
+                date=timezone.now().date(),
                 defaults={
-                    'total_content_processed': total_content,
-                    'total_insights_generated': total_insights,
-                    'average_sentiment_score': round(avg_sentiment, 2),
-                    'pain_points_identified': pain_points_count,
-                    'last_updated': timezone.now()
+                    'sentiment_average': round(avg_sentiment, 2),
+                    'total_threads_analyzed': threads_count,
+                    'total_communities_tracked': communities_count,
                 }
             )
 
@@ -491,7 +494,10 @@ def update_dashboard_metrics_task(campaign_id: Optional[int] = None):
                 "campaign_id": campaign.id,
                 "total_content": total_content,
                 "total_insights": total_insights,
-                "avg_sentiment": round(avg_sentiment, 2)
+                "avg_sentiment": round(avg_sentiment, 2),
+                "threads": threads_count,
+                "communities": communities_count,
+                "pain_points": pain_points_count
             })
 
         logger.info(f"✅ Dashboard metrics updated for {results['campaigns_updated']} campaigns")
@@ -857,6 +863,14 @@ def scout_brand_analytics_task(self, brand_id: int):
                    f"{len(collected_data.get('pain_points', []))} pain points, "
                    f"{len(collected_data.get('threads', []))} threads")
 
+        # Trigger dashboard metrics update after successful data collection
+        update_dashboard_metrics_task.delay()
+        logger.info("📊 Triggered dashboard metrics update")
+
+        # Trigger embedding generation for chatbot RAG
+        generate_campaign_embeddings.delay(campaign_id=automatic_campaign.id)
+        logger.info("🔮 Triggered embedding generation for chatbot")
+
         return {
             "status": "success",
             "brand_id": brand_id,
@@ -917,7 +931,7 @@ def scout_custom_campaign_task(self, campaign_id: int):
         scout_config = {
             'search_depth': 'focused',  # Changed from 'comprehensive' - strategic focus only
             'focus': 'custom_campaign',
-            'collection_months': 2,  # Reduced from 6 - only collect recent 2 months for strategic snapshot
+            'collection_months': 3,  # Collect recent 3 months for strategic snapshot and trend analysis
             'brand_description': brand.description if brand.description else '',
             'brand_website': brand.website if brand.website else '',
             'industry': brand.industry if brand.industry else 'general',
@@ -933,14 +947,19 @@ def scout_custom_campaign_task(self, campaign_id: int):
 
         # Use asyncio to run the async function
         import asyncio
+        import gc
+        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        collected_data = loop.run_until_complete(
-            collect_real_brand_data(brand.name, campaign_keywords, scout_config)
-        )
-
-        loop.close()
+        try:
+            collected_data = loop.run_until_complete(
+                collect_real_brand_data(brand.name, campaign_keywords, scout_config)
+            )
+        finally:
+            loop.close()
+            # Force garbage collection after data collection
+            gc.collect()
 
         # Store LLM-discovered sources (marked as custom campaign sources)
         if 'discovered_sources' in collected_data:
@@ -972,12 +991,32 @@ def scout_custom_campaign_task(self, campaign_id: int):
 
         # Store data in database for Custom Campaign
         from .nodes import store_custom_campaign_data
+        
+        # Store with memory management
+        logger.info("💾 Storing campaign data with memory optimization...")
         store_custom_campaign_data(collected_data, brand, campaign)
+        
+        # Clear collected_data from memory after storage
+        data_summary = {
+            "communities": len(collected_data.get('communities', [])),
+            "threads": len(collected_data.get('threads', [])),
+            "pain_points": len(collected_data.get('pain_points', []))
+        }
+        del collected_data
+        gc.collect()
 
         logger.info(f"✅ Successfully collected Custom Campaign data for {campaign.name}")
-        logger.info(f"📊 Stored: {len(collected_data.get('communities', []))} communities, "
-                   f"{len(collected_data.get('pain_points', []))} pain points, "
-                   f"{len(collected_data.get('threads', []))} threads")
+        logger.info(f"📊 Stored: {data_summary['communities']} communities, "
+                   f"{data_summary['pain_points']} pain points, "
+                   f"{data_summary['threads']} threads")
+
+        # Trigger dashboard metrics update after successful data collection
+        update_dashboard_metrics_task.delay()
+        logger.info("📊 Triggered dashboard metrics update")
+
+        # Trigger embedding generation for chatbot RAG
+        generate_campaign_embeddings.delay(campaign_id=campaign_id)
+        logger.info("🔮 Triggered embedding generation for chatbot")
 
         return {
             "status": "success",
@@ -986,13 +1025,177 @@ def scout_custom_campaign_task(self, campaign_id: int):
             "campaign_type": "custom",
             "brand_id": brand.id,
             "brand_name": brand.name,
-            "data_collected": {
-                "communities": len(collected_data.get("communities", [])),
-                "threads": len(collected_data.get("threads", [])),
-                "pain_points": len(collected_data.get("pain_points", []))
-            }
+            "data_collected": data_summary
         }
 
     except Exception as e:
         logger.error(f"Custom Campaign collection failed for campaign {campaign_id}: {e}", exc_info=True)
+        raise self.retry(exc=e)
+
+
+@shared_task(base=CallbackTask, bind=True, max_retries=3, default_retry_delay=60)
+def generate_campaign_embeddings(self, campaign_id: int):
+    """
+    Generate embeddings for all campaign data (threads, pain points, insights).
+    
+    This enables RAG-based chatbot functionality by creating vector embeddings
+    for semantic search across campaign data.
+    
+    Args:
+        campaign_id: ID of the campaign to generate embeddings for
+        
+    Returns:
+        Dict with generation statistics
+    """
+    logger.info(f"🔮 Starting embedding generation for campaign {campaign_id}")
+    
+    try:
+        from openai import OpenAI
+        from django.conf import settings
+        import numpy as np
+        
+        # Get campaign
+        campaign = Campaign.objects.filter(id=campaign_id).first()
+        if not campaign:
+            logger.warning(f"Campaign {campaign_id} not found")
+            return {"status": "skipped", "reason": "campaign_not_found"}
+        
+        logger.info(f"Generating embeddings for campaign: {campaign.name} ({campaign.campaign_type})")
+        
+        # Initialize OpenAI client
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        
+        stats = {
+            "campaign_id": campaign_id,
+            "campaign_name": campaign.name,
+            "threads_processed": 0,
+            "pain_points_processed": 0,
+            "insights_processed": 0,
+            "threads_embedded": 0,
+            "pain_points_embedded": 0,
+            "insights_embedded": 0,
+            "errors": 0
+        }
+        
+        # 1. Generate embeddings for Threads
+        logger.info("📄 Processing threads...")
+        threads = Thread.objects.filter(
+            campaign=campaign,
+            embedding__isnull=True  # Only generate for threads without embeddings
+        )[:500]  # Limit to 500 threads per run to avoid rate limits
+        
+        stats["threads_processed"] = threads.count()
+        
+        for thread in threads:
+            try:
+                # Create content for embedding (title + content excerpt)
+                content = f"{thread.title}\n\n{thread.content[:1000]}"
+                
+                # Generate embedding
+                response = client.embeddings.create(
+                    model="text-embedding-3-small",
+                    input=content
+                )
+                
+                embedding_vector = response.data[0].embedding
+                
+                # Store embedding in Thread model
+                thread.embedding = embedding_vector
+                thread.embedding_model = "text-embedding-3-small"
+                thread.embedding_created_at = timezone.now()
+                thread.save(update_fields=['embedding', 'embedding_model', 'embedding_created_at'])
+                
+                stats["threads_embedded"] += 1
+                
+            except Exception as e:
+                logger.error(f"Failed to generate embedding for thread {thread.id}: {e}")
+                stats["errors"] += 1
+        
+        # 2. Generate embeddings for Pain Points
+        logger.info("⚠️  Processing pain points...")
+        pain_points = PainPoint.objects.filter(
+            campaign=campaign,
+            embedding__isnull=True
+        )[:500]
+        
+        stats["pain_points_processed"] = pain_points.count()
+        
+        for pain_point in pain_points:
+            try:
+                # Create content for embedding
+                content = f"Pain Point: {pain_point.keyword}\n"
+                content += f"Mentions: {pain_point.mention_count}\n"
+                content += f"Sentiment: {pain_point.sentiment_score}\n"
+                if pain_point.example_content:
+                    content += f"Example: {pain_point.example_content[:500]}"
+                
+                # Generate embedding
+                response = client.embeddings.create(
+                    model="text-embedding-3-small",
+                    input=content
+                )
+                
+                embedding_vector = response.data[0].embedding
+                
+                # Store embedding
+                pain_point.embedding = embedding_vector
+                pain_point.embedding_model = "text-embedding-3-small"
+                pain_point.embedding_created_at = timezone.now()
+                pain_point.save(update_fields=['embedding', 'embedding_model', 'embedding_created_at'])
+                
+                stats["pain_points_embedded"] += 1
+                
+            except Exception as e:
+                logger.error(f"Failed to generate embedding for pain point {pain_point.id}: {e}")
+                stats["errors"] += 1
+        
+        # 3. Generate embeddings for Insights
+        logger.info("💡 Processing insights...")
+        insights = Insight.objects.filter(
+            campaign=campaign,
+            embedding__isnull=True
+        )[:500]
+        
+        stats["insights_processed"] = insights.count()
+        
+        for insight in insights:
+            try:
+                # Create content for embedding
+                content = f"{insight.title}\n\n{insight.description}"
+                if insight.summary:
+                    content += f"\n\nSummary: {insight.summary}"
+                
+                # Generate embedding
+                response = client.embeddings.create(
+                    model="text-embedding-3-small",
+                    input=content
+                )
+                
+                embedding_vector = response.data[0].embedding
+                
+                # Store embedding
+                insight.embedding = embedding_vector
+                insight.embedding_model = "text-embedding-3-small"
+                insight.embedding_created_at = timezone.now()
+                insight.save(update_fields=['embedding', 'embedding_model', 'embedding_created_at'])
+                
+                stats["insights_embedded"] += 1
+                
+            except Exception as e:
+                logger.error(f"Failed to generate embedding for insight {insight.id}: {e}")
+                stats["errors"] += 1
+        
+        logger.info(f"✅ Embedding generation completed for campaign {campaign.name}")
+        logger.info(f"📊 Stats: Threads: {stats['threads_embedded']}/{stats['threads_processed']}, "
+                   f"Pain Points: {stats['pain_points_embedded']}/{stats['pain_points_processed']}, "
+                   f"Insights: {stats['insights_embedded']}/{stats['insights_processed']}, "
+                   f"Errors: {stats['errors']}")
+        
+        return {
+            "status": "success",
+            **stats
+        }
+        
+    except Exception as e:
+        logger.error(f"Embedding generation failed for campaign {campaign_id}: {e}", exc_info=True)
         raise self.retry(exc=e)

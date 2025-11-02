@@ -253,10 +253,14 @@ export default function Dashboard() {
       }
 
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const url = `${API_BASE_URL}/api/v1/dashboard/overview/brand/?brand_id=${selectedBrand}`;
+      // Add timestamp to prevent browser caching and ensure fresh campaign insights
+      const timestamp = new Date().getTime();
+      const url = `${API_BASE_URL}/api/v1/dashboard/overview/brand/?brand_id=${selectedBrand}&_t=${timestamp}`;
       console.log('Fetching dashboard data from:', url);
 
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        cache: 'no-store', // Disable caching to always get fresh campaign data
+      });
 
       if (!response.ok) {
         throw new Error('Failed to fetch dashboard data');
@@ -545,6 +549,33 @@ export default function Dashboard() {
                   <span className="ml-2 text-sm">Loading data...</span>
                 </div>
               )}
+              {/* Refresh Button */}
+              <button
+                onClick={() => {
+                  console.log('Manual refresh triggered');
+                  fetchDashboardData();
+                  fetchAnalysisSummary();
+                }}
+                disabled={dataLoading}
+                className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Refresh dashboard data to see latest campaign insights"
+              >
+                <svg 
+                  className={`h-4 w-4 ${dataLoading ? 'animate-spin' : ''}`}
+                  xmlns="http://www.w3.org/2000/svg" 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2} 
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+                  />
+                </svg>
+                <span className="text-sm">Refresh</span>
+              </button>
               <div className="relative">
                 <button
                   onClick={() => setShowBrandDropdown(!showBrandDropdown)}
@@ -1086,7 +1117,7 @@ export default function Dashboard() {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Lightbulb className="h-5 w-5 text-yellow-500" />
-                <CardTitle>AI-Powered Key Insights</CardTitle>
+                <CardTitle>Key Brand Analytics Insights</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
@@ -1240,7 +1271,7 @@ export default function Dashboard() {
               <div className="mt-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
                   <Lightbulb className="h-5 w-5 mr-2 text-yellow-600" />
-                  Campaign Insights
+                  Key Campaign Insights
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {dashboardData.campaign_analytics.insights.map((insight: any, index: number) => (

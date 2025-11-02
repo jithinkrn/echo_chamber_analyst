@@ -333,6 +333,112 @@ class VectorSearchTool:
                 "results": []
             }
 
+    async def search_threads(
+        self,
+        query: str,
+        brand_id: Optional[str] = None,
+        campaign_id: Optional[str] = None,
+        community_name: Optional[str] = None,
+        min_similarity: float = 0.7,
+        limit: int = 10
+    ) -> Dict[str, Any]:
+        """
+        Search Threads using vector similarity.
+
+        Args:
+            query: Natural language query
+            brand_id: Optional brand filter
+            campaign_id: Optional campaign filter
+            community_name: Optional community name filter
+            min_similarity: Minimum cosine similarity threshold
+            limit: Maximum number of results
+
+        Returns:
+            Dictionary with search results
+        """
+        try:
+            from common.models import Thread
+            
+            query_embedding = await embedding_service.generate_embedding(query)
+
+            queryset = Thread.objects.exclude(embedding__isnull=True)
+
+            if brand_id:
+                queryset = queryset.filter(brand_id=brand_id)
+
+            if campaign_id:
+                queryset = queryset.filter(campaign_id=campaign_id)
+
+            if community_name:
+                queryset = queryset.filter(community__name__icontains=community_name)
+
+            from django.db.models import FloatField, ExpressionWrapper
+            from django.db.models.expressions import RawSQL
+
+            queryset = queryset.annotate(
+                similarity=ExpressionWrapper(
+                    1 - RawSQL(
+                        "embedding <=> %s::vector",
+                        params=[query_embedding],
+                    ),
+                    output_field=FloatField()
+                )
+            ).filter(
+                similarity__gte=min_similarity
+            ).order_by('-similarity').select_related('community', 'campaign')
+
+            results = list(queryset[:limit].values(
+                'id', 'thread_id', 'title', 'content', 'url',
+                'author', 'comment_count', 'upvotes',
+                'echo_score', 'sentiment_score', 'published_at',
+                'community__name', 'brand_id', 'campaign_id',
+                'similarity'
+            ))
+
+            if not results:
+                return {
+                    "success": False,
+                    "message": f"No threads found with similarity >= {min_similarity}",
+                    "results": []
+                }
+
+            formatted_results = [
+                {
+                    "id": str(r["id"]),
+                    "thread_id": r["thread_id"],
+                    "title": r["title"],
+                    "content": r["content"][:500] if r["content"] else None,  # Truncate
+                    "url": r["url"],
+                    "author": r["author"],
+                    "community": r["community__name"],
+                    "comment_count": r["comment_count"] or 0,
+                    "upvotes": r["upvotes"] or 0,
+                    "echo_score": round(r["echo_score"] or 0.0, 2),
+                    "sentiment_score": round(r["sentiment_score"] or 0.0, 2),
+                    "published_at": r["published_at"].isoformat() if r["published_at"] else None,
+                    "brand_id": str(r["brand_id"]) if r["brand_id"] else None,
+                    "campaign_id": str(r["campaign_id"]) if r["campaign_id"] else None,
+                    "similarity": round(r["similarity"], 3)
+                }
+                for r in results
+            ]
+
+            return {
+                "success": True,
+                "query": query,
+                "count": len(formatted_results),
+                "min_similarity": min_similarity,
+                "results": formatted_results
+            }
+
+        except Exception as e:
+            logger.error(f"Vector search (threads) error: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "results": []
+            }
+
     async def search_all(
         self,
         query: str,
@@ -342,7 +448,7 @@ class VectorSearchTool:
         limit_per_type: int = 5
     ) -> Dict[str, Any]:
         """
-        Search across all content types (ProcessedContent, Insights, PainPoints).
+        Search across all content types (ProcessedContent, Insights, PainPoints, Threads).
 
         Args:
             query: Natural language query
@@ -382,14 +488,23 @@ class VectorSearchTool:
                 limit=limit_per_type
             )
 
-            content_results, insights_results, pain_points_results = await asyncio.gather(
-                content_task, insights_task, pain_points_task
+            threads_task = self.search_threads(
+                query=query,
+                brand_id=brand_id,
+                campaign_id=campaign_id,
+                min_similarity=min_similarity,
+                limit=limit_per_type
+            )
+
+            content_results, insights_results, pain_points_results, threads_results = await asyncio.gather(
+                content_task, insights_task, pain_points_task, threads_task
             )
 
             total_count = (
                 len(content_results.get("results", [])) +
                 len(insights_results.get("results", [])) +
-                len(pain_points_results.get("results", []))
+                len(pain_points_results.get("results", [])) +
+                len(threads_results.get("results", []))
             )
 
             return {
@@ -399,7 +514,8 @@ class VectorSearchTool:
                 "min_similarity": min_similarity,
                 "content": content_results,
                 "insights": insights_results,
-                "pain_points": pain_points_results
+                "pain_points": pain_points_results,
+                "threads": threads_results
             }
 
         except Exception as e:
@@ -409,7 +525,8 @@ class VectorSearchTool:
                 "error": str(e),
                 "content": {"results": []},
                 "insights": {"results": []},
-                "pain_points": {"results": []}
+                "pain_points": {"results": []},
+                "threads": {"results": []}
             }
 
 

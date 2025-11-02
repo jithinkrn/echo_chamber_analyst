@@ -42,7 +42,7 @@ class BrandAnalyticsTool:
         "Use for questions about specific brands or overall brand performance."
     )
 
-    async def run(
+    def run(
         self,
         brand_id: Optional[str] = None,
         brand_name: Optional[str] = None,
