@@ -58,6 +58,10 @@ class VectorSearchTool:
             Dictionary with search results
         """
         try:
+            from asgiref.sync import sync_to_async
+            from django.db.models import FloatField, ExpressionWrapper
+            from django.db.models.expressions import RawSQL
+            
             # Generate query embedding
             query_embedding = await embedding_service.generate_embedding(query)
 
@@ -65,16 +69,14 @@ class VectorSearchTool:
             queryset = ProcessedContent.objects.exclude(embedding__isnull=True)
 
             if brand_id:
-                queryset = queryset.filter(brand_id=brand_id)
+                queryset = queryset.filter(raw_content__campaign__brand_id=brand_id)
 
             if campaign_id:
-                queryset = queryset.filter(campaign_id=campaign_id)
+                queryset = queryset.filter(raw_content__campaign_id=campaign_id)
 
             # Perform vector similarity search using pgvector's <=> operator
             # Lower distance = higher similarity
             # We use 1 - distance to get similarity score (0-1)
-            from django.db.models import FloatField, ExpressionWrapper
-            from django.db.models.expressions import RawSQL
 
             # Annotate with similarity score
             queryset = queryset.annotate(
@@ -89,12 +91,15 @@ class VectorSearchTool:
                 similarity__gte=min_similarity
             ).order_by('-similarity')
 
-            results = list(queryset[:limit].values(
-                'id', 'content_type', 'original_content', 'cleaned_content',
-                'sentiment', 'sentiment_score', 'echo_score',
-                'source', 'brand_id', 'campaign_id', 'created_at',
+            # Execute query in sync context
+            results = await sync_to_async(lambda: list(queryset[:limit].values(
+                'id', 'cleaned_content', 'sentiment_score',
+                'keywords', 'topics', 'created_at',
+                'raw_content__url', 'raw_content__title', 
+                'raw_content__source__name', 'raw_content__published_at',
+                'raw_content__campaign_id', 'raw_content__campaign__brand_id',
                 'similarity'
-            ))
+            )))()
 
             if not results:
                 return {
@@ -106,16 +111,18 @@ class VectorSearchTool:
             formatted_results = [
                 {
                     "id": str(r["id"]),
-                    "content_type": r["content_type"],
                     "content": r["cleaned_content"][:500],  # Truncate for response
-                    "sentiment": r["sentiment"],
                     "sentiment_score": round(r["sentiment_score"] or 0.0, 2),
-                    "echo_score": round(r["echo_score"] or 0.0, 2),
-                    "source": r["source"],
-                    "brand_id": str(r["brand_id"]) if r["brand_id"] else None,
-                    "campaign_id": str(r["campaign_id"]) if r["campaign_id"] else None,
+                    "keywords": r["keywords"][:5] if r["keywords"] else [],  # Top 5 keywords
+                    "topics": r["topics"][:3] if r["topics"] else [],  # Top 3 topics
+                    "source": r["raw_content__source__name"],
+                    "url": r["raw_content__url"],
+                    "title": r["raw_content__title"],
+                    "brand_id": str(r["raw_content__campaign__brand_id"]) if r["raw_content__campaign__brand_id"] else None,
+                    "campaign_id": str(r["raw_content__campaign_id"]) if r["raw_content__campaign_id"] else None,
+                    "published_at": r["raw_content__published_at"].isoformat() if r["raw_content__published_at"] else None,
                     "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-                    "similarity": round(r["similarity"], 3)
+                    "similarity_score": round(r["similarity"], 3)
                 }
                 for r in results
             ]
@@ -160,6 +167,10 @@ class VectorSearchTool:
             Dictionary with search results
         """
         try:
+            from asgiref.sync import sync_to_async
+            from django.db.models import FloatField, ExpressionWrapper
+            from django.db.models.expressions import RawSQL
+            
             query_embedding = await embedding_service.generate_embedding(query)
 
             queryset = Insight.objects.exclude(embedding__isnull=True)
@@ -173,9 +184,6 @@ class VectorSearchTool:
             if insight_type:
                 queryset = queryset.filter(insight_type=insight_type)
 
-            from django.db.models import FloatField, ExpressionWrapper
-            from django.db.models.expressions import RawSQL
-
             queryset = queryset.annotate(
                 similarity=ExpressionWrapper(
                     1 - RawSQL(
@@ -188,11 +196,12 @@ class VectorSearchTool:
                 similarity__gte=min_similarity
             ).order_by('-similarity')
 
-            results = list(queryset[:limit].values(
+            # Execute query in sync context
+            results = await sync_to_async(lambda: list(queryset[:limit].values(
                 'id', 'title', 'description', 'insight_type',
-                'severity', 'confidence_score', 'brand_id',
+                'confidence_score', 'impact_score', 'priority_score',
                 'campaign_id', 'created_at', 'similarity'
-            ))
+            )))()
 
             if not results:
                 return {
@@ -205,14 +214,14 @@ class VectorSearchTool:
                 {
                     "id": str(r["id"]),
                     "title": r["title"],
-                    "description": r["description"][:500],
+                    "description": r["description"],
                     "insight_type": r["insight_type"],
-                    "severity": r["severity"],
                     "confidence_score": round(r["confidence_score"] or 0.0, 2),
-                    "brand_id": str(r["brand_id"]) if r["brand_id"] else None,
+                    "impact_score": round(r["impact_score"] or 0.0, 2),
+                    "priority_score": round(r["priority_score"] or 0.0, 2),
                     "campaign_id": str(r["campaign_id"]) if r["campaign_id"] else None,
                     "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-                    "similarity": round(r["similarity"], 3)
+                    "similarity_score": round(r["similarity"], 3)
                 }
                 for r in results
             ]
@@ -257,9 +266,17 @@ class VectorSearchTool:
             Dictionary with search results
         """
         try:
+            from asgiref.sync import sync_to_async
+            from django.db.models import FloatField, ExpressionWrapper
+            from django.db.models.expressions import RawSQL
+            
+            logger.info(f"Searching pain points: query='{query[:50]}...', min_similarity={min_similarity}")
+            
             query_embedding = await embedding_service.generate_embedding(query)
 
             queryset = PainPoint.objects.exclude(embedding__isnull=True)
+            
+            logger.info(f"Found {await sync_to_async(queryset.count)()} pain points with embeddings")
 
             if brand_id:
                 queryset = queryset.filter(brand_id=brand_id)
@@ -269,9 +286,6 @@ class VectorSearchTool:
 
             if min_severity is not None:
                 queryset = queryset.filter(severity__gte=min_severity)
-
-            from django.db.models import FloatField, ExpressionWrapper
-            from django.db.models.expressions import RawSQL
 
             queryset = queryset.annotate(
                 similarity=ExpressionWrapper(
@@ -285,13 +299,17 @@ class VectorSearchTool:
                 similarity__gte=min_similarity
             ).order_by('-similarity')
 
-            results = list(queryset[:limit].values(
-                'id', 'keyword', 'category', 'mentions',
-                'severity', 'growth_rate', 'growth_trend',
-                'example_content', 'brand_id', 'campaign_id',
+            # Execute query in sync context
+            results = await sync_to_async(lambda: list(queryset[:limit].values(
+                'id', 'keyword', 'mention_count',
+                'heat_level', 'growth_percentage',
+                'example_content', 'related_keywords', 'sentiment_score',
+                'brand_id', 'campaign_id', 'community__name',
                 'created_at', 'similarity'
-            ))
+            )))()
 
+            logger.info(f"Pain point vector search: found {len(results)} results with min_similarity={min_similarity}")
+            
             if not results:
                 return {
                     "success": False,
@@ -303,16 +321,17 @@ class VectorSearchTool:
                 {
                     "id": str(r["id"]),
                     "keyword": r["keyword"],
-                    "category": r["category"],
-                    "mentions": r["mentions"] or 0,
-                    "severity": r["severity"] or 0,
-                    "growth_rate": round(r["growth_rate"] or 0.0, 2),
-                    "growth_trend": r["growth_trend"],
-                    "example_content": r["example_content"][:200] if r["example_content"] else None,
+                    "mention_count": r["mention_count"] or 0,
+                    "heat_level": r["heat_level"] or 0,
+                    "growth_percentage": round(r["growth_percentage"] or 0.0, 2),
+                    "sentiment_score": round(r["sentiment_score"] or 0.0, 2),
+                    "example_content": r["example_content"][:300] if r["example_content"] else None,
+                    "related_keywords": r["related_keywords"][:5] if r["related_keywords"] else [],
+                    "community_name": r["community__name"],
                     "brand_id": str(r["brand_id"]) if r["brand_id"] else None,
                     "campaign_id": str(r["campaign_id"]) if r["campaign_id"] else None,
                     "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-                    "similarity": round(r["similarity"], 3)
+                    "similarity_score": round(r["similarity"], 3)
                 }
                 for r in results
             ]
@@ -357,6 +376,9 @@ class VectorSearchTool:
             Dictionary with search results
         """
         try:
+            from asgiref.sync import sync_to_async
+            from django.db.models import FloatField, ExpressionWrapper
+            from django.db.models.expressions import RawSQL
             from common.models import Thread
             
             query_embedding = await embedding_service.generate_embedding(query)
@@ -372,9 +394,6 @@ class VectorSearchTool:
             if community_name:
                 queryset = queryset.filter(community__name__icontains=community_name)
 
-            from django.db.models import FloatField, ExpressionWrapper
-            from django.db.models.expressions import RawSQL
-
             queryset = queryset.annotate(
                 similarity=ExpressionWrapper(
                     1 - RawSQL(
@@ -387,13 +406,14 @@ class VectorSearchTool:
                 similarity__gte=min_similarity
             ).order_by('-similarity').select_related('community', 'campaign')
 
-            results = list(queryset[:limit].values(
+            # Execute query in sync context
+            results = await sync_to_async(lambda: list(queryset[:limit].values(
                 'id', 'thread_id', 'title', 'content', 'url',
                 'author', 'comment_count', 'upvotes',
                 'echo_score', 'sentiment_score', 'published_at',
                 'community__name', 'brand_id', 'campaign_id',
                 'similarity'
-            ))
+            )))()
 
             if not results:
                 return {
@@ -532,19 +552,18 @@ class VectorSearchTool:
 
 class HybridSearchTool:
     """
-    Combine vector similarity search with keyword matching.
-
-    Use this tool when:
-    - You want both semantic and exact keyword matches
-    - Query contains specific terms that should be matched exactly
-    - You need comprehensive results combining both approaches
+    Pure vector-based semantic search across multiple content types.
+    
+    Despite the name "hybrid", this tool now performs ONLY vector similarity search
+    to maintain RAG purity. No direct database queries or keyword matching.
+    Use for comprehensive semantic search across content, insights, pain points, and threads.
     """
 
     name = "hybrid_search"
     description = (
-        "Combine vector similarity search with keyword matching for comprehensive results. "
-        "Returns results from both semantic understanding and exact keyword matches. "
-        "Use when you need both conceptual and literal matching."
+        "Pure vector similarity search across multiple content types. "
+        "Returns semantically relevant results based on embeddings only. "
+        "No direct database queries - fully RAG-powered."
     )
 
     def __init__(self):
@@ -555,97 +574,74 @@ class HybridSearchTool:
         query: str,
         brand_id: Optional[str] = None,
         campaign_id: Optional[str] = None,
-        content_type: str = "all",  # all, content, insights, pain_points
+        content_type: str = "all",  # all, content, insights, pain_points, threads
         min_similarity: float = 0.7,
         limit: int = 10
     ) -> Dict[str, Any]:
         """
-        Perform hybrid search combining vector similarity and keyword matching.
+        Perform pure vector semantic search across specified content types.
 
         Args:
             query: Natural language query
             brand_id: Optional brand filter
             campaign_id: Optional campaign filter
-            content_type: Type of content to search
+            content_type: Type of content to search (all, content, insights, pain_points, threads)
             min_similarity: Minimum similarity for vector search
             limit: Maximum total results
 
         Returns:
-            Dictionary with combined results
+            Dictionary with vector search results only
         """
         try:
-            import asyncio
+            # Pure vector search - NO keyword matching, NO direct DB queries
+            if content_type == "all":
+                # Search across all content types using vector embeddings only
+                search_results = await self.vector_tool.search_all(
+                    query=query,
+                    brand_id=brand_id,
+                    campaign_id=campaign_id,
+                    min_similarity=min_similarity,
+                    limit_per_type=limit
+                )
+                
+                # Flatten results from all types
+                all_results = []
+                for type_key in ["content", "insights", "pain_points", "threads"]:
+                    type_results = search_results.get(type_key, {})
+                    for item in type_results.get("results", []):
+                        item["content_type"] = type_key
+                        item["match_type"] = "semantic"
+                        all_results.append(item)
+                
+                # Sort by similarity score
+                all_results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
+                
+                return {
+                    "success": True,
+                    "query": query,
+                    "count": len(all_results[:limit]),
+                    "results": all_results[:limit]
+                }
 
-            # Run vector search and keyword search in parallel
-            if content_type == "content" or content_type == "all":
-                # Vector search
-                vector_task = self.vector_tool.search_content(
+            elif content_type == "content":
+                # Vector search for ProcessedContent only
+                vector_results = await self.vector_tool.search_content(
                     query=query,
                     brand_id=brand_id,
                     campaign_id=campaign_id,
                     min_similarity=min_similarity,
                     limit=limit
                 )
-
-                # Keyword search
-                keyword_queryset = ProcessedContent.objects.filter(
-                    Q(cleaned_content__icontains=query) |
-                    Q(original_content__icontains=query)
-                )
-
-                if brand_id:
-                    keyword_queryset = keyword_queryset.filter(brand_id=brand_id)
-
-                if campaign_id:
-                    keyword_queryset = keyword_queryset.filter(campaign_id=campaign_id)
-
-                keyword_results = list(keyword_queryset[:limit].values(
-                    'id', 'content_type', 'cleaned_content',
-                    'sentiment', 'sentiment_score', 'echo_score',
-                    'source', 'brand_id', 'campaign_id', 'created_at'
-                ))
-
-                vector_results = await vector_task
-
-                # Combine and deduplicate
-                seen_ids = set()
-                combined = []
-
-                # Add vector results first (prioritized by similarity)
+                
+                # Mark all as semantic matches
                 for r in vector_results.get("results", []):
-                    if r["id"] not in seen_ids:
-                        r["match_type"] = "semantic"
-                        combined.append(r)
-                        seen_ids.add(r["id"])
-
-                # Add keyword results
-                for r in keyword_results:
-                    r_id = str(r["id"])
-                    if r_id not in seen_ids:
-                        combined.append({
-                            "id": r_id,
-                            "content_type": r["content_type"],
-                            "content": r["cleaned_content"][:500],
-                            "sentiment": r["sentiment"],
-                            "sentiment_score": round(r["sentiment_score"] or 0.0, 2),
-                            "echo_score": round(r["echo_score"] or 0.0, 2),
-                            "source": r["source"],
-                            "brand_id": str(r["brand_id"]) if r["brand_id"] else None,
-                            "campaign_id": str(r["campaign_id"]) if r["campaign_id"] else None,
-                            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-                            "match_type": "keyword",
-                            "similarity": None
-                        })
-                        seen_ids.add(r_id)
-
-                return {
-                    "success": True,
-                    "query": query,
-                    "count": len(combined),
-                    "results": combined[:limit]
-                }
+                    r["match_type"] = "semantic"
+                    r["content_type"] = "content"
+                
+                return vector_results
 
             elif content_type == "insights":
+                # Vector search for Insights only
                 vector_results = await self.vector_tool.search_insights(
                     query=query,
                     brand_id=brand_id,
@@ -653,61 +649,16 @@ class HybridSearchTool:
                     min_similarity=min_similarity,
                     limit=limit
                 )
-
-                # Keyword search for insights
-                keyword_queryset = Insight.objects.filter(
-                    Q(title__icontains=query) |
-                    Q(description__icontains=query)
-                )
-
-                if brand_id:
-                    keyword_queryset = keyword_queryset.filter(brand_id=brand_id)
-
-                if campaign_id:
-                    keyword_queryset = keyword_queryset.filter(campaign_id=campaign_id)
-
-                keyword_results = list(keyword_queryset[:limit].values(
-                    'id', 'title', 'description', 'insight_type',
-                    'severity', 'confidence_score', 'brand_id',
-                    'campaign_id', 'created_at'
-                ))
-
-                # Combine and deduplicate
-                seen_ids = set()
-                combined = []
-
+                
+                # Mark all as semantic matches
                 for r in vector_results.get("results", []):
-                    if r["id"] not in seen_ids:
-                        r["match_type"] = "semantic"
-                        combined.append(r)
-                        seen_ids.add(r["id"])
-
-                for r in keyword_results:
-                    r_id = str(r["id"])
-                    if r_id not in seen_ids:
-                        combined.append({
-                            "id": r_id,
-                            "title": r["title"],
-                            "description": r["description"][:500],
-                            "insight_type": r["insight_type"],
-                            "severity": r["severity"],
-                            "confidence_score": round(r["confidence_score"] or 0.0, 2),
-                            "brand_id": str(r["brand_id"]) if r["brand_id"] else None,
-                            "campaign_id": str(r["campaign_id"]) if r["campaign_id"] else None,
-                            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-                            "match_type": "keyword",
-                            "similarity": None
-                        })
-                        seen_ids.add(r_id)
-
-                return {
-                    "success": True,
-                    "query": query,
-                    "count": len(combined),
-                    "results": combined[:limit]
-                }
+                    r["match_type"] = "semantic"
+                    r["content_type"] = "insights"
+                
+                return vector_results
 
             elif content_type == "pain_points":
+                # Vector search for PainPoints only
                 vector_results = await self.vector_tool.search_pain_points(
                     query=query,
                     brand_id=brand_id,
@@ -715,75 +666,40 @@ class HybridSearchTool:
                     min_similarity=min_similarity,
                     limit=limit
                 )
-
-                # Keyword search for pain points
-                keyword_queryset = PainPoint.objects.filter(
-                    Q(keyword__icontains=query) |
-                    Q(example_content__icontains=query)
-                )
-
-                if brand_id:
-                    keyword_queryset = keyword_queryset.filter(brand_id=brand_id)
-
-                if campaign_id:
-                    keyword_queryset = keyword_queryset.filter(campaign_id=campaign_id)
-
-                keyword_results = list(keyword_queryset[:limit].values(
-                    'id', 'keyword', 'category', 'mentions',
-                    'severity', 'growth_rate', 'growth_trend',
-                    'example_content', 'brand_id', 'campaign_id', 'created_at'
-                ))
-
-                # Combine and deduplicate
-                seen_ids = set()
-                combined = []
-
+                
+                # Mark all as semantic matches
                 for r in vector_results.get("results", []):
-                    if r["id"] not in seen_ids:
-                        r["match_type"] = "semantic"
-                        combined.append(r)
-                        seen_ids.add(r["id"])
+                    r["match_type"] = "semantic"
+                    r["content_type"] = "pain_points"
+                
+                return vector_results
 
-                for r in keyword_results:
-                    r_id = str(r["id"])
-                    if r_id not in seen_ids:
-                        combined.append({
-                            "id": r_id,
-                            "keyword": r["keyword"],
-                            "category": r["category"],
-                            "mentions": r["mentions"] or 0,
-                            "severity": r["severity"] or 0,
-                            "growth_rate": round(r["growth_rate"] or 0.0, 2),
-                            "growth_trend": r["growth_trend"],
-                            "example_content": r["example_content"][:200] if r["example_content"] else None,
-                            "brand_id": str(r["brand_id"]) if r["brand_id"] else None,
-                            "campaign_id": str(r["campaign_id"]) if r["campaign_id"] else None,
-                            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-                            "match_type": "keyword",
-                            "similarity": None
-                        })
-                        seen_ids.add(r_id)
-
-                return {
-                    "success": True,
-                    "query": query,
-                    "count": len(combined),
-                    "results": combined[:limit]
-                }
-
-            else:  # all
-                # Search all types using vector_tool.search_all()
-                all_results = await self.vector_tool.search_all(
+            elif content_type == "threads":
+                # Vector search for Threads only
+                vector_results = await self.vector_tool.search_threads(
                     query=query,
                     brand_id=brand_id,
                     campaign_id=campaign_id,
                     min_similarity=min_similarity,
-                    limit_per_type=limit // 3  # Distribute limit across types
+                    limit=limit
                 )
+                
+                # Mark all as semantic matches
+                for r in vector_results.get("results", []):
+                    r["match_type"] = "semantic"
+                    r["content_type"] = "threads"
+                
+                return vector_results
 
-                # Note: For simplicity, we're not adding keyword search for "all" type
-                # The vector search already provides comprehensive results
-                return all_results
+            else:
+                # Default to search_all for any unrecognized content_type
+                return await self.vector_tool.search_all(
+                    query=query,
+                    brand_id=brand_id,
+                    campaign_id=campaign_id,
+                    min_similarity=min_similarity,
+                    limit_per_type=limit
+                )
 
         except Exception as e:
             logger.error(f"Hybrid search error: {e}")

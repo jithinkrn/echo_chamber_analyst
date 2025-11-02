@@ -257,6 +257,7 @@ class Insight(BaseModel):
         ('competitor_mention', 'Competitor Mention'),
         ('trend', 'Trend'),
         ('influencer', 'Influencer'),
+        ('strategic_report', 'Strategic Report'),  # For campaign-level strategic insights
     ]
 
     campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='insights')

@@ -24,7 +24,7 @@ from common.models import (
 )
 
 # Import new RAG tools
-from agents.hybrid_rag_tool import hybrid_rag_tool
+from agents.rag_tool import hybrid_rag_tool
 from agents.vector_tools import vector_search_tool, hybrid_search_tool
 from agents.dashboard_tools import (
     brand_analytics_tool,

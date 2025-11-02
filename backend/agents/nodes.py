@@ -287,6 +287,9 @@ async def _generate_and_store_campaign_insights(collected_data: Dict[str, Any], 
             
             await sync_to_async(campaign_obj.save)()
             
+            # Create an Insight entry for the strategic report (for RAG embedding)
+            await _create_strategic_report_insight(strategic_report, campaign_obj, brand_obj)
+            
             logger.info(f"✅ Generated Strategic Campaign Report with {len(strategic_report.get('strategic_findings', []))} findings")
             
         else:
@@ -508,11 +511,122 @@ async def _generate_and_store_custom_campaign_insights(collected_data: Dict[str,
 
         await sync_to_async(campaign_obj.save)()
 
+        # Create an Insight entry for the strategic report (for RAG embedding)
+        await _create_strategic_report_insight(strategic_report, campaign_obj, brand_obj)
+
         logger.info(f"✅ Generated Strategic Campaign Report with {len(strategic_report.get('strategic_findings', []))} findings")
 
     except Exception as e:
         logger.error(f"❌ Error generating Strategic Campaign Report: {e}", exc_info=True)
         # Don't raise exception to avoid breaking the workflow
+
+
+async def _create_strategic_report_insight(strategic_report: Dict, campaign, brand) -> None:
+    """
+    Create an Insight entry for the strategic report with embedding.
+    This makes the report queryable via RAG chatbot.
+    """
+    try:
+        from common.models import Insight
+        from asgiref.sync import sync_to_async
+        import json
+        
+        # Build comprehensive text representation of the report for embedding
+        report_text_parts = []
+        
+        # Executive Summary
+        if strategic_report.get('executive_summary'):
+            report_text_parts.append(f"EXECUTIVE SUMMARY:\n{strategic_report['executive_summary']}\n")
+        
+        # Campaign Objective
+        if strategic_report.get('campaign_objective'):
+            report_text_parts.append(f"CAMPAIGN OBJECTIVE:\n{strategic_report['campaign_objective']}\n")
+        
+        # Key Metrics
+        if strategic_report.get('key_metrics'):
+            metrics = strategic_report['key_metrics']
+            report_text_parts.append(f"KEY METRICS:\n{json.dumps(metrics, indent=2)}\n")
+        
+        # Strategic Findings
+        if strategic_report.get('strategic_findings'):
+            report_text_parts.append("STRATEGIC FINDINGS:\n")
+            for idx, finding in enumerate(strategic_report['strategic_findings'], 1):
+                report_text_parts.append(f"{idx}. {finding}\n")
+        
+        # Recommendations
+        if strategic_report.get('recommendations'):
+            report_text_parts.append("\nRECOMMENDATIONS:\n")
+            for idx, rec in enumerate(strategic_report['recommendations'], 1):
+                report_text_parts.append(f"{idx}. {rec}\n")
+        
+        # Opportunities
+        if strategic_report.get('opportunities'):
+            report_text_parts.append("\nOPPORTUNITIES:\n")
+            for idx, opp in enumerate(strategic_report['opportunities'], 1):
+                report_text_parts.append(f"{idx}. {opp}\n")
+        
+        # Risks
+        if strategic_report.get('risks'):
+            report_text_parts.append("\nRISKS:\n")
+            for idx, risk in enumerate(strategic_report['risks'], 1):
+                report_text_parts.append(f"{idx}. {risk}\n")
+        
+        full_report_text = "\n".join(report_text_parts)
+        
+        # Create Insight entry
+        def create_insight():
+            insight = Insight.objects.create(
+                campaign=campaign,
+                insight_type='strategic_report',
+                title=f"Strategic Report: {campaign.name}",
+                description=strategic_report.get('executive_summary', 'Strategic campaign analysis')[:500],
+                summary=full_report_text[:1000],  # First 1000 chars for summary
+                confidence_score=1.0,  # Strategic reports are high confidence
+                impact_score=0.9,  # High impact
+                priority_score=1.0,  # Highest priority
+                metadata={
+                    'full_report': strategic_report,
+                    'report_type': 'strategic_campaign_report',
+                    'generated_at': timezone.now().isoformat()
+                },
+                is_validated=True
+            )
+            return insight
+        
+        insight = await sync_to_async(create_insight)()
+        
+        # Generate embedding for the strategic report
+        try:
+            from openai import OpenAI
+            from django.conf import settings
+            
+            client = OpenAI(api_key=settings.OPENAI_API_KEY)
+            
+            # Generate embedding for the full report text
+            response = client.embeddings.create(
+                model="text-embedding-3-small",
+                input=full_report_text[:8000]  # Limit to 8000 chars for embedding
+            )
+            
+            embedding_vector = response.data[0].embedding
+            
+            # Store embedding
+            def save_embedding():
+                insight.embedding = embedding_vector
+                insight.embedding_model = "text-embedding-3-small"
+                insight.embedding_created_at = timezone.now()
+                insight.save(update_fields=['embedding', 'embedding_model', 'embedding_created_at'])
+            
+            await sync_to_async(save_embedding)()
+            
+            logger.info(f"✅ Created strategic report insight with embedding (ID: {insight.id})")
+            
+        except Exception as e:
+            logger.error(f"Failed to generate embedding for strategic report: {e}")
+            # Still keep the insight even if embedding fails
+        
+    except Exception as e:
+        logger.error(f"Error creating strategic report insight: {e}", exc_info=True)
 
 
 def _extract_and_store_influencers(collected_data: Dict[str, Any], campaign, brand_name: str) -> int:
@@ -2107,8 +2221,8 @@ async def chatbot_node(state: Dict[str, Any]) -> Dict[str, Any]:
                     "content": msg.content
                 })
 
-        # Use Hybrid RAG tool for intelligent query processing
-        from agents.hybrid_rag_tool import hybrid_rag_tool
+        # Use RAG tool for intelligent query processing
+        from agents.rag_tool import hybrid_rag_tool
         from agents.monitoring_integration import guardrails, langsmith_tracer
 
         # Validate query with guardrails
@@ -2142,7 +2256,7 @@ async def chatbot_node(state: Dict[str, Any]) -> Dict[str, Any]:
                 brand_id=brand_id,
                 campaign_id=campaign_id,
                 conversation_history=formatted_history,
-                min_similarity=0.7,
+                min_similarity=0.5,  # Lowered for better recall
                 limit=10
             )
         else:
@@ -2151,7 +2265,7 @@ async def chatbot_node(state: Dict[str, Any]) -> Dict[str, Any]:
                 brand_id=brand_id,
                 campaign_id=campaign_id,
                 conversation_history=formatted_history,
-                min_similarity=0.7,
+                min_similarity=0.5,  # Lowered for better recall
                 limit=10
             )
 

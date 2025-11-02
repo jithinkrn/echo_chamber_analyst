@@ -15,6 +15,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from django.db.models import Count, Avg, Sum, Q, F
 from django.utils import timezone
+from asgiref.sync import sync_to_async
 
 from common.models import (
     Brand, Campaign, ProcessedContent, Community,
