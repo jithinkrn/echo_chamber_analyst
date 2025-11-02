@@ -853,10 +853,10 @@ def get_brand_dashboard_kpis(brand_id, date_from, date_to):
     from common.models import Campaign, Community, PainPoint, Thread
 
     # ✅ FIX: Get automatic campaign only (Brand Analytics)
+    # Note: We don't filter by status because we want to show KPIs even for completed/paused campaigns
     automatic_campaign = Campaign.objects.filter(
         brand_id=brand_id,
-        campaign_type='automatic',
-        status='active'
+        campaign_type='automatic'
     ).first()
 
     if not automatic_campaign:
@@ -873,7 +873,12 @@ def get_brand_dashboard_kpis(brand_id, date_from, date_to):
             "llm_cost_usd": 0.0
         }
 
-    active_campaigns_count = 1  # Only the automatic campaign
+    # Count active campaigns (active or running status)
+    active_campaigns_count = Campaign.objects.filter(
+        brand_id=brand_id,
+        campaign_type='automatic',
+        status__in=['active', 'running']
+    ).count()
 
     # ✅ FIX: Get brand-specific communities (Brand Analytics only)
     brand_communities = Community.objects.filter(

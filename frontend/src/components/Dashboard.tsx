@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Users, MessageSquare, AlertTriangle, Building, ChevronDown, Lightbulb, Target, X, Download } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Users, MessageSquare, AlertTriangle, Building, ChevronDown, Lightbulb, Target, X, Download, Activity, AlertCircle, Heart } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ScatterChart, Scatter, ZAxis, Cell } from 'recharts';
 import { apiService } from '@/lib/api';
 
@@ -617,63 +617,108 @@ export default function Dashboard() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-4 gap-4">
-        <Card className="bg-orange-50">
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
+            <CardTitle className="text-sm font-medium text-blue-900 flex items-center justify-between">
               Active Campaigns
+              <Activity className="h-4 w-4 text-blue-600" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900">
+            <div className="text-3xl font-bold text-blue-900">
               {dashboardData.kpis.active_campaigns}
             </div>
+            <div className="text-xs text-blue-700 mt-2">
+              Automatic Brand Analytics
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-orange-50">
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
+            <CardTitle className="text-sm font-medium text-purple-900 flex items-center justify-between">
               High‑Echo Communities
+              <Users className="h-4 w-4 text-purple-600" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900">
+            <div className="text-3xl font-bold text-purple-900">
               {dashboardData.kpis.high_echo_communities}
             </div>
+            {dashboardData.kpis.high_echo_change_percent !== 0 && (
+              <div className={`flex items-center text-sm mt-2 ${
+                dashboardData.kpis.high_echo_change_percent > 0 ? 'text-green-600' : 'text-red-600'
+              }`}>
+                {dashboardData.kpis.high_echo_change_percent > 0 ? (
+                  <TrendingUp className="h-4 w-4 mr-1" />
+                ) : (
+                  <TrendingDown className="h-4 w-4 mr-1" />
+                )}
+                {Math.abs(dashboardData.kpis.high_echo_change_percent).toFixed(1)}% vs last week
+              </div>
+            )}
+            <div className="text-xs text-purple-700 mt-1">
+              Echo Score ≥ 7.0
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-orange-50">
+        <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
+            <CardTitle className="text-sm font-medium text-amber-900 flex items-center justify-between">
               New Pain Points
+              <AlertCircle className="h-4 w-4 text-amber-600" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900">
+            <div className="text-3xl font-bold text-amber-900">
               {dashboardData.kpis.new_pain_points_above_50}
             </div>
+            {dashboardData.kpis.new_pain_points_change !== 0 && (
+              <div className={`flex items-center text-sm mt-2 ${
+                dashboardData.kpis.new_pain_points_change > 0 ? 'text-red-600' : 'text-green-600'
+              }`}>
+                {dashboardData.kpis.new_pain_points_change > 0 ? (
+                  <TrendingUp className="h-4 w-4 mr-1" />
+                ) : (
+                  <TrendingDown className="h-4 w-4 mr-1" />
+                )}
+                {Math.abs(dashboardData.kpis.new_pain_points_change).toFixed(1)}% vs last month
+              </div>
+            )}
+            <div className="text-xs text-amber-700 mt-1">
+              Growth &gt; 50%
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-orange-50">
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
+            <CardTitle className="text-sm font-medium text-green-900 flex items-center justify-between">
               Positivity Ratio
+              <Heart className="h-4 w-4 text-green-600" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900">
-              {dashboardData.kpis.positivity_ratio}% 😊
+            <div className="text-3xl font-bold text-green-900">
+              {dashboardData.kpis.positivity_ratio.toFixed(1)}%
             </div>
-            <div className="flex items-center text-sm text-red-600 mb-3">
-              <TrendingDown className="h-4 w-4 mr-1" />
-              {dashboardData.kpis.positivity_change_pp} pp
-            </div>
-            <div className="space-y-1 text-xs">
+            {dashboardData.kpis.positivity_change_pp !== 0 && (
+              <div className={`flex items-center text-sm mt-2 ${
+                dashboardData.kpis.positivity_change_pp > 0 ? 'text-green-600' : 'text-red-600'
+              }`}>
+                {dashboardData.kpis.positivity_change_pp > 0 ? (
+                  <TrendingUp className="h-4 w-4 mr-1" />
+                ) : (
+                  <TrendingDown className="h-4 w-4 mr-1" />
+                )}
+                {Math.abs(dashboardData.kpis.positivity_change_pp).toFixed(1)} pp vs last week
+              </div>
+            )}
+            <div className="space-y-1 text-xs mt-2">
               <div className="flex justify-between items-center">
                 <span className="text-green-700">Positive</span>
-                <span className="text-green-900 font-medium">{dashboardData.kpis.positivity_ratio}%</span>
+                <span className="text-green-900 font-medium">{dashboardData.kpis.positivity_ratio.toFixed(0)}%</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-red-700">Negative</span>
@@ -683,6 +728,45 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* LLM Usage & Cost Tracking */}
+      {(dashboardData.kpis.llm_tokens_used > 0 || dashboardData.kpis.llm_cost_usd > 0) && (
+        <div className="grid grid-cols-2 gap-4 mt-4">
+          <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-indigo-900 flex items-center justify-between">
+                LLM Token Usage (Last 7 Days)
+                <MessageSquare className="h-4 w-4 text-indigo-600" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-indigo-900">
+                {dashboardData.kpis.llm_tokens_used}K
+              </div>
+              <div className="text-xs text-indigo-700 mt-2">
+                Tokens processed by AI agents
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-emerald-900 flex items-center justify-between">
+                LLM Cost (Last 7 Days)
+                <DollarSign className="h-4 w-4 text-emerald-600" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-emerald-900">
+                ${dashboardData.kpis.llm_cost_usd.toFixed(3)}
+              </div>
+              <div className="text-xs text-emerald-700 mt-2">
+                OpenAI API usage cost
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Heat Map and Top Pain Points */}
       <div className="grid grid-cols-2 gap-6">
