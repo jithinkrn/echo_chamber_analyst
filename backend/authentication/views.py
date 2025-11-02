@@ -154,3 +154,27 @@ def list_users_view(request):
     users = User.objects.all()
     serializer = UserSerializer(users, many=True)
     return Response(serializer.data)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_user_view(request, user_id):
+    """
+    Delete a user (admin only, cannot delete self)
+    """
+    if not request.user.is_staff:
+        return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+    
+    # Prevent self-deletion
+    if request.user.id == user_id:
+        return Response({'error': 'Cannot delete your own account'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user = User.objects.get(id=user_id)
+        username = user.username
+        user.delete()
+        return Response({
+            'message': f'User {username} deleted successfully'
+        }, status=status.HTTP_200_OK)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)

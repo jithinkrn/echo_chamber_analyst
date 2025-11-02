@@ -178,6 +178,30 @@ export const apiService = {
     }
   },
 
+  // User Management
+  async listUsers(): Promise<User[]> {
+    const response = await api.get('/auth/users/');
+    return response.data;
+  },
+
+  async createUser(userData: {
+    username: string;
+    email: string;
+    password: string;
+    first_name?: string;
+    last_name?: string;
+    is_staff: boolean;
+    is_superuser: boolean;
+  }): Promise<{ id: number; username: string; email: string; message: string }> {
+    const response = await api.post('/auth/users/create/', userData);
+    return response.data;
+  },
+
+  async deleteUser(userId: number): Promise<{ message: string }> {
+    const response = await api.delete(`/auth/users/${userId}/delete/`);
+    return response.data;
+  },
+
   // Chat with the RAG chatbot
   async chat(query: string, conversation_history: ChatMessage[] = [], campaign_id?: string): Promise<ChatResponse> {
     // Transform conversation history to backend expected format
