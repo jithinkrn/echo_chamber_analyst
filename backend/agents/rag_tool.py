@@ -179,8 +179,48 @@ class RAGTool:
         try:
             start_time = datetime.now()
 
-            # Step 1: Classify intent
-            classification = await self.classifier.classify(query, conversation_history)
+            # Step 0: Rewrite query with conversation context if needed
+            contextualized_query = query
+            if conversation_history and len(conversation_history) > 0:
+                # Use LLM to rewrite query with conversation context
+                rewrite_prompt = """Given the conversation history, rewrite the user's latest query to be self-contained by adding relevant context from previous messages.
+
+Examples:
+- History: "Tell me about Nike's Just Keep Moving campaign"
+  Query: "Show me the executive summary"
+  Rewritten: "Show me the executive summary for Nike's Just Keep Moving campaign"
+
+- History: "What are the main pain points for Adidas?"
+  Query: "Tell me more about the pricing concerns"
+  Rewritten: "Tell me more about Adidas pricing concerns pain points"
+
+If the query is already self-contained, return it unchanged.
+
+Conversation history:
+"""
+                for msg in conversation_history[-2:]:  # Last 2 messages
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    rewrite_prompt += f"{role}: {content}\n"
+                
+                rewrite_prompt += f"\nCurrent query: {query}\n\nRewritten query (return ONLY the rewritten query, no explanation):"
+                
+                try:
+                    rewrite_response = await self.client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[{"role": "user", "content": rewrite_prompt}],
+                        temperature=0.0,
+                        max_tokens=100
+                    )
+                    contextualized_query = rewrite_response.choices[0].message.content.strip()
+                    if contextualized_query != query:
+                        logger.info(f"Query rewritten: '{query}' → '{contextualized_query}'")
+                except Exception as e:
+                    logger.warning(f"Query rewriting failed: {e}, using original query")
+                    contextualized_query = query
+
+            # Step 1: Classify intent (using rewritten query)
+            classification = await self.classifier.classify(contextualized_query, conversation_history)
 
             intent_type = classification.get("intent_type", "hybrid")
             entities = classification.get("entities", {})
@@ -207,13 +247,13 @@ class RAGTool:
                 if campaign:
                     campaign_id = str(campaign.id)
 
-            # Step 2: Execute RAG search (vector embeddings only)
+            # Step 2: Execute RAG search (vector embeddings only - using contextualized query)
             logger.info(f"Executing RAG search: strategy={search_strategy}, content_type={content_type}")
             
             if search_strategy == "vector_search":
                 # Pure vector search across all content types
                 search_results = await vector_search_tool.search_all(
-                    query=query,
+                    query=contextualized_query,  # Use contextualized query for search
                     brand_id=brand_id,
                     campaign_id=campaign_id,
                     min_similarity=min_similarity,
@@ -222,7 +262,7 @@ class RAGTool:
             else:
                 # Hybrid search (default) - semantic + keyword
                 search_results = await hybrid_search_tool.search(
-                    query=query,
+                    query=contextualized_query,  # Use contextualized query for search
                     brand_id=brand_id,
                     campaign_id=campaign_id,
                     content_type=content_type,
@@ -237,7 +277,7 @@ class RAGTool:
             
             # Step 3: Format search results for LLM context
             aggregated_data = {
-                "query": query,
+                "query": query,  # Keep original query for user-facing messages
                 "intent": intent_type,
                 "entities": entities,
                 "search_strategy": search_strategy,

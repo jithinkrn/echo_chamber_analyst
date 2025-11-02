@@ -179,8 +179,10 @@ class VectorSearchTool:
             
             logger.info(f"Found {await sync_to_async(queryset.count)()} insights with embeddings")
 
+            # Note: Insight model doesn't have direct brand_id field
+            # Brand association is through campaign relationship
             if brand_id:
-                queryset = queryset.filter(brand_id=brand_id)
+                queryset = queryset.filter(campaign__brand_id=brand_id)
 
             if campaign_id:
                 queryset = queryset.filter(campaign_id=campaign_id)

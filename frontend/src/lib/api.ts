@@ -180,9 +180,15 @@ export const apiService = {
 
   // Chat with the RAG chatbot
   async chat(query: string, conversation_history: ChatMessage[] = [], campaign_id?: string): Promise<ChatResponse> {
+    // Transform conversation history to backend expected format
+    const formatted_history = conversation_history.flatMap(msg => [
+      { role: 'user', content: msg.user },
+      { role: 'assistant', content: msg.assistant }
+    ]);
+
     const response = await api.post('/chat/', {
       query,
-      conversation_history,
+      conversation_history: formatted_history,
       campaign_id,
     });
     return response.data;
