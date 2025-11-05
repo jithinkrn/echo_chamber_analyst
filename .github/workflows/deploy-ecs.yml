@@ -157,17 +157,65 @@ jobs:
       # ========================================
       - name: Wait for Backend deployment
         run: |
-          aws ecs wait services-stable \
+          echo "Waiting for backend service to stabilize..."
+          if ! aws ecs wait services-stable \
             --cluster ${{ env.ECS_CLUSTER }} \
             --services ${{ env.BACKEND_SERVICE }} \
-            --region ${{ env.AWS_REGION }}
+            --region ${{ env.AWS_REGION }}; then
+
+            echo "❌ Backend service failed to stabilize. Checking service details..."
+
+            # Get service events
+            echo "=== Service Events ==="
+            aws ecs describe-services \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --services ${{ env.BACKEND_SERVICE }} \
+              --region ${{ env.AWS_REGION }} \
+              --query 'services[0].events[0:10]' \
+              --output table
+
+            # Get task details
+            echo "=== Latest Task Details ==="
+            TASK_ARN=$(aws ecs list-tasks \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --service-name ${{ env.BACKEND_SERVICE }} \
+              --region ${{ env.AWS_REGION }} \
+              --query 'taskArns[0]' \
+              --output text)
+
+            if [ -n "$TASK_ARN" ]; then
+              echo "Task ARN: $TASK_ARN"
+              aws ecs describe-tasks \
+                --cluster ${{ env.ECS_CLUSTER }} \
+                --tasks $TASK_ARN \
+                --region ${{ env.AWS_REGION }} \
+                --query 'tasks[0].{Status:lastStatus,Health:healthStatus,StopCode:stopCode,StopReason:stoppedReason,Containers:containers[*].[name,lastStatus,exitCode,reason]}' \
+                --output table
+            fi
+
+            exit 1
+          fi
+          echo "✅ Backend service is stable"
 
       - name: Wait for Frontend deployment
         run: |
-          aws ecs wait services-stable \
+          echo "Waiting for frontend service to stabilize..."
+          if ! aws ecs wait services-stable \
             --cluster ${{ env.ECS_CLUSTER }} \
             --services ${{ env.FRONTEND_SERVICE }} \
-            --region ${{ env.AWS_REGION }}
+            --region ${{ env.AWS_REGION }}; then
+
+            echo "❌ Frontend service failed to stabilize. Checking service details..."
+            aws ecs describe-services \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --services ${{ env.FRONTEND_SERVICE }} \
+              --region ${{ env.AWS_REGION }} \
+              --query 'services[0].events[0:10]' \
+              --output table
+
+            exit 1
+          fi
+          echo "✅ Frontend service is stable"
 
       - name: Deployment Summary
         run: |
