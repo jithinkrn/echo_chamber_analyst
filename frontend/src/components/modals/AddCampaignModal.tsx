@@ -79,9 +79,9 @@ export function AddCampaignModal({ onClose, onCampaignAdded, brandId, editCampai
         description: formData.description,
         brand: formData.selectedBrandId,
         budget: parseFloat(formData.budget) || 0,
-        budget_limit: formData.budget_limit ? parseFloat(formData.budget_limit) : null,
-        start_date: formData.startDate ? new Date(formData.startDate).toISOString() : null,
-        end_date: formData.endDate ? new Date(formData.endDate).toISOString() : null,
+        budget_limit: formData.budget_limit ? parseFloat(formData.budget_limit) : undefined,
+        start_date: formData.startDate ? new Date(formData.startDate).toISOString() : undefined,
+        end_date: formData.endDate ? new Date(formData.endDate).toISOString() : undefined,
         schedule_enabled: true,  // Enable scheduling by default for custom campaigns
         keywords: campaignKeywords,
         scout_config: {
