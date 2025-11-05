@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { apiService, ChatMessage, ChatResponse } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { Send, Bot, User, Loader2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 export default function ChatInterface() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -53,7 +54,7 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow">
+    <div className="w-full bg-white rounded-lg shadow">
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-medium text-gray-900">AI Chat Assistant</h3>
@@ -72,7 +73,7 @@ export default function ChatInterface() {
       </div>
 
       {/* Chat Messages */}
-      <div className="h-96 overflow-y-auto p-6 space-y-4">
+      <div className="h-[450px] overflow-y-auto p-6 space-y-4">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-gray-500">
             <div className="text-center">
@@ -86,7 +87,7 @@ export default function ChatInterface() {
             <div key={index} className="space-y-4">
               {/* User Message */}
               <div className="flex justify-end">
-                <div className="flex max-w-xs lg:max-w-2xl">
+                <div className="flex max-w-4xl">
                   <div className="bg-blue-600 text-white rounded-lg px-4 py-2">
                     <p className="text-sm">{message.user}</p>
                   </div>
@@ -98,12 +99,14 @@ export default function ChatInterface() {
 
               {/* Assistant Message */}
               <div className="flex justify-start">
-                <div className="flex max-w-xs lg:max-w-2xl">
+                <div className="flex max-w-4xl">
                   <div className="flex-shrink-0 mr-3">
                     <Bot className="h-6 w-6 text-blue-600" />
                   </div>
-                  <div className="bg-gray-100 rounded-lg px-4 py-2">
-                    <p className="text-sm text-gray-900 whitespace-pre-wrap">{message.assistant}</p>
+                  <div className="bg-gray-100 rounded-lg px-4 py-2 prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-strong:font-bold prose-strong:text-gray-900">
+                    <ReactMarkdown>
+                      {message.assistant}
+                    </ReactMarkdown>
                   </div>
                 </div>
               </div>
@@ -114,7 +117,7 @@ export default function ChatInterface() {
         {/* Loading State */}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="flex max-w-xs lg:max-w-2xl">
+            <div className="flex max-w-4xl">
               <div className="flex-shrink-0 mr-3">
                 <Bot className="h-6 w-6 text-blue-600" />
               </div>
@@ -154,24 +157,6 @@ export default function ChatInterface() {
           </div>
         </div>
 
-        {/* Response Metadata */}
-        {lastResponse && (
-          <div className="mt-3 text-xs text-gray-500 space-y-1">
-            <div className="flex justify-between">
-              <span>Context sources used: {lastResponse.context_used}</span>
-              <span>Tokens: {lastResponse.tokens_used}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Cost: {formatCurrency(lastResponse.cost)}</span>
-              <span>ID: {lastResponse.correlation_id}</span>
-            </div>
-            {lastResponse.sources.length > 0 && (
-              <div>
-                <span>Sources: {lastResponse.sources.join(', ')}</span>
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

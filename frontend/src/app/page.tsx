@@ -51,7 +51,7 @@ function DashboardContent() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Enhanced Header */}
       <header className="bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -134,7 +134,7 @@ function DashboardContent() {
       </nav>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-6 py-8">
         {/* Dashboard Tab */}
         {activeTab === 'overview' && (
           <DashboardComponent />
@@ -142,44 +142,32 @@ function DashboardContent() {
 
         {/* Chat Tab */}
         {activeTab === 'chat' && (
-          <div>
-            <ChatInterface />
-          </div>
+          <ChatInterface />
         )}
 
         {/* Brands Tab */}
         {activeTab === 'brands' && (
-          <div>
-            <BrandManager />
-          </div>
+          <BrandManager />
         )}
 
         {/* Campaigns Tab */}
         {activeTab === 'campaigns' && (
-          <div>
-            <CampaignManager />
-          </div>
+          <CampaignManager />
         )}
 
         {/* Delete Data Tab */}
         {activeTab === 'delete-data' && (
-          <div>
-            <DeleteData />
-          </div>
+          <DeleteData />
         )}
 
         {/* Admin Tab */}
         {activeTab === 'admin' && (
-          <div>
-            <AdminInterface />
-          </div>
+          <AdminInterface />
         )}
 
         {/* System Status Tab */}
         {activeTab === 'status' && (
-          <div>
-            <SystemStatus />
-          </div>
+          <SystemStatus />
         )}
       </main>
 

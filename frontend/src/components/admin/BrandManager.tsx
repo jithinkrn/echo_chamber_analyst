@@ -136,7 +136,7 @@ export default function BrandManager() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       {/* Header Actions */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
