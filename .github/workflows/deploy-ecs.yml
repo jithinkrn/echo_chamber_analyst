@@ -102,7 +102,6 @@ jobs:
       # Run Database Migrations
       # ========================================
       - name: Run Database Migrations
-        continue-on-error: true
         run: |
           echo "Running database migrations..."
           TASK_ARN=$(aws ecs run-task \
@@ -121,9 +120,22 @@ jobs:
           aws ecs wait tasks-stopped \
             --cluster ${{ env.ECS_CLUSTER }} \
             --tasks $TASK_ARN \
-            --region ${{ env.AWS_REGION }} || true
+            --region ${{ env.AWS_REGION }}
 
-          echo "✅ Migrations completed"
+          # Check if migration task succeeded
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --tasks $TASK_ARN \
+            --region ${{ env.AWS_REGION }} \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "❌ Migration task failed with exit code: $EXIT_CODE"
+            exit 1
+          fi
+
+          echo "✅ Migrations completed successfully"
 
       # ========================================
       # Update ECS Services
