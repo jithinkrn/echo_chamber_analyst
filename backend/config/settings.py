@@ -41,7 +41,7 @@ LOCAL_APPS = [
     'common',
     'api',
     'authentication',
-    'agents',
+    'agents.apps.AgentsConfig',  # Use full app config to ensure tasks are loaded
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
