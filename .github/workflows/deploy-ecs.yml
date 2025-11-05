@@ -191,6 +191,39 @@ jobs:
                 --region ${{ env.AWS_REGION }} \
                 --query 'tasks[0].{Status:lastStatus,Health:healthStatus,StopCode:stopCode,StopReason:stoppedReason,Containers:containers[*].[name,lastStatus,exitCode,reason]}' \
                 --output table
+
+              # Get container logs
+              echo ""
+              echo "=== Container Logs (last 100 lines) ==="
+              aws logs tail /ecs/echochamber-backend \
+                --since 30m \
+                --format short \
+                --filter-pattern "" \
+                --region ${{ env.AWS_REGION }} 2>&1 | tail -100 || echo "⚠️ Could not fetch container logs"
+            fi
+
+            # Get ALB Target Group health
+            echo ""
+            echo "=== ALB Target Group Health ==="
+            TG_ARN=$(aws elbv2 describe-target-groups \
+              --region ${{ env.AWS_REGION }} \
+              --query "TargetGroups[?contains(TargetGroupName, 'echochamber-backend')].TargetGroupArn" \
+              --output text | head -1)
+
+            if [ -n "$TG_ARN" ]; then
+              echo "Health Check Config:"
+              aws elbv2 describe-target-groups \
+                --target-group-arns $TG_ARN \
+                --region ${{ env.AWS_REGION }} \
+                --query 'TargetGroups[0].{Protocol:HealthCheckProtocol,Path:HealthCheckPath,Port:HealthCheckPort,Interval:HealthCheckIntervalSeconds,Timeout:HealthCheckTimeoutSeconds,HealthyThreshold:HealthyThresholdCount,UnhealthyThreshold:UnhealthyThresholdCount}' \
+                --output table
+
+              echo ""
+              echo "Target Health:"
+              aws elbv2 describe-target-health \
+                --target-group-arn $TG_ARN \
+                --region ${{ env.AWS_REGION }} \
+                --output table
             fi
 
             exit 1
