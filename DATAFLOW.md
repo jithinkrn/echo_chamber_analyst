@@ -1,6 +1,6 @@
 # EchoChamber Analyst - Data Flow Documentation
 
-## Overview
+## Overview 
 
 This document describes the complete data flow architecture for the EchoChamber Analyst system, including all agents, their interactions, triggers, and data transformations.
 
