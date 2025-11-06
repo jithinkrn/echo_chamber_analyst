@@ -24,7 +24,7 @@ env:
   # ECR Repository names
   BACKEND_REPO: echochamber-backend
   FRONTEND_REPO: echochamber-frontend
-  CELERY_REPO: echochamber-celery-worker
+  CELERY_REPO: echochamber-celery
 
 permissions:
   id-token: write
