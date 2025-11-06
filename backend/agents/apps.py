@@ -14,8 +14,16 @@ class AgentsConfig(AppConfig):
         Import tasks module when the app is ready.
         This ensures all Celery tasks are registered when Django starts.
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
         try:
             # Import tasks to register them with Celery
             from . import tasks  # noqa: F401
-        except ImportError:
-            pass
+            logger.info(f"✅ Successfully imported agents.tasks module - {len(dir(tasks))} items found")
+        except ImportError as e:
+            logger.error(f"❌ Failed to import agents.tasks: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"❌ Unexpected error importing agents.tasks: {e}")
+            raise
