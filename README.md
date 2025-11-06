@@ -56,10 +56,10 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for complete AWS ECS deployment instructions.
 The platform uses 6 specialized AI agents powered by LangGraph:
 
 1. **Orchestrator Agent**: Central workflow coordination via LangGraph StateGraph
-2. **Scout Agent**: Content discovery from Reddit and web with EchoScore calculation
-3. **Data Cleaner Agent**: PII detection, spam filtering, and compliance tracking
-4. **Analyst Agent**: LLM-powered insight generation and influencer identification
-5. **Chatbot Agent**: RAG-based conversational interface with contextual retrieval
+2. **Scout Agent**: Tavily Search API-powered content discovery with LLM-driven queries (6-month Brand Analytics / 3-month Custom Campaigns)
+3. **Data Cleaner Agent**: Advanced PII detection, spam filtering, toxicity checking, and compliance tracking
+4. **Analyst Agent**: GPT-4 & o1-mini powered insight generation with 4-component influencer scoring
+5. **Chatbot Agent**: Pure RAG conversational interface with pgvector embeddings and GPT-4o generation
 6. **Monitoring Agent**: LangSmith integration for observability and cost tracking
 
 ### Architecture
@@ -78,6 +78,30 @@ React Dashboard → JWT Auth → Django API → LangGraph Workflows → Database
 
 ---
 
+## 🔍 Data Collection Strategy
+
+### Tavily Search Integration
+The Scout Agent uses **Tavily Search API** for intelligent content discovery:
+
+- **LLM-Driven Queries**: GPT-4 generates optimized search queries combining brand + pain point keywords
+- **Monthly Iteration**: Searches through 6 months (Brand Analytics) or 3 months (Custom Campaigns) month-by-month
+- **Keyword Deduplication**: Semantic grouping of similar pain points (e.g., "sizing issues", "fit problems" → "sizing and fit issues")
+- **Source Discovery**: Automatically discovers and stores relevant Reddit communities and forums
+- **Thread Extraction**: LLM analyzes search results to extract relevant discussion threads
+
+### Collection Periods
+- **Brand Analytics Campaigns**: 6 months of comprehensive historical data
+- **Custom Strategic Campaigns**: 3 months of focused, objective-driven data
+- **Scheduled Updates**: Celery Beat tasks run hourly for continuous monitoring
+
+### Echo Score Calculation
+Communities are ranked by relevance using a proprietary EchoScore algorithm:
+- Thread volume (40%)
+- Pain point intensity (30%)
+- Engagement depth (30%)
+
+---
+
 ## 🎯 Key Features
 
 ### Brand-Centric Analytics
@@ -89,8 +113,9 @@ React Dashboard → JWT Auth → Django API → LangGraph Workflows → Database
 
 ### AI-Powered Insights
 - **Automated Sentiment Analysis**: Real-time conversation sentiment tracking
-- **Trend Detection**: Identify growing pain points and opportunities
-- **Influencer Discovery**: Find relevant micro-influencers in niche communities
+- **Trend Detection**: Identify growing pain points and opportunities with 6-month historical analysis
+- **Influencer Discovery**: 4-component scoring (Reach, Authority, Advocacy, Relevance) for micro-influencers
+- **Dashboard AI Insights**: o1-mini reasoning model generates 6 strategic insights from all KPIs
 - **Compliance Tracking**: IMDA AI Governance compliance with audit trails
 
 ### Workflow Orchestration
@@ -98,6 +123,14 @@ React Dashboard → JWT Auth → Django API → LangGraph Workflows → Database
 - **Conditional Routing**: Dynamic workflow paths based on data
 - **Error Recovery**: Advanced retry mechanisms with circuit breakers
 - **Real-time Monitoring**: Workflow status tracking via LangSmith
+
+### Pure RAG Chatbot
+- **Vector Embeddings**: PostgreSQL pgvector for semantic search across all content
+- **Intent Classification**: GPT-4o-mini routes queries (conversational/semantic/keyword/combined)
+- **Query Rewriting**: Context-aware enhancement using conversation history
+- **Dual Search Modes**: Pure semantic similarity OR semantic + keyword matching (both in vector space)
+- **GPT-4o Generation**: Natural language responses synthesized from retrieved context
+- **Source Attribution**: Top results with similarity scores from vector search
 
 ---
 
@@ -107,8 +140,9 @@ React Dashboard → JWT Auth → Django API → LangGraph Workflows → Database
 echo_chamber_analyst/
 ├── backend/                    # Django backend
 │   ├── api/                   # API endpoints
+│   ├── agents/                # LangGraph agents (Scout, Analyst, Chatbot, etc.)
 │   ├── common/                # Shared models and utilities
-│   ├── config/                # Django settings
+│   ├── config/                # Django settings + Celery configuration
 │   ├── Dockerfile.prod        # Production backend Dockerfile
 │   └── Dockerfile.celery      # Celery worker Dockerfile
 ├── frontend/                   # Next.js frontend
@@ -123,7 +157,9 @@ echo_chamber_analyst/
 ├── docker-compose.yml          # Development environment
 ├── docker-compose.prod.yml     # Production testing
 ├── README.md                   # This file
-└── DEPLOYMENT.md              # Deployment guide
+├── DATAFLOW.md                # Complete agent workflow documentation
+├── DASHBOARD.md               # Dashboard KPI calculation formulas
+└── DEPLOYMENT.md              # AWS ECS deployment guide
 ```
 
 ---
@@ -153,9 +189,10 @@ cp .env.example .env.local
 ```
 
 3. **Required API Keys**
-- OpenAI API key (for LLM features)
+- OpenAI API key (for GPT-4 & o1-mini LLM features)
+- Tavily API key (for Scout Agent search - required)
 - LangSmith API key (for monitoring - optional)
-- Reddit API credentials (for content scouting - optional)
+- Reddit API credentials (for legacy scouting - optional)
 
 ### Database Migrations
 ```bash
@@ -254,6 +291,8 @@ This project is proprietary and confidential.
 
 For issues and questions:
 - Check [DEPLOYMENT.md](DEPLOYMENT.md) for deployment issues
+- Review [DATAFLOW.md](DATAFLOW.md) for agent workflow details
+- Check [DASHBOARD.md](DASHBOARD.md) for KPI calculation formulas
 - Review GitHub Actions logs for CI/CD problems
 - Check CloudWatch logs for runtime errors
 
@@ -263,7 +302,14 @@ For issues and questions:
 
 **Status**: ✅ Production Ready
 
-### Recent Updates
+### Recent Updates (v2.0)
+- ✅ **Tavily Search Integration**: Replaced web scraping with Tavily Search API for Scout Agent
+- ✅ **Extended Collection Periods**: 6-month Brand Analytics, 3-month Custom Campaigns
+- ✅ **Pure RAG Chatbot**: pgvector embeddings + GPT-4o with intent classification
+- ✅ **Enhanced Analyst**: o1-mini for dashboard insights, 4-component influencer scoring
+- ✅ **Advanced Cleaner**: 5 PII types, multi-layer spam filtering, toxicity detection
+- ✅ **Token Optimization**: 90% reduction in LLM token usage for Brand Analytics
+- ✅ **Resilient Data Saving**: Individual item error handling with comprehensive statistics
 - ✅ LangGraph Migration Complete
 - ✅ Brand-Centric Analytics Dashboard
 - ✅ GitHub Actions OIDC Deployment
@@ -271,19 +317,7 @@ For issues and questions:
 - ✅ API Consolidation Complete
 - ✅ Database Migration Automation
 
-**Last Updated**: 2025-10-18
-
----
-
-## 🎯 Roadmap
-
-- [ ] Advanced influencer scoring algorithm
-- [ ] Multi-platform support (Twitter, LinkedIn)
-- [ ] Real-time notifications for brand mentions
-- [ ] Custom alert configurations
-- [ ] Export reports to PDF/Excel
-- [ ] API rate limiting and throttling
-- [ ] Multi-tenancy support
+**Last Updated**: 2025-11-06
 
 ---
 
