@@ -4,15 +4,10 @@ Celery configuration for EchoChamber Analyst.
 
 import os
 from celery import Celery
+from django.conf import settings
 
 # Set the default Django settings module for the 'celery' program.
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
-
-# Setup Django before importing anything that might touch models
-import django
-django.setup()
-
-from django.conf import settings
 
 app = Celery('echochamber')
 
@@ -22,26 +17,6 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 
 # Load task modules from all registered Django apps.
 app.autodiscover_tasks()
-
-# Explicitly import agents tasks to ensure they're registered
-# This is necessary because agents.apps.AgentsConfig.ready() is not called during Celery worker startup
-try:
-    from agents import tasks as agents_tasks
-    task_count = len([x for x in dir(agents_tasks) if not x.startswith('_')])
-    print(f"✅ Successfully loaded agents.tasks module with {task_count} items")
-
-    # Debug: List all registered Celery tasks after import
-    import time
-    time.sleep(1)  # Give Celery a moment to register tasks
-    print(f"📋 Registered Celery tasks: {sorted([name for name in app.tasks.keys() if not name.startswith('celery.')])}")
-except ImportError as e:
-    print(f"❌ Failed to import agents.tasks: {e}")
-    import traceback
-    traceback.print_exc()
-except Exception as e:
-    print(f"❌ Unexpected error loading agents.tasks: {e}")
-    import traceback
-    traceback.print_exc()
 
 # Configure Celery Beat Schedule for periodic tasks
 app.conf.beat_schedule = {
