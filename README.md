@@ -58,7 +58,7 @@ The platform uses 6 specialized AI agents powered by LangGraph:
 1. **Orchestrator Agent**: Central workflow coordination via LangGraph StateGraph
 2. **Scout Agent**: Tavily Search API-powered content discovery with LLM-driven queries (6-month Brand Analytics / 3-month Custom Campaigns)
 3. **Data Cleaner Agent**: Advanced PII detection, spam filtering, toxicity checking, and compliance tracking
-4. **Analyst Agent**: GPT-4 & o1-mini powered insight generation with 4-component influencer scoring
+4. **Analyst Agent**: GPT-4 & o3-mini powered insight generation with 4-component influencer scoring
 5. **Chatbot Agent**: Pure RAG conversational interface with pgvector embeddings and GPT-4o generation
 6. **Monitoring Agent**: LangSmith integration for observability and cost tracking
 

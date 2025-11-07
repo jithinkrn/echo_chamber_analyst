@@ -951,7 +951,7 @@ CLEANER output (cleaned_content)
 **LLM Configuration**:
 - **Analyst Module**: `gpt-4`, temperature=0.3 (slightly creative), max_tokens=3000
 - **Dashboard Insights**: `o1-mini` (OpenAI reasoning model) with fallback to `gpt-4`
-  - Model comparison: o1-mini for deep reasoning, gpt-4 for balanced analysis
+  - Model comparison: o3-mini for deep reasoning, gpt-4 for balanced analysis
   - Temperature: 0.7 (gpt-4 fallback), max_tokens=800
   - Prompt: 6 strategic insights covering brand health, community engagement, pain points, influencers, trends, recommendations
 
@@ -1402,7 +1402,7 @@ scout_brand_analytics_task()
         │    │    - Monthly iteration with Tavily API
         │    │
         │    ├──▶ generate_brand_analytics_ai_insights()  [ANALYST]
-        │    │    - Uses OpenAI o1-mini (reasoning model)
+        │    │    - Uses OpenAI o3-mini (reasoning model)
         │    │    - Analyzes all dashboard data (KPIs, charts, time series)
         │    │    - Generates 6 strategic insights
         │    │
@@ -1473,7 +1473,7 @@ scout_custom_campaign_task()
 | **Frequency** | Hourly | Continuous | On-demand/Scheduled |
 | **Campaign Type** | All active | brand_analytics | custom |
 | **Output** | Database storage | Database + AI Insights | Database + Strategic Report + PDF |
-| **LLM Model** | gpt-4 | o1-mini + gpt-4 fallback | gpt-4 |
+| **LLM Model** | gpt-4 | o3-mini + gpt-4 fallback | gpt-4 |
 | **Purpose** | General monitoring | Dashboard intelligence | Strategic planning |
 
 ### 4. Daily Cleanup Task
@@ -2816,7 +2816,7 @@ Display in chat with citations
 **Analyst Agent**:
 - **Influencer Scoring**: 4-component model (Reach 30%, Authority 30%, Advocacy 20%, Relevance 20%)
 - **LLM Model**: gpt-4 (temperature=0.3, max_tokens=3000) for analysis
-- **Dashboard Insights**: o1-mini (reasoning model) with gpt-4 fallback
+- **Dashboard Insights**: o3-mini (reasoning model) with gpt-4 fallback
 - **Insight Generation**: 6 strategic insights from all dashboard data (KPIs + charts + time series)
 - **Pain Point Linking**: Cross-referenced with influencers for reach + sentiment + urgency
 - **PDF Export**: Strategic reports with priority rankings and recommendations
@@ -2834,7 +2834,7 @@ Display in chat with citations
 ### v2.0 (November 05, 2025)
 - ✅ Added CHATBOT AGENT with **pure RAG system** (pgvector + GPT-4)
 - ✅ Scout Agent: **Tavily Search API** + **6-month/3-month periods** + LLM-driven queries + monthly iteration + keyword deduplication + source discovery
-- ✅ Analyst Agent: **Unified module** + **4-component influencer scoring** + **o1-mini Dashboard insights** + pain point linking + strategic reports + PDF export
+- ✅ Analyst Agent: **Unified module** + **4-component influencer scoring** + **o3-mini Dashboard insights** + pain point linking + strategic reports + PDF export
 - ✅ Cleaner Agent: 5 PII types, toxicity filtering, enhanced sentiment
 - ✅ Orchestrator: Chat query routing with conditional edges
 - ✅ Celery Tasks: **3 scout tasks** (general, brand_analytics, custom_campaign) with distinct configs
