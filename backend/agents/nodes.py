@@ -240,7 +240,7 @@ async def _generate_and_store_campaign_insights(collected_data: Dict[str, Any], 
     - For BRAND ANALYTICS (automatic): Uses optimized insight generation
     
     This maintains separation between:
-    - Brand Analytics: Generic data collection & 6 insights (o1-mini)
+    - Brand Analytics: Generic data collection & 6 insights (o3-mini)
     - Custom Campaigns: Strategic goal tracking & objective-based reports (gpt-4)
     """
     try:

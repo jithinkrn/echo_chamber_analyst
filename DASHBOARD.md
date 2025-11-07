@@ -717,7 +717,7 @@ influence_score = (reach × 0.3) + (authority × 0.3) + (advocacy × 0.2) + (rel
 
 **Function**: `generate_brand_analytics_ai_insights(brand, kpis, communities, pain_points, influencers, heatmap_data)`  
 **Location**: `backend/agents/analyst.py`  
-**LLM Model**: OpenAI **o1-mini** (reasoning model) with fallback to **gpt-4**
+**LLM Model**: OpenAI **o3-mini** (reasoning model) with fallback to **gpt-4**
 
 #### Input Data
 
@@ -804,7 +804,7 @@ Be specific with actual numbers. Use executive-level language.
 
 #### LLM Configuration
 
-**Primary Model**: `o1-mini`
+**Primary Model**: `o3-mini`
 ```python
 response = client.chat.completions.create(
     model="o3-mini",  # OpenAI's reasoning model
@@ -829,7 +829,7 @@ response = client.chat.completions.create(
 )
 ```
 
-**Why o1-mini?**
+**Why o3-mini?**
 - **Reasoning capability**: Better at connecting data points across multiple charts
 - **Strategic thinking**: Identifies patterns humans might miss
 - **Conciseness**: Generates executive-level insights (not verbose explanations)

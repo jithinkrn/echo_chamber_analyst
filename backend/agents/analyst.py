@@ -655,7 +655,7 @@ Example:
                 if line.strip() and not line.strip().startswith('#') and len(line.strip()) > 30
             ][:6]
 
-        logger.info(f"✅ Generated {len(insights)} AI-powered insights using OpenAI o1-mini")
+        logger.info(f"✅ Generated {len(insights)} AI-powered insights using OpenAI o3-mini")
 
         # Ensure we have exactly 6 insights (pad with fallbacks if needed)
         while len(insights) < 6 and len(insights) > 0:
@@ -664,7 +664,7 @@ Example:
         return insights[:6]
 
     except Exception as e:
-        logger.error(f"❌ Error generating AI insights with OpenAI o1-mini: {str(e)}")
+        logger.error(f"❌ Error generating AI insights with OpenAI o3-mini: {str(e)}")
         # Return rule-based fallback insights
         return generate_fallback_insights_from_brand_analytics(brand, kpis, communities, pain_points)
 
@@ -849,13 +849,15 @@ SAMPLE DISCUSSIONS:
 {chr(10).join([f"  • '{t.get('title', 'Untitled')}' ({t.get('engagement', 0)} engagement, sentiment: {t.get('sentiment_score', 0):.2f})"
                for t in threads[:5]]) if threads else "  • No discussions yet"}"""
 
-        # Generate strategic report using GPT-4
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {
-                    "role": "system",
-                    "content": """You are a strategic business analyst specializing in data-driven campaign performance analysis.
+        # Generate strategic report using o3-mini (OpenAI's reasoning model)
+        # Try o3-mini first, fallback to gpt-4 if not accessible
+        try:
+            response = client.chat.completions.create(
+                model="o3-mini",  # OpenAI's reasoning model for strategic analysis
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"""You are a strategic business analyst specializing in data-driven campaign performance analysis.
 
 Your task: Analyze collected social media data in the context of the campaign's business objective and generate a strategic report.
 
@@ -866,34 +868,30 @@ CRITICAL: This is NOT a generic brand monitoring report. This is a STRATEGIC CAM
 - Estimate progress toward the objective based on available signals
 
 Return your analysis as a JSON object with this EXACT structure:
-{
+{{
   "executive_summary": "2-3 sentence summary of campaign progress toward objective",
-  "key_metrics": {
+  "key_metrics": {{
     "target": "The campaign's target goal (extracted from objective)",
     "baseline": "Estimated baseline or starting point (if inferable from data, else 'TBD')",
     "current_progress": "Evidence-based assessment of progress (percentage or qualitative)",
     "trend": "Direction: 'improving', 'stable', 'declining', or 'insufficient data'"
-  },
+  }},
   "strategic_findings": [
-    {
+    {{
       "finding": "Key insight directly related to campaign objective",
       "evidence": "Data points from collected discussions supporting this finding",
       "recommendation": "Specific action to advance toward objective",
       "priority": "high|medium|low"
-    }
+    }}
   ],
   "next_steps": [
     "Immediate action item 1",
     "Immediate action item 2",
     "Immediate action item 3"
   ]
-}
+}}
 
-Generate EXACTLY 4 strategic findings. Focus on objective-relevant insights, not generic pain points."""
-                },
-                {
-                    "role": "user",
-                    "content": f"""Analyze this campaign data and generate a strategic report:
+Generate EXACTLY 4 strategic findings. Focus on objective-relevant insights, not generic pain points.
 
 {data_summary}
 
@@ -905,11 +903,67 @@ Instructions:
 5. Recommend actions that directly advance the objective
 
 Return ONLY the JSON object, no other text."""
-                }
-            ],
-            temperature=0.7,
-            max_tokens=1500
-        )
+                    }
+                ]
+            )
+            logger.info("✅ Successfully used OpenAI o3-mini for campaign strategic report")
+        except Exception as o3_error:
+            logger.warning(f"⚠️  o3-mini not accessible ({str(o3_error)}), falling back to gpt-4")
+            # Fallback to GPT-4
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a strategic business analyst specializing in data-driven campaign performance analysis."
+                    },
+                    {
+                        "role": "user",
+                        "content": f"""Analyze the following campaign data and generate a strategic report:
+
+{data_summary}
+
+ANALYSIS INSTRUCTIONS:
+Analyze collected social media data in context of the campaign's business objective and generate a strategic report.
+
+This is a STRATEGIC CAMPAIGN with specific business goals.
+- Focus on the stated objective (e.g., retention, sentiment shift, feature adoption, etc.)
+- Generate findings that directly relate to achieving the objective
+- Provide evidence-based recommendations aligned with the goal
+- Estimate progress toward the objective based on available signals
+
+Return your analysis as a JSON object with structure:
+{{
+  "executive_summary": "2-3 sentence summary of campaign progress toward objective",
+  "key_metrics": {{
+    "target": "The campaign's target goal (extracted from objective)",
+    "baseline": "Estimated baseline or starting point (if inferable from data, else 'TBD')",
+    "current_progress": "Evidence-based assessment of progress (percentage or qualitative)",
+    "trend": "Direction: 'improving', 'stable', 'declining', or 'insufficient data'"
+  }},
+  "strategic_findings": [
+    {{
+      "finding": "Key insight directly related to campaign objective",
+      "evidence": "Data points from collected discussions supporting this finding",
+      "recommendation": "Specific action to advance toward objective",
+      "priority": "high|medium|low"
+    }}
+  ],
+  "next_steps": [
+    "Immediate action item 1",
+    "Immediate action item 2",
+    "Immediate action item 3"
+  ]
+}}
+
+Generate EXACTLY 4 strategic findings. Focus on objective-relevant insights, not generic pain points.
+
+Return ONLY the JSON object, no other text."""
+                    }
+                ],
+                temperature=0.7,
+                max_tokens=1500
+            )
 
         report_text = response.choices[0].message.content.strip()
 

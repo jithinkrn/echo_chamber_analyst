@@ -879,7 +879,7 @@ CLEANER output (cleaned_content)
         │
         └──▶ generate_brand_analytics_ai_insights() [Dashboard only]
                   │
-                  ├──▶ Uses OpenAI o1-mini (reasoning model) + fallback to gpt-4
+                  ├──▶ Uses OpenAI o3-mini (reasoning model) + fallback to gpt-4
                   ├──▶ Analyzes all dashboard data:
                   │    - KPIs (active campaigns, high-echo communities, new pain points)
                   │    - Community Watchlist (top communities by echo score)
@@ -950,7 +950,7 @@ CLEANER output (cleaned_content)
 
 **LLM Configuration**:
 - **Analyst Module**: `gpt-4`, temperature=0.3 (slightly creative), max_tokens=3000
-- **Dashboard Insights**: `o1-mini` (OpenAI reasoning model) with fallback to `gpt-4`
+- **Dashboard Insights**: `o3-mini` (OpenAI reasoning model) with fallback to `gpt-4`
   - Model comparison: o3-mini for deep reasoning, gpt-4 for balanced analysis
   - Temperature: 0.7 (gpt-4 fallback), max_tokens=800
   - Prompt: 6 strategic insights covering brand health, community engagement, pain points, influencers, trends, recommendations
@@ -2707,7 +2707,7 @@ Display in chat with citations
 
 5. **Dashboard AI Insights** (Brand Analytics Only):
    - Function: `generate_brand_analytics_ai_insights()`
-   - Uses **OpenAI o1-mini** (reasoning model) with fallback to **gpt-4**
+   - Uses **OpenAI o3-mini** (reasoning model) with fallback to **gpt-4**
    - Analyzes ALL dashboard data:
      - KPIs (active campaigns, high-echo communities, new pain points, positivity ratio)
      - Community Watchlist (top communities by echo score)
@@ -2739,7 +2739,7 @@ Display in chat with citations
 - `calculate_influence_scores()` - 4-component scoring
 - `link_pain_points_to_influencers()` - Pain point impact analysis
 - `generate_comprehensive_analysis_summary()` - Campaign metadata summary
-- `generate_brand_analytics_ai_insights()` - Dashboard AI insights with o1-mini
+- `generate_brand_analytics_ai_insights()` - Dashboard AI insights with o3-mini
 - `generate_strategic_campaign_report()` - Custom campaign reports
 - `generate_strategic_report_pdf()` - PDF export
 
