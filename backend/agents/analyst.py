@@ -404,7 +404,7 @@ def generate_ai_powered_insights_from_brand_analytics(
     heatmap_data: Dict[str, Any] = None
 ) -> List[str]:
     """
-    Generate AI-powered insights based on Brand Analytics dashboard data using OpenAI o1-mini reasoning model.
+    Generate AI-powered insights based on Brand Analytics dashboard data using OpenAI o3-mini reasoning model.
 
     This is specifically for the dashboard's "AI-Powered Key Insights" section,
     which displays insights based on overall brand performance metrics.
@@ -420,7 +420,7 @@ def generate_ai_powered_insights_from_brand_analytics(
     Returns:
         List of 6 AI-generated insight strings for dashboard display
     """
-    logger.info(f"🧠 Generating AI-powered insights using OpenAI o1-mini for Brand: {brand.name}")
+    logger.info(f"🧠 Generating AI-powered insights using OpenAI o3-mini for Brand: {brand.name}")
     
     # Initialize heatmap_data if not provided
     if heatmap_data is None:
@@ -544,10 +544,10 @@ Top Influencers:
 ═══════════════════════════════════════════════════════════════"""
 
         # Use OpenAI reasoning model for deep analysis
-        # Try o1-mini first, fallback to gpt-4 if not accessible
+        # Try o3-mini first, fallback to gpt-4 if not accessible
         try:
             response = client.chat.completions.create(
-                model="o1-mini",  # OpenAI's reasoning model
+                model="o3-mini",  # OpenAI's reasoning model
                 messages=[
                     {
                         "role": "user",
@@ -592,9 +592,9 @@ Example format:
                     }
                 ]
             )
-            logger.info("✅ Successfully used OpenAI o1-mini for insights")
+            logger.info("✅ Successfully used OpenAI o3-mini for insights")
         except Exception as o1_error:
-            logger.warning(f"⚠️  o1-mini not accessible ({str(o1_error)}), falling back to gpt-4")
+            logger.warning(f"⚠️  o3-mini not accessible ({str(o1_error)}), falling back to gpt-4")
             # Fallback to GPT-4
             response = client.chat.completions.create(
                 model="gpt-4",

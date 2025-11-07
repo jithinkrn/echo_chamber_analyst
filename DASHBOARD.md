@@ -807,7 +807,7 @@ Be specific with actual numbers. Use executive-level language.
 **Primary Model**: `o1-mini`
 ```python
 response = client.chat.completions.create(
-    model="o1-mini",  # OpenAI's reasoning model
+    model="o3-mini",  # OpenAI's reasoning model
     messages=[{
         "role": "user",
         "content": prompt
@@ -817,7 +817,7 @@ response = client.chat.completions.create(
 
 **Fallback Model**: `gpt-4`
 ```python
-# If o1-mini fails
+# If o3-mini fails
 response = client.chat.completions.create(
     model="gpt-4",
     messages=[
@@ -1219,7 +1219,7 @@ def download_campaign_report_pdf(request, campaign_id):
 - **Purpose**: Long-term brand monitoring (6 months)
 - **Focus**: Community health, pain point trends, influencer identification
 - **Key Metrics**: Echo scores, positivity ratio, mention volume
-- **AI Insights**: o1-mini powered strategic analysis
+- **AI Insights**: o3-mini powered strategic analysis
 
 ### Campaign Analytics Dashboard
 - **Purpose**: Strategic campaign planning (3 months)

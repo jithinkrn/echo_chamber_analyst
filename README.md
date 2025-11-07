@@ -115,7 +115,7 @@ Communities are ranked by relevance using a proprietary EchoScore algorithm:
 - **Automated Sentiment Analysis**: Real-time conversation sentiment tracking
 - **Trend Detection**: Identify growing pain points and opportunities with 6-month historical analysis
 - **Influencer Discovery**: 4-component scoring (Reach, Authority, Advocacy, Relevance) for micro-influencers
-- **Dashboard AI Insights**: o1-mini reasoning model generates 6 strategic insights from all KPIs
+- **Dashboard AI Insights**: o3-mini reasoning model generates 6 strategic insights from all KPIs
 - **Compliance Tracking**: IMDA AI Governance compliance with audit trails
 
 ### Workflow Orchestration
@@ -189,7 +189,7 @@ cp .env.example .env.local
 ```
 
 3. **Required API Keys**
-- OpenAI API key (for GPT-4 & o1-mini LLM features)
+- OpenAI API key (for GPT-4 & o3-mini LLM features)
 - Tavily API key (for Scout Agent search - required)
 - LangSmith API key (for monitoring - optional)
 - Reddit API credentials (for legacy scouting - optional)
@@ -306,7 +306,7 @@ For issues and questions:
 - ✅ **Tavily Search Integration**: Replaced web scraping with Tavily Search API for Scout Agent
 - ✅ **Extended Collection Periods**: 6-month Brand Analytics, 3-month Custom Campaigns
 - ✅ **Pure RAG Chatbot**: pgvector embeddings + GPT-4o with intent classification
-- ✅ **Enhanced Analyst**: o1-mini for dashboard insights, 4-component influencer scoring
+- ✅ **Enhanced Analyst**: o3-mini for dashboard insights, 4-component influencer scoring
 - ✅ **Advanced Cleaner**: 5 PII types, multi-layer spam filtering, toxicity detection
 - ✅ **Token Optimization**: 90% reduction in LLM token usage for Brand Analytics
 - ✅ **Resilient Data Saving**: Individual item error handling with comprehensive statistics

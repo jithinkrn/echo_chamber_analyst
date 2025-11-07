@@ -10,7 +10,9 @@
       "Bash(pkill:*)",
       "Bash(python:*)",
       "Bash(awk:*)",
-      "Read(//Users/jithinkrishnan/Documents/Study/**)"
+      "Read(//Users/jithinkrishnan/Documents/Study/**)",
+      "Bash(aws logs tail:*)",
+      "Bash(tee:*)"
     ],
     "deny": [],
     "ask": []

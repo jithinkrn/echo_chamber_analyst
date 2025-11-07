@@ -1,0 +1,162 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.2, pytest-7.4.4, pluggy-1.0.0 -- /opt/anaconda3/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend
+configfile: pytest.ini
+plugins: anyio-4.11.0, langsmith-0.3.45
+collecting ... collected 63 items
+
+tests/unit_test/test_models.py::TestBrandModel::test_brand_creation PASSED [  1%]
+tests/unit_test/test_models.py::TestBrandModel::test_brand_default_values PASSED [  3%]
+tests/unit_test/test_models.py::TestBrandModel::test_brand_json_fields PASSED [  4%]
+tests/unit_test/test_models.py::TestBrandModel::test_brand_str_representation PASSED [  6%]
+tests/unit_test/test_models.py::TestBrandModel::test_brand_unique_name PASSED [  7%]
+tests/unit_test/test_models.py::TestCompetitorModel::test_competitor_cascade_delete PASSED [  9%]
+tests/unit_test/test_models.py::TestCompetitorModel::test_competitor_creation PASSED [ 11%]
+tests/unit_test/test_models.py::TestCompetitorModel::test_competitor_str_representation PASSED [ 12%]
+tests/unit_test/test_models.py::TestCompetitorModel::test_competitor_unique_together PASSED [ 14%]
+tests/unit_test/test_models.py::TestCampaignModel::test_campaign_budget_tracking PASSED [ 15%]
+tests/unit_test/test_models.py::TestCampaignModel::test_campaign_creation PASSED [ 17%]
+tests/unit_test/test_models.py::TestCampaignModel::test_campaign_default_values PASSED [ 19%]
+tests/unit_test/test_models.py::TestCampaignModel::test_campaign_json_fields PASSED [ 20%]
+tests/unit_test/test_models.py::TestCampaignModel::test_campaign_status_choices PASSED [ 22%]
+tests/unit_test/test_models.py::TestCampaignModel::test_campaign_type_choices PASSED [ 23%]
+tests/unit_test/test_models.py::TestSourceModel::test_source_config_field PASSED [ 25%]
+tests/unit_test/test_models.py::TestSourceModel::test_source_creation PASSED [ 26%]
+tests/unit_test/test_models.py::TestSourceModel::test_source_str_representation PASSED [ 28%]
+tests/unit_test/test_models.py::TestSourceModel::test_source_types PASSED [ 30%]
+tests/unit_test/test_models.py::TestSourceModel::test_source_unique_together PASSED [ 31%]
+tests/unit_test/test_models.py::TestCommunityModel::test_community_creation PASSED [ 33%]
+tests/unit_test/test_models.py::TestCommunityModel::test_community_influencer_fields PASSED [ 34%]
+tests/unit_test/test_models.py::TestCommunityModel::test_community_platform_choices PASSED [ 36%]
+tests/unit_test/test_models.py::TestCommunityModel::test_community_str_representation PASSED [ 38%]
+tests/unit_test/test_models.py::TestCommunityModel::test_community_unique_together PASSED [ 39%]
+tests/unit_test/test_models.py::TestPainPointModel::test_pain_point_creation PASSED [ 41%]
+tests/unit_test/test_models.py::TestPainPointModel::test_pain_point_json_field PASSED [ 42%]
+tests/unit_test/test_models.py::TestPainPointModel::test_pain_point_str_representation PASSED [ 44%]
+tests/unit_test/test_models.py::TestPainPointModel::test_pain_point_unique_together PASSED [ 46%]
+tests/unit_test/test_models.py::TestThreadModel::test_thread_creation PASSED [ 47%]
+tests/unit_test/test_models.py::TestThreadModel::test_thread_llm_fields PASSED [ 49%]
+tests/unit_test/test_models.py::TestThreadModel::test_thread_scores PASSED [ 50%]
+tests/unit_test/test_models.py::TestThreadModel::test_thread_unique_together PASSED [ 52%]
+tests/unit_test/test_models.py::TestInfluencerModel::test_influencer_brand_sentiment PASSED [ 53%]
+tests/unit_test/test_models.py::TestInfluencerModel::test_influencer_creation PASSED [ 55%]
+tests/unit_test/test_models.py::TestInfluencerModel::test_influencer_metrics PASSED [ 57%]
+tests/unit_test/test_models.py::TestInfluencerModel::test_influencer_unique_together PASSED [ 58%]
+tests/unit_test/test_models.py::TestSystemSettingsModel::test_system_settings_default_values PASSED [ 60%]
+tests/unit_test/test_models.py::TestSystemSettingsModel::test_system_settings_get_settings PASSED [ 61%]
+tests/unit_test/test_models.py::TestSystemSettingsModel::test_system_settings_singleton FAILED [ 63%]
+tests/unit_test/test_models.py::TestDashboardMetricsModel::test_dashboard_metrics_creation PASSED [ 65%]
+tests/unit_test/test_models.py::TestDashboardMetricsModel::test_dashboard_metrics_str_representation PASSED [ 66%]
+tests/unit_test/test_models.py::TestDashboardMetricsModel::test_dashboard_metrics_unique_together PASSED [ 68%]
+tests/unit_test/test_serializers.py::TestBrandSerializer::test_brand_deserialization PASSED [ 69%]
+tests/unit_test/test_serializers.py::TestBrandSerializer::test_brand_serialization PASSED [ 71%]
+tests/unit_test/test_serializers.py::TestBrandSerializer::test_brand_validation PASSED [ 73%]
+tests/unit_test/test_serializers.py::TestCompetitorSerializer::test_competitor_deserialization PASSED [ 74%]
+tests/unit_test/test_serializers.py::TestCompetitorSerializer::test_competitor_serialization PASSED [ 76%]
+tests/unit_test/test_serializers.py::TestCampaignSerializer::test_campaign_deserialization FAILED [ 77%]
+tests/unit_test/test_serializers.py::TestCampaignSerializer::test_campaign_read_only_fields PASSED [ 79%]
+tests/unit_test/test_serializers.py::TestCampaignSerializer::test_campaign_serialization PASSED [ 80%]
+tests/unit_test/test_serializers.py::TestCommunitySerializer::test_community_deserialization PASSED [ 82%]
+tests/unit_test/test_serializers.py::TestCommunitySerializer::test_community_serialization PASSED [ 84%]
+tests/unit_test/test_serializers.py::TestPainPointSerializer::test_pain_point_deserialization PASSED [ 85%]
+tests/unit_test/test_serializers.py::TestPainPointSerializer::test_pain_point_serialization PASSED [ 87%]
+tests/unit_test/test_serializers.py::TestThreadSerializer::test_thread_serialization PASSED [ 88%]
+tests/unit_test/test_serializers.py::TestThreadSerializer::test_thread_with_pain_points PASSED [ 90%]
+tests/unit_test/test_serializers.py::TestInfluencerSerializer::test_influencer_deserialization PASSED [ 92%]
+tests/unit_test/test_serializers.py::TestInfluencerSerializer::test_influencer_serialization PASSED [ 93%]
+tests/unit_test/test_serializers.py::TestUserSerializer::test_user_read_only_fields PASSED [ 95%]
+tests/unit_test/test_serializers.py::TestUserSerializer::test_user_serialization PASSED [ 96%]
+tests/unit_test/test_serializers.py::TestDashboardMetricsSerializer::test_dashboard_metrics_deserialization PASSED [ 98%]
+tests/unit_test/test_serializers.py::TestDashboardMetricsSerializer::test_dashboard_metrics_serialization PASSED [100%]
+
+=================================== FAILURES ===================================
+/opt/anaconda3/lib/python3.12/site-packages/psycopg/cursor.py:97: django.db.utils.IntegrityError: duplicate key value violates unique constraint "system_settings_pkey"
+/opt/anaconda3/lib/python3.12/unittest/case.py:727: AssertionError: False is not true : {'owner': [ErrorDetail(string='This field is required.', code='required')]}
+=============================== warnings summary ===============================
+../../../../../../../../../opt/anaconda3/lib/python3.12/site-packages/_pytest/config/__init__.py:1373
+  /opt/anaconda3/lib/python3.12/site-packages/_pytest/config/__init__.py:1373: PytestConfigWarning: Unknown config option: DJANGO_SETTINGS_MODULE
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+tests/unit_test/test_models.py:22
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_models.py:22: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_models.py:86
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_models.py:86: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_models.py:131
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_models.py:131: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_models.py:232
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_models.py:232: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_models.py:291
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_models.py:291: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_models.py:379
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_models.py:379: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_models.py:460
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_models.py:460: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_models.py:566
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_models.py:566: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_models.py:649
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_models.py:649: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_models.py:692
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_models.py:692: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_serializers.py:26
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_serializers.py:26: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_serializers.py:77
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_serializers.py:77: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_serializers.py:115
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_serializers.py:115: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_serializers.py:182
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_serializers.py:182: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_serializers.py:231
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_serializers.py:231: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_serializers.py:287
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_serializers.py:287: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_serializers.py:359
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_serializers.py:359: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_serializers.py:407
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_serializers.py:407: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+tests/unit_test/test_serializers.py:456
+  /Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/unit_test/test_serializers.py:456: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit_test/test_models.py::TestSystemSettingsModel::test_system_settings_singleton
+FAILED tests/unit_test/test_serializers.py::TestCampaignSerializer::test_campaign_deserialization
+================== 2 failed, 61 passed, 20 warnings in 3.60s ===================
