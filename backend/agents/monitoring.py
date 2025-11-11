@@ -24,6 +24,14 @@ from .state import EchoChamberAnalystState, TaskStatus
 logger = logging.getLogger(__name__)
 
 
+def get_state_value(state: Any, key: str, default: Any = None):
+    """Safely get value from state whether it's dict or object."""
+    if isinstance(state, dict):
+        return state.get(key, default)
+    else:
+        return getattr(state, key, default)
+
+
 class ComplianceTracker:
     """Track compliance violations and audit requirements."""
 
@@ -224,23 +232,32 @@ class LangSmithMonitor:
 
         try:
             # Create child run for node
+            # Safely get values from state (can be dict or object)
+            campaign = get_state_value(state, 'campaign')
+            campaign_id = campaign.campaign_id if campaign and hasattr(campaign, 'campaign_id') else 'unknown'
+            workflow_id = get_state_value(state, 'workflow_id', 'unknown')
+            task_status = get_state_value(state, 'task_status', TaskStatus.PENDING)
+            processed_content = get_state_value(state, 'processed_content', [])
+            insights = get_state_value(state, 'insights', [])
+            metrics = get_state_value(state, 'metrics')
+
             node_run = self.client.create_run(
                 name=f"node_{node_name}",
                 run_type="llm" if node_name in ["analyst", "chatbot"] else "tool",
                 inputs=inputs,
                 outputs=outputs,
                 parent_run_id=run_id,
-                tags=["node", node_name, state.campaign.campaign_id],
+                tags=["node", node_name, campaign_id],
                 extra={
                     "node_name": node_name,
-                    "workflow_id": state.workflow_id,
-                    "campaign_id": state.campaign.campaign_id,
-                    "task_status": state.task_status.value,
+                    "workflow_id": workflow_id,
+                    "campaign_id": campaign_id,
+                    "task_status": task_status.value if hasattr(task_status, 'value') else str(task_status),
                     "metrics": {
-                        "content_processed": len(state.processed_content),
-                        "insights_generated": len(state.insights),
-                        "total_cost": state.metrics.total_cost,
-                        "total_tokens": state.metrics.total_tokens_used
+                        "content_processed": len(processed_content),
+                        "insights_generated": len(insights),
+                        "total_cost": metrics.total_cost if metrics and hasattr(metrics, 'total_cost') else 0,
+                        "total_tokens": metrics.total_tokens_used if metrics and hasattr(metrics, 'total_tokens_used') else 0
                     }
                 }
             )
@@ -335,30 +352,37 @@ def monitor_node_execution(monitor: LangSmithMonitor):
         async def wrapper(state: EchoChamberAnalystState, *args, **kwargs):
             node_name = func.__name__.replace("_node", "")
 
-            # Capture inputs
+            # Capture inputs - safely handle dict or object state
+            campaign = get_state_value(state, 'campaign')
+            campaign_id = campaign.campaign_id if campaign and hasattr(campaign, 'campaign_id') else 'unknown'
+
             inputs = {
-                "state_summary": state.get_content_summary(),
-                "current_node": state.current_node,
-                "workflow_id": state.workflow_id,
-                "campaign_id": state.campaign.campaign_id
+                "state_summary": state.get_content_summary() if hasattr(state, 'get_content_summary') else {},
+                "current_node": get_state_value(state, 'current_node', 'unknown'),
+                "workflow_id": get_state_value(state, 'workflow_id', 'unknown'),
+                "campaign_id": campaign_id
             }
 
             try:
                 # Execute the node
                 result_state = await func(state, *args, **kwargs)
 
-                # Capture outputs
+                # Capture outputs - safely handle dict or object state
+                task_status = get_state_value(result_state, 'task_status', TaskStatus.COMPLETED)
+                metrics = get_state_value(result_state, 'metrics')
+
                 outputs = {
-                    "final_status": result_state.task_status.value,
-                    "content_summary": result_state.get_content_summary(),
-                    "errors": result_state.metrics.errors,
-                    "warnings": result_state.metrics.warnings
+                    "final_status": task_status.value if hasattr(task_status, 'value') else str(task_status),
+                    "content_summary": result_state.get_content_summary() if hasattr(result_state, 'get_content_summary') else {},
+                    "errors": metrics.errors if metrics and hasattr(metrics, 'errors') else [],
+                    "warnings": metrics.warnings if metrics and hasattr(metrics, 'warnings') else []
                 }
 
                 # Log execution
-                if hasattr(state, '_monitoring_run_id'):
+                monitoring_run_id = get_state_value(state, '_monitoring_run_id')
+                if monitoring_run_id:
                     monitor.log_node_execution(
-                        state._monitoring_run_id,
+                        monitoring_run_id,
                         node_name,
                         result_state,
                         inputs,
@@ -368,11 +392,11 @@ def monitor_node_execution(monitor: LangSmithMonitor):
                 return result_state
 
             except Exception as e:
-                # Log error
+                # Log error - safely get workflow_id
                 monitor.log_compliance_event("node_error", {
                     "node_name": node_name,
                     "error": str(e),
-                    "workflow_id": state.workflow_id
+                    "workflow_id": get_state_value(state, 'workflow_id', 'unknown')
                 })
                 raise
 

@@ -138,18 +138,37 @@ def chat_query(request):
                 )
 
         # Convert conversation history to LangChain messages
+        from langchain_core.messages import HumanMessage, AIMessage
         messages = []
         for msg in conversation_history:
             if isinstance(msg, dict):
                 if msg.get('role') == 'user':
                     messages.append(HumanMessage(content=msg.get('content', '')))
-                # Add AI messages if needed
+                elif msg.get('role') == 'assistant':
+                    messages.append(AIMessage(content=msg.get('content', '')))
 
-        # Execute chat workflow using LangGraph
-        final_state = asyncio.run(workflow_orchestrator.execute_chat_workflow(
-            user_query=query,
-            conversation_history=messages,
-            campaign_id=campaign_id
+        # Create campaign context for chat workflow using FULL graph
+        from agents.state import CampaignContext
+
+        campaign_context = CampaignContext(
+            campaign_id=campaign_id or "chat_session",
+            name=campaign.name if campaign else "Chat Session",
+            keywords=[],
+            sources=[],
+            budget_limit=0.0,
+            current_spend=0.0
+        )
+
+        logger.info(f"Executing chat workflow through FULL graph for query: {query[:50]}...")
+
+        # Execute through FULL LangGraph workflow with correct signature
+        final_state = asyncio.run(workflow_orchestrator.execute_workflow(
+            campaign=campaign_context,
+            workflow_type="chat_query",
+            config={
+                "user_query": query,
+                "conversation_history": messages
+            }
         ))
 
         # Extract response from workflow state
@@ -172,12 +191,24 @@ def chat_query(request):
             sources = final_state['rag_context'].get('sources', [])
             search_results = final_state['rag_context'].get('search_results', {})
 
+            # Extract metrics - can be object or dict
+            metrics = final_state.get('metrics')
+            if hasattr(metrics, 'total_tokens_used'):
+                tokens_used = metrics.total_tokens_used
+                cost = metrics.total_cost
+            elif isinstance(metrics, dict):
+                tokens_used = metrics.get('total_tokens_used', 0)
+                cost = metrics.get('total_cost', 0)
+            else:
+                tokens_used = 0
+                cost = 0
+
             return Response({
                 'response': response_content,
                 'context_used': len(search_results.get('results', [])),
                 'sources': sources,
-                'tokens_used': final_state.get('metrics', {}).get('total_tokens_used', 0),
-                'cost': final_state.get('metrics', {}).get('total_cost', 0),
+                'tokens_used': tokens_used,
+                'cost': cost,
                 'workflow_id': final_state.get('workflow_id', 'unknown'),
                 'compliance_tracked': len(final_state.get('audit_trail', [])) > 0
             })

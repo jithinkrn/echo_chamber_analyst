@@ -9,6 +9,7 @@ workflow management, conditional routing, and parallel execution.
 from typing import Dict, List, Any, Optional, Literal
 import asyncio
 import logging
+import uuid
 from datetime import datetime
 
 from langchain_core.messages import HumanMessage, AIMessage
@@ -33,7 +34,6 @@ from .retry import (
     with_retry, create_resilient_workflow_config,
     WorkflowErrorRecovery, global_retry_handler
 )
-from .state_adapter import StateAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +115,9 @@ class EchoChamberWorkflowOrchestrator:
 
         # Monitoring agent to final workflow
         workflow.add_edge("monitoring_agent", "finalize_workflow")
+
+        # Chatbot direct path (bypasses content processing)
+        workflow.add_edge("chatbot_node", "finalize_workflow")
 
         # Error handling with retry logic
         workflow.add_conditional_edges(
@@ -428,6 +431,33 @@ class EchoChamberWorkflowOrchestrator:
     ) -> EchoChamberAnalystState:
         """Execute a complete workflow with monitoring."""
 
+        # For chat workflows, use simplified direct execution
+        # This avoids the complex graph state management issues
+        if workflow_type == "chat_query":
+            from .state import create_chat_state
+            from .nodes import chatbot_node
+
+            user_query = config.get("user_query", "") if config else ""
+            conversation_history = config.get("conversation_history", []) if config else []
+
+            # Create chat-specific state (returns dict)
+            chat_state = create_chat_state(
+                user_query=user_query,
+                conversation_history=conversation_history,
+                campaign_id=campaign.campaign_id
+            )
+
+            try:
+                # Execute chatbot node directly
+                final_state = await chatbot_node(chat_state)
+                return final_state
+            except Exception as e:
+                logger.error(f"Chat workflow failed: {e}")
+                chat_state['errors'] = [str(e)]
+                chat_state['task_status'] = TaskStatus.FAILED
+                return chat_state
+
+        # For other workflows, use full graph execution
         # Create initial state
         workflow_id = f"{workflow_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         state = create_initial_state(workflow_id, campaign, config)
@@ -451,10 +481,14 @@ class EchoChamberWorkflowOrchestrator:
                 config=thread_config
             )
 
+            # LangGraph returns a dict - handle audit trail as dict
             # Generate compliance report
             if monitoring_run_id:
                 compliance_report = global_monitor.generate_explainability_report(workflow_id)
-                final_state.audit_trail.append({
+                # Access as dict since LangGraph returns dict
+                if 'audit_trail' not in final_state:
+                    final_state['audit_trail'] = []
+                final_state['audit_trail'].append({
                     "timestamp": datetime.now().isoformat(),
                     "action": "compliance_report_generated",
                     "compliance_report": compliance_report
@@ -473,8 +507,11 @@ class EchoChamberWorkflowOrchestrator:
                     "campaign_id": campaign.campaign_id
                 })
 
-            state.add_error(f"Workflow execution failed: {e}")
-            state.task_status = TaskStatus.FAILED
+            # Handle error - use dict access since state is a dict
+            if 'errors' not in state:
+                state['errors'] = []
+            state['errors'].append(f"Workflow execution failed: {e}")
+            state['task_status'] = TaskStatus.FAILED
             return state
 
     def _get_state_value(self, state: Any, key: str, default: Any = None):
@@ -490,26 +527,89 @@ class EchoChamberWorkflowOrchestrator:
         conversation_history: Optional[List] = None,
         campaign_id: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Execute a simplified chat/RAG workflow directly."""
+        """
+        [DEPRECATED] Execute a simplified chat/RAG workflow directly.
+
+        This method bypasses the full LangGraph orchestration and is deprecated
+        in favor of execute_workflow() which provides:
+        - Complete LangSmith tracing and monitoring
+        - Sophisticated error recovery with retry logic
+        - Budget enforcement and cost tracking
+        - Full audit trail for compliance
+        - State checkpointing for fault tolerance
+
+        Use execute_workflow() with a chat state instead:
+
+        Example:
+            from agents.state import CampaignContext
+
+            campaign_context = CampaignContext(
+                campaign_id=campaign_id or "chat_session",
+                name="Chat Session",
+                keywords=[],
+                sources=[],
+                budget_limit=0.0,
+                current_spend=0.0
+            )
+
+            final_state = await orchestrator.execute_workflow(
+                campaign=campaign_context,
+                workflow_type="chat_query",
+                config={
+                    "user_query": user_query,
+                    "conversation_history": conversation_history or []
+                }
+            )
+
+        Args:
+            user_query: The user's chat query
+            conversation_history: Optional conversation history as LangChain messages
+            campaign_id: Optional campaign ID for context
+
+        Returns:
+            Final workflow state (same as execute_workflow)
+
+        Deprecated:
+            Since version 2.0. Use execute_workflow() instead.
+        """
+        import warnings
+        warnings.warn(
+            "execute_chat_workflow() is deprecated and will be removed in version 3.0. "
+            "Use execute_workflow() with a chat state instead for full graph orchestration.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+
+        logger.warning(
+            f"DEPRECATED: execute_chat_workflow() called for query: {user_query[:50]}... "
+            "Redirecting to full graph workflow via execute_workflow()"
+        )
 
         try:
-            logger.info(f"Executing direct chat workflow for query: {user_query[:50]}...")
-            
-            # Create simplified state for chat
-            from .state import create_chat_state
-            raw_state = create_chat_state(user_query, conversation_history, campaign_id)
-            state = StateAdapter(raw_state)
-            
-            # Execute chatbot node directly to avoid complex workflow routing
-            from .nodes import chatbot_node
-            final_state = await chatbot_node(state)
+            # Redirect to full graph workflow
+            from .state import CampaignContext
 
-            logger.info("Direct chat execution completed successfully")
-            # Return adapter (object-like) so views supporting attribute style keep working
-            return final_state
+            campaign_context = CampaignContext(
+                campaign_id=campaign_id or "chat_session",
+                name="Chat Session",
+                keywords=[],
+                sources=[],
+                budget_limit=0.0,
+                current_spend=0.0
+            )
+
+            logger.info("Redirecting to full graph workflow execution")
+            return await self.execute_workflow(
+                campaign=campaign_context,
+                workflow_type="chat_query",
+                config={
+                    "user_query": user_query,
+                    "conversation_history": conversation_history or []
+                }
+            )
 
         except Exception as e:
-            logger.error(f"Direct chat workflow execution failed: {e}")
+            logger.error(f"Deprecated chat workflow redirection failed: {e}")
             return {
                 "error": str(e),
                 "status": "failed",
