@@ -2017,6 +2017,29 @@ async def analyst_node(state: EchoChamberAnalystState) -> EchoChamberAnalystStat
     state.current_node = "analyze_content"
 
     try:
+        # CRITICAL VALIDATION: Ensure all content is cleaned before analysis
+        uncleaned_items = [c for c in state.raw_content if not c.is_cleaned]
+        if uncleaned_items:
+            error_msg = (
+                f"VALIDATION FAILED: Analyst node received {len(uncleaned_items)} uncleaned items. "
+                f"All content must be cleaned before analysis. "
+                f"This indicates a routing error in Decision Point 2."
+            )
+            logger.error(error_msg)
+            state.add_error(error_msg)
+
+            # Log compliance event for data quality violation
+            global_monitor.log_compliance_event("data_quality_violation", {
+                "violation_type": "uncleaned_content_in_analysis",
+                "uncleaned_count": len(uncleaned_items),
+                "total_count": len(state.raw_content),
+                "workflow_id": state.workflow_id,
+                "current_node": state.current_node
+            })
+
+            # Return state with error - do not proceed with analysis
+            return state
+
         logger.info(f"Analyst node processing {len(state.cleaned_content)} items")
 
         # Get tools for analysis operations

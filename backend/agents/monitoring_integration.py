@@ -36,23 +36,30 @@ except ImportError:
 
 class Guardrails:
     """
-    Query validation and safety guardrails.
+    Enhanced query validation and safety guardrails.
 
     Prevents:
     - Malformed queries
-    - Injection attempts
+    - Injection attempts (SQL, XSS, code execution)
     - Excessive load (rate limiting)
     - Sensitive data exposure
+    - Profanity and offensive language
+    - Hate speech and discrimination
+    - Harmful intent (violence, manipulation)
+    - Prompt injection and jailbreaking
     """
 
     # Query length limits (allow short greetings like "hi")
     MIN_QUERY_LENGTH = 2
     MAX_QUERY_LENGTH = 500
 
-    # Blocked patterns (simple injection prevention)
+    # Blocked patterns (injection prevention)
     BLOCKED_PATTERNS = [
         "'; DROP TABLE",
         "'; DELETE FROM",
+        "; DELETE FROM",
+        "DROP TABLE",
+        "DELETE FROM",
         "<script>",
         "javascript:",
         "__import__",
@@ -60,9 +67,113 @@ class Guardrails:
         "exec("
     ]
 
+    # Profanity patterns (common offensive words)
+    PROFANITY_PATTERNS = [
+        r'\bf\*{2}k\b', r'\bfuck(?:ing|ed|er)?\b', r'\bsh\*t\b', r'\bshit\b',
+        r'\bd\*mn\b', r'\bdamn\b', r'\bh\*ll\b', r'\bhell\b',
+        r'\bb\*tch\b', r'\bbitch\b', r'\ba\*s\b', r'\bass\b',
+        r'\bcrap\b', r'\bpiss\b', r'\bdick\b', r'\bc\*ck\b',
+        r'\bcock\b', r'\bp\*ssy\b', r'\bpussy\b', r'\bf\*g\b',
+        r'\bbastard(?:s)?\b', r'\bwhore\b', r'\bslut\b'
+    ]
+
+    # Hate speech patterns (slurs, discriminatory language)
+    HATE_SPEECH_PATTERNS = [
+        r'\bn\*{2,}[aer]{1,2}\b', r'\bn[i1]gg[aer]{1,2}(?:s)?\b',  # Racial slurs (N-word variants)
+        r'\bf\*g{1,2}[ot]{0,2}\b', r'\bfag{1,2}[ot]{0,2}(?:s)?\b',  # Homophobic slurs
+        r'\bc\*nt\b', r'\bcunt\b',  # Misogynistic slurs
+        r'\bretard(?:s|ed)?\b', r'\bspaz\b',  # Ableist slurs
+        r'\btranny\b', r'\bshemale\b',  # Transphobic slurs
+        r'\bchink\b', r'\bgook\b', r'\bspic\b',  # Racial slurs
+        r'\bkike\b', r'\btowelhead\b', r'\braghead\b',  # Religious/ethnic slurs
+        r'\b(?:kill|murder|eliminate) (?:all|the) (?:jews|blacks|whites|muslims|gays)\b',  # Targeted violence
+        r'\b(?:racist|sexist|homophobic|transphobic) (?:against|towards)\b',  # Explicit discrimination
+        r'\bwhite supremac',  # White supremacy
+        r'\bnazi\b'  # Nazi references
+    ]
+
+    # Harmful intent patterns (violence, manipulation, illegal activities)
+    HARMFUL_INTENT_PATTERNS = [
+        # Violence
+        r'\b(?:how to|teach me to|help me) (?:kill|murder|harm|hurt|attack|assassinate)\b',
+        r'\bmake (?:a|an) (?:bomb|explosive|weapon)\b',
+        r'\b(?:stab|shoot|poison|strangle) (?:someone|people|a person)\b',
+
+        # Suicide/self-harm
+        r'\b(?:how to|ways to|best way to) (?:kill|end) (?:myself|my life)\b',
+        r'\b(?:commit|committing) suicide\b',
+        r'\bself[- ]harm\b',
+
+        # Illegal activities
+        r'\b(?:how to|help me) (?:hack|steal|rob|scam|fraud)\b',
+        r'\b(?:sell|buy|purchase) (?:drugs|cocaine|heroin|meth)\b',
+        r'\bmake (?:fake|counterfeit) (?:money|id|passport)\b',
+
+        # Manipulation/misinformation
+        r'\b(?:spread|create|generate) (?:misinformation|disinformation|fake news|propaganda)\b',
+        r'\b(?:manipulate|deceive|trick) (?:people|users|customers|voters)\b',
+        r'\b(?:social engineer|phish|scam) (?:people|users)\b',
+
+        # Exploitation
+        r'\b(?:exploit|take advantage of) (?:children|minors|kids)\b',
+        r'\b(?:child|underage) (?:porn|sexual|abuse)\b',
+        r'\btraffick(?:ing)? (?:humans|people|women|children)\b'
+    ]
+
+    # Prompt injection patterns (jailbreaking attempts)
+    PROMPT_INJECTION_PATTERNS = [
+        r'\bignore (?:previous|all|above|prior) (?:instructions|prompts|rules|commands)\b',
+        r'\bforget (?:everything|all|previous|prior)\b',
+        r'\byou are now\b',
+        r'\bnew instructions?:\b',
+        r'\bpretend (?:you are|to be|that you)\b',
+        r'\broleplay as\b',
+        r'\bact as (?:a|an)\b',
+        r'\bdisregard (?:previous|all|prior|above)\b',
+        r'\boverride (?:previous|all|prior|system)\b',
+        r'\bsystem prompt:\b',
+        r'\b(?:new|updated) system (?:prompt|instructions|rules)\b',
+        r'\bdo not follow (?:previous|prior|above|system)\b',
+        r'\benable (?:developer|admin|debug) mode\b',
+        r'\bsudo mode\b',
+        r'\bjailbreak\b',
+        r'\bDAN (?:mode|prompt)\b',  # "Do Anything Now" jailbreak
+        r'\bignore your programming\b',
+        r'\byou must (?:ignore|disregard|forget)\b'
+    ]
+
     # Rate limiting (in-memory, simple implementation)
     _query_counts = {}
     MAX_QUERIES_PER_MINUTE = 30
+
+    # OpenAI Moderation API client (lazy initialization)
+    _openai_client = None
+
+    @classmethod
+    def _check_patterns(cls, query: str, patterns: List[str], pattern_type: str) -> Optional[Dict[str, Any]]:
+        """
+        Helper method to check query against a list of regex patterns.
+
+        Args:
+            query: User's query string
+            patterns: List of regex patterns to check
+            pattern_type: Type of pattern for logging (e.g., "profanity", "hate_speech")
+
+        Returns:
+            Error dict if pattern matched, None otherwise
+        """
+        import re
+
+        query_lower = query.lower()
+        for pattern in patterns:
+            if re.search(pattern, query_lower, re.IGNORECASE):
+                logger.warning(f"{pattern_type} pattern detected in query: {pattern}")
+                return {
+                    "valid": False,
+                    "error": f"Query contains inappropriate content and cannot be processed.",
+                    "code": pattern_type.upper()
+                }
+        return None
 
     @classmethod
     def validate_query(cls, query: str, user_id: Optional[str] = None) -> Dict[str, Any]:
@@ -76,6 +187,8 @@ class Guardrails:
         Returns:
             Dictionary with validation result
         """
+        import re
+
         # Check query length
         if len(query) < cls.MIN_QUERY_LENGTH:
             return {
@@ -91,7 +204,7 @@ class Guardrails:
                 "code": "QUERY_TOO_LONG"
             }
 
-        # Check for blocked patterns
+        # Check for blocked patterns (SQL injection, XSS, code execution)
         query_upper = query.upper()
         for pattern in cls.BLOCKED_PATTERNS:
             if pattern.upper() in query_upper:
@@ -101,6 +214,54 @@ class Guardrails:
                     "error": "Query contains potentially harmful content.",
                     "code": "BLOCKED_PATTERN"
                 }
+
+        # Check for prompt injection attempts (jailbreaking)
+        result = cls._check_patterns(query, cls.PROMPT_INJECTION_PATTERNS, "prompt_injection")
+        if result:
+            return result
+
+        # Check for harmful intent (violence, illegal activities, manipulation)
+        result = cls._check_patterns(query, cls.HARMFUL_INTENT_PATTERNS, "harmful_intent")
+        if result:
+            return result
+
+        # Check for hate speech (slurs, discrimination)
+        result = cls._check_patterns(query, cls.HATE_SPEECH_PATTERNS, "hate_speech")
+        if result:
+            return result
+
+        # Check for profanity
+        result = cls._check_patterns(query, cls.PROFANITY_PATTERNS, "profanity")
+        if result:
+            return result
+
+        # OpenAI Moderation API check (optional, for comprehensive moderation)
+        if hasattr(settings, 'OPENAI_API_KEY') and settings.OPENAI_API_KEY:
+            try:
+                # Initialize OpenAI client if not already done
+                if cls._openai_client is None:
+                    from openai import OpenAI
+                    cls._openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+                # Call Moderation API
+                moderation_response = cls._openai_client.moderations.create(input=query)
+                result = moderation_response.results[0]
+
+                # Check if content is flagged
+                if result.flagged:
+                    flagged_categories = [cat for cat, flagged in result.categories.model_dump().items() if flagged]
+                    logger.warning(f"OpenAI Moderation flagged query. Categories: {flagged_categories}")
+                    return {
+                        "valid": False,
+                        "error": "Query contains inappropriate content and cannot be processed.",
+                        "code": "MODERATION_FLAGGED",
+                        "categories": flagged_categories
+                    }
+            except ImportError:
+                logger.warning("OpenAI library not available for moderation. Install with: pip install openai")
+            except Exception as e:
+                logger.error(f"OpenAI Moderation API error: {e}")
+                # Continue without OpenAI moderation if it fails
 
         # Rate limiting (simple in-memory implementation)
         if user_id:

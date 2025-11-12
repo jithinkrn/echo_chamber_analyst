@@ -67,6 +67,7 @@ class EchoChamberWorkflowOrchestrator:
         workflow.add_node("workflow_monitor", self._workflow_monitor)
         workflow.add_node("error_handler", self._enhanced_error_handler)
         workflow.add_node("finalize_workflow", self._finalize_workflow)
+        workflow.add_node("ensure_cleaned", self._ensure_content_cleaned)
 
         # Set entry point
         workflow.set_entry_point("start")
@@ -88,7 +89,7 @@ class EchoChamberWorkflowOrchestrator:
             {
                 "scout_first": "scout_content",
                 "parallel_processing": "parallel_orchestrator",
-                "analysis_only": "analyze_content",
+                "analysis_only": "ensure_cleaned",  # Always ensure cleaned before analysis
                 "error": "error_handler"
             }
         )
@@ -97,6 +98,16 @@ class EchoChamberWorkflowOrchestrator:
         workflow.add_edge("scout_content", "clean_content")
         workflow.add_edge("clean_content", "analyze_content")
         workflow.add_edge("analyze_content", "workflow_monitor")
+
+        # Safety path: ensure content is cleaned before analysis
+        workflow.add_conditional_edges(
+            "ensure_cleaned",
+            self._check_if_cleaning_needed,
+            {
+                "needs_cleaning": "clean_content",
+                "ready_for_analysis": "analyze_content"
+            }
+        )
 
         # Parallel processing orchestration
         workflow.add_edge("parallel_orchestrator", "workflow_monitor")
@@ -190,30 +201,63 @@ class EchoChamberWorkflowOrchestrator:
         state.current_node = "route_workflow"
 
         try:
+            # Count uncleaned items for better routing decisions
+            uncleaned_count = sum(1 for c in state.raw_content if not c.is_cleaned)
+            all_cleaned = uncleaned_count == 0 and len(state.raw_content) > 0
+
             # Add routing decision
             decision = WorkflowDecision(
                 decision_type="content_processing_route",
                 criteria={
                     "has_raw_content": bool(state.raw_content),
+                    "total_items": len(state.raw_content),
+                    "uncleaned_items": uncleaned_count,
+                    "all_cleaned": all_cleaned,
                     "budget_remaining": state.campaign.budget_limit - state.campaign.current_spend,
                     "parallel_enabled": state.config.get("parallel_processing", True)
                 }
             )
 
             # Determine next step based on content and configuration
+            # DECISION 1: No content yet, but campaign has sources to scrape
             if not state.raw_content and state.campaign.sources:
                 decision.selected_path = "scout_first"
-            elif state.config.get("parallel_processing", True) and len(state.raw_content) > 10:
-                decision.selected_path = "parallel_processing"
-            elif state.raw_content:
-                decision.selected_path = "analysis_only"
+                decision.alternatives = ["parallel_processing"]
+
+            # DECISION 2: Has content that is ALL cleaned - ready for analysis only
+            elif all_cleaned:
+                # All content is cleaned, check if we should analyze in parallel or sequential
+                if state.config.get("parallel_processing", True) and len(state.raw_content) > 10:
+                    decision.selected_path = "parallel_processing"
+                    decision.alternatives = ["analysis_only"]
+                else:
+                    decision.selected_path = "analysis_only"
+                    decision.alternatives = ["parallel_processing"]
+
+            # DECISION 3: Has content but some/all need cleaning
+            elif state.raw_content and uncleaned_count > 0:
+                # Content needs cleaning - route to parallel or sequential based on count
+                if state.config.get("parallel_processing", True) and len(state.raw_content) > 10:
+                    decision.selected_path = "parallel_processing"
+                    decision.alternatives = ["scout_first"]
+                else:
+                    # Sequential processing: scout_first will go through clean_content
+                    decision.selected_path = "scout_first"
+                    decision.alternatives = ["parallel_processing"]
+
+            # DECISION 4: Default fallback
             else:
                 decision.selected_path = "scout_first"
+                decision.alternatives = ["analysis_only", "parallel_processing"]
 
             state.decisions.append(decision)
             state.set_next_node(decision.selected_path)
 
-            logger.info(f"Routed workflow to: {decision.selected_path}")
+            logger.info(
+                f"Routed workflow to: {decision.selected_path} "
+                f"(total: {len(state.raw_content)}, uncleaned: {uncleaned_count}, "
+                f"all_cleaned: {all_cleaned})"
+            )
 
         except Exception as e:
             logger.error(f"Error in workflow routing: {e}")
@@ -237,26 +281,45 @@ class EchoChamberWorkflowOrchestrator:
         state.current_node = "parallel_orchestrator"
 
         try:
-            # Determine which nodes to run in parallel
+            # Determine which nodes to run in parallel based on content status
             parallel_nodes = []
 
-            if state.raw_content and not all(c.is_cleaned for c in state.raw_content):
-                parallel_nodes.append("clean_content")
+            # Count items by status
+            uncleaned_count = sum(1 for c in state.raw_content if not c.is_cleaned)
+            unanalyzed_count = sum(1 for c in state.raw_content if c.is_cleaned and not c.is_analyzed)
 
-            if state.cleaned_content and not all(c.is_analyzed for c in state.cleaned_content):
+            # Always ensure content is cleaned before analysis
+            if state.raw_content and uncleaned_count > 0:
+                parallel_nodes.append("clean_content")
+                logger.info(f"Parallel orchestrator: {uncleaned_count} items need cleaning")
+
+            # Only analyze cleaned content
+            if unanalyzed_count > 0 or (uncleaned_count == 0 and state.raw_content):
+                # If we have cleaned content or all content will be cleaned
                 parallel_nodes.append("analyze_content")
+                logger.info(f"Parallel orchestrator: {unanalyzed_count} cleaned items need analysis")
 
             if parallel_nodes:
                 state.set_parallel_nodes(parallel_nodes)
                 logger.info(f"Starting parallel execution: {parallel_nodes}")
 
-                # Execute nodes in parallel (simplified for this example)
+                # Execute nodes in parallel
                 tasks = []
                 for node in parallel_nodes:
                     if node == "clean_content":
                         tasks.append(cleaner_node(state))
                     elif node == "analyze_content":
-                        tasks.append(analyst_node(state))
+                        # If we're running both cleaning and analysis in parallel,
+                        # we need to ensure cleaning completes first
+                        if "clean_content" in parallel_nodes:
+                            # Wait for cleaning to complete first
+                            await cleaner_node(state)
+                            state.mark_task_completed("clean_content")
+                            # Now analyze the cleaned content
+                            tasks.append(analyst_node(state))
+                        else:
+                            # Content is already clean, safe to analyze
+                            tasks.append(analyst_node(state))
 
                 # Wait for all tasks to complete
                 if tasks:
@@ -264,11 +327,19 @@ class EchoChamberWorkflowOrchestrator:
 
                     # Process results and update state
                     for i, result in enumerate(results):
-                        node = parallel_nodes[i]
+                        # Get the node name (accounting for cleaning being handled separately)
+                        if "clean_content" in parallel_nodes and "clean_content" not in [n for n in parallel_nodes if parallel_nodes.index(n) < len(results)]:
+                            node = parallel_nodes[i + 1] if i + 1 < len(parallel_nodes) else parallel_nodes[i]
+                        else:
+                            node = parallel_nodes[i] if i < len(parallel_nodes) else parallel_nodes[-1]
+
                         if isinstance(result, Exception):
                             state.add_error(f"Parallel node {node} failed: {result}")
                         else:
                             state.mark_task_completed(node)
+
+            else:
+                logger.warning("Parallel orchestrator called but no nodes to execute")
 
         except Exception as e:
             logger.error(f"Error in parallel coordination: {e}")
@@ -621,6 +692,64 @@ class EchoChamberWorkflowOrchestrator:
         """Add chatbot node to the existing graph."""
         # This would require rebuilding the graph - simplified for now
         pass
+
+    async def _ensure_content_cleaned(self, state: EchoChamberAnalystState) -> EchoChamberAnalystState:
+        """
+        Safety node to ensure all content is cleaned before analysis.
+        This node is used in the 'analysis_only' path to guarantee data quality.
+        """
+        state.current_node = "ensure_cleaned"
+
+        try:
+            # Count uncleaned items
+            uncleaned_count = sum(1 for c in state.raw_content if not c.is_cleaned)
+
+            logger.info(
+                f"Ensure cleaned node - Total items: {len(state.raw_content)}, "
+                f"Uncleaned: {uncleaned_count}"
+            )
+
+            # Add audit trail entry
+            state.audit_trail.append({
+                "timestamp": datetime.now().isoformat(),
+                "action": "content_cleaning_check",
+                "total_items": len(state.raw_content),
+                "uncleaned_items": uncleaned_count,
+                "node": "ensure_cleaned"
+            })
+
+        except Exception as e:
+            logger.error(f"Error in ensure_cleaned node: {e}")
+            state.add_error(f"Content cleaning check failed: {e}")
+
+        return state
+
+    def _check_if_cleaning_needed(self, state: EchoChamberAnalystState) -> str:
+        """
+        Conditional routing function to determine if content needs cleaning.
+        Returns 'needs_cleaning' if any content is not cleaned, otherwise 'ready_for_analysis'.
+        """
+        try:
+            # Check if any content needs cleaning
+            uncleaned_count = sum(1 for c in state.raw_content if not c.is_cleaned)
+
+            if uncleaned_count > 0:
+                logger.info(
+                    f"Content needs cleaning: {uncleaned_count} items not cleaned. "
+                    f"Routing to clean_content node."
+                )
+                return "needs_cleaning"
+            else:
+                logger.info(
+                    f"All content is cleaned ({len(state.raw_content)} items). "
+                    f"Routing to analyze_content node."
+                )
+                return "ready_for_analysis"
+
+        except Exception as e:
+            logger.error(f"Error checking if cleaning needed: {e}")
+            # Default to cleaning for safety
+            return "needs_cleaning"
 
     def get_workflow_status(self, workflow_id: str) -> Optional[Dict[str, Any]]:
         """Get the current status of a workflow."""
