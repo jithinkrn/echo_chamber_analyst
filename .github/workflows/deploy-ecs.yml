@@ -38,6 +38,21 @@ jobs:
     name: Run Unit Tests
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_echo_chamber_analyst
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -58,8 +73,13 @@ jobs:
         working-directory: ./backend
         env:
           DJANGO_SETTINGS_MODULE: config.settings
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_echo_chamber_analyst
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          REDIS_URL: redis://localhost:6379/0
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: ap-southeast-1
         run: |
           pytest tests/unit_test/ -v --tb=short --junitxml=test-results.xml --cov=agents --cov-report=html --cov-report=term
 
