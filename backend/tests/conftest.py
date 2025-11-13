@@ -1,36 +1,16 @@
 """
-Pytest configuration for Django tests.
+Pytest configuration for all tests.
+
+This file disables LangSmith tracing during tests to prevent
+connection warnings and errors.
 """
 import os
-import django
-from django.conf import settings
+import warnings
 
-# Set Django settings module
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+# Disable LangSmith tracing for all tests
+os.environ['LANGCHAIN_TRACING_V2'] = 'false'
+os.environ['LANGCHAIN_API_KEY'] = ''
 
-# Setup Django
-django.setup()
-
-
-def pytest_configure(config):
-    """Configure pytest for Django."""
-    # Ensure Django is set up
-    if not settings.configured:
-        settings.configure(
-            DEBUG=True,
-            DATABASES={
-                'default': {
-                    'ENGINE': 'django.db.backends.sqlite3',
-                    'NAME': ':memory:',
-                }
-            },
-            INSTALLED_APPS=[
-                'django.contrib.contenttypes',
-                'django.contrib.auth',
-                'common',
-                'api',
-                'authentication',
-            ],
-            SECRET_KEY='test-secret-key-for-testing-only',
-        )
-        django.setup()
+# Suppress LangSmith warnings
+warnings.filterwarnings('ignore', category=RuntimeWarning, message='.*cannot schedule new futures.*')
+warnings.filterwarnings('ignore', module='langsmith')

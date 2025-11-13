@@ -1,0 +1,772 @@
+{
+  "timestamp": "2025-11-13T06:28:24.830455",
+  "exit_status": 0,
+  "total_tests": 79,
+  "passed": 79,
+  "failed": 0,
+  "skipped": 0,
+  "total_duration_seconds": 1.59,
+  "by_agent": {
+    "analyst": {
+      "total": 18,
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0,
+      "duration": 0.0,
+      "pass_rate": 100.0
+    },
+    "chatbot": {
+      "total": 8,
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "duration": 0.03,
+      "pass_rate": 100.0
+    },
+    "datacleaner": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "duration": 0.0,
+      "pass_rate": 100.0
+    },
+    "monitoring": {
+      "total": 15,
+      "passed": 15,
+      "failed": 0,
+      "skipped": 0,
+      "duration": 0.98,
+      "pass_rate": 100.0
+    },
+    "orchestrator": {
+      "total": 17,
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0,
+      "duration": 0.13,
+      "pass_rate": 100.0
+    },
+    "scout": {
+      "total": 20,
+      "passed": 20,
+      "failed": 0,
+      "skipped": 0,
+      "duration": 0.47,
+      "pass_rate": 100.0
+    }
+  },
+  "details": [
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestDualPathRouting::test_route_to_brand_analytics",
+      "test_function": "test_route_to_brand_analytics",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T06:28:23.179245",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestDualPathRouting::test_route_to_campaign_analytics",
+      "test_function": "test_route_to_campaign_analytics",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.179827",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestDualPathRouting::test_dispatcher_error_handling",
+      "test_function": "test_dispatcher_error_handling",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.180316",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestBrandAnalytics::test_data_aggregation_90_percent_reduction",
+      "test_function": "test_data_aggregation_90_percent_reduction",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.180816",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestBrandAnalytics::test_gpt4o_insights_generation",
+      "test_function": "test_gpt4o_insights_generation",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.181275",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestBrandAnalytics::test_insights_storage_in_metadata",
+      "test_function": "test_insights_storage_in_metadata",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.181712",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestBrandAnalytics::test_empty_pain_points_handling",
+      "test_function": "test_empty_pain_points_handling",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.182151",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestBrandAnalytics::test_aggregation_error_handling",
+      "test_function": "test_aggregation_error_handling",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.182585",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestCampaignAnalytics::test_load_campaign_context",
+      "test_function": "test_load_campaign_context",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.183039",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestCampaignAnalytics::test_calculate_data_summary",
+      "test_function": "test_calculate_data_summary",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.183467",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestCampaignAnalytics::test_o3_mini_reasoning_call",
+      "test_function": "test_o3_mini_reasoning_call",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.183896",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestCampaignAnalytics::test_o3_mini_fallback_to_gpt4",
+      "test_function": "test_o3_mini_fallback_to_gpt4",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.184331",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestCampaignAnalytics::test_report_enrichment",
+      "test_function": "test_report_enrichment",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.184783",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestCampaignAnalytics::test_report_storage_in_metadata",
+      "test_function": "test_report_storage_in_metadata",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.185242",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestPDFGeneration::test_pdf_generation_for_custom_campaign",
+      "test_function": "test_pdf_generation_for_custom_campaign",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.185733",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestPDFGeneration::test_pdf_requires_campaign_type_custom",
+      "test_function": "test_pdf_requires_campaign_type_custom",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.186182",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestPDFGeneration::test_pdf_requires_report_in_metadata",
+      "test_function": "test_pdf_requires_report_in_metadata",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.186610",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_analyst_agent.py::TestPDFGeneration::test_pdf_content_structure",
+      "test_function": "test_pdf_content_structure",
+      "agent": "analyst",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.187059",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_chatbot_agent.py::TestGuardrailsValidation::test_guardrails_block_profanity",
+      "test_function": "test_guardrails_block_profanity",
+      "agent": "chatbot",
+      "status": "passed",
+      "duration": 0.0025,
+      "timestamp": "2025-11-13T06:28:23.190333",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_chatbot_agent.py::TestGuardrailsValidation::test_guardrails_block_prompt_injection",
+      "test_function": "test_guardrails_block_prompt_injection",
+      "agent": "chatbot",
+      "status": "passed",
+      "duration": 0.0006,
+      "timestamp": "2025-11-13T06:28:23.191747",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_chatbot_agent.py::TestGuardrailsValidation::test_guardrails_block_harmful_intent",
+      "test_function": "test_guardrails_block_harmful_intent",
+      "agent": "chatbot",
+      "status": "passed",
+      "duration": 0.0004,
+      "timestamp": "2025-11-13T06:28:23.192893",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_chatbot_agent.py::TestGuardrailsValidation::test_guardrails_allow_legitimate_queries",
+      "test_function": "test_guardrails_allow_legitimate_queries",
+      "agent": "chatbot",
+      "status": "passed",
+      "duration": 0.0304,
+      "timestamp": "2025-11-13T06:28:23.223944",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_chatbot_agent.py::TestResponseGeneration::test_chatbot_response_cites_sources",
+      "test_function": "test_chatbot_response_cites_sources",
+      "agent": "chatbot",
+      "status": "passed",
+      "duration": 0.001,
+      "timestamp": "2025-11-13T06:28:23.226082",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_chatbot_agent.py::TestResponseGeneration::test_chatbot_conversation_history",
+      "test_function": "test_chatbot_conversation_history",
+      "agent": "chatbot",
+      "status": "passed",
+      "duration": 0.0009,
+      "timestamp": "2025-11-13T06:28:23.227820",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_chatbot_agent.py::TestErrorHandling::test_rate_limiting_enforcement",
+      "test_function": "test_rate_limiting_enforcement",
+      "agent": "chatbot",
+      "status": "passed",
+      "duration": 0.0004,
+      "timestamp": "2025-11-13T06:28:23.229016",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_chatbot_agent.py::TestErrorHandling::test_llm_failure_fallback",
+      "test_function": "test_llm_failure_fallback",
+      "agent": "chatbot",
+      "status": "passed",
+      "duration": 0.0009,
+      "timestamp": "2025-11-13T06:28:23.230577",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_datacleaner_agent.py::TestContentValidation::test_length_constraints",
+      "test_function": "test_length_constraints",
+      "agent": "datacleaner",
+      "status": "passed",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T06:28:23.231492",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_monitoring_agent.py::TestComplianceTracking::test_log_pii_detection",
+      "test_function": "test_log_pii_detection",
+      "agent": "monitoring",
+      "status": "passed",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T06:28:23.232289",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_monitoring_agent.py::TestComplianceTracking::test_log_content_filtering",
+      "test_function": "test_log_content_filtering",
+      "agent": "monitoring",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.232760",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_monitoring_agent.py::TestComplianceTracking::test_log_ai_decision",
+      "test_function": "test_log_ai_decision",
+      "agent": "monitoring",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.233185",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_monitoring_agent.py::TestComplianceTracking::test_compliance_audit_trail",
+      "test_function": "test_compliance_audit_trail",
+      "agent": "monitoring",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.233624",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_monitoring_agent.py::TestWorkflowMonitoring::test_monitor_node_execution_decorator",
+      "test_function": "test_monitor_node_execution_decorator",
+      "agent": "monitoring",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:23.234065",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_monitoring_agent.py::TestWorkflowMonitoring::test_log_node_duration",
+      "test_function": "test_log_node_duration",
+      "agent": "monitoring",
+      "status": "passed",
+      "duration": 0.2364,
+      "timestamp": "2025-11-13T06:28:23.470938",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_monitoring_agent.py::TestWorkflowMonitoring::test_log_node_errors",
+      "test_function": "test_log_node_errors",
+      "agent": "monitoring",
+      "status": "passed",
+      "duration": 0.2444,
+      "timestamp": "2025-11-13T06:28:23.718147",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_monitoring_agent.py::TestWorkflowMonitoring::test_log_token_usage",
+      "test_function": "test_log_token_usage",
+      "agent": "monitoring",
+      "status": "passed",
+      "duration": 0.2472,
+      "timestamp": "2025-11-13T06:28:23.967369",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_monitoring_agent.py::TestCostTracking::test_calculate_token_cost_gpt4o",
+      "test_function": "test_calculate_token_cost_gpt4o",
+      "agent": "monitoring",
+      "status": "passed",
+      "duration": 0.0011,
+      "timestamp": "2025-11-13T06:28:23.972334",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_monitoring_agent.py::TestCostTracking::test_calculate_token_cost_gpt4o_mini",
+      "test_function": "test_calculate_token_cost_gpt4o_mini",
+      "agent": "monitoring",
+      "status": "passed",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T06:28:23.976466",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_monitoring_agent.py::TestCostTracking::test_calculate_token_cost_o3_mini",
+      "test_function": "test_calculate_token_cost_o3_mini",
+      "agent": "monitoring",
+      "status": "passed",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T06:28:23.977750",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_monitoring_agent.py::TestCostTracking::test_aggregate_workflow_cost",
+      "test_function": "test_aggregate_workflow_cost",
+      "agent": "monitoring",
+      "status": "passed",
+      "duration": 0.2484,
+      "timestamp": "2025-11-13T06:28:24.227191",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_monitoring_agent.py::TestLangSmithIntegration::test_langsmith_tracer_initialization",
+      "test_function": "test_langsmith_tracer_initialization",
+      "agent": "monitoring",
+      "status": "passed",
+      "duration": 0.0004,
+      "timestamp": "2025-11-13T06:28:24.228698",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_monitoring_agent.py::TestLangSmithIntegration::test_langsmith_callback_handler",
+      "test_function": "test_langsmith_callback_handler",
+      "agent": "monitoring",
+      "status": "passed",
+      "duration": 0.0003,
+      "timestamp": "2025-11-13T06:28:24.229911",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_monitoring_agent.py::TestLangSmithIntegration::test_langsmith_graceful_degradation",
+      "test_function": "test_langsmith_graceful_degradation",
+      "agent": "monitoring",
+      "status": "passed",
+      "duration": 0.0002,
+      "timestamp": "2025-11-13T06:28:24.231069",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestGraphConstruction::test_create_graph_structure",
+      "test_function": "test_create_graph_structure",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0123,
+      "timestamp": "2025-11-13T06:28:24.244357",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestGraphConstruction::test_nodes_added_to_graph",
+      "test_function": "test_nodes_added_to_graph",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0133,
+      "timestamp": "2025-11-13T06:28:24.258592",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestGraphConstruction::test_entry_point_configuration",
+      "test_function": "test_entry_point_configuration",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0085,
+      "timestamp": "2025-11-13T06:28:24.268011",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestStateManagement::test_initial_state_creation",
+      "test_function": "test_initial_state_creation",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T06:28:24.268719",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestStateManagement::test_state_with_optional_fields",
+      "test_function": "test_state_with_optional_fields",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T06:28:24.269409",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestStateManagement::test_state_validation_missing_required_fields",
+      "test_function": "test_state_validation_missing_required_fields",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T06:28:24.270080",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestStateManagement::test_state_immutability_during_workflow",
+      "test_function": "test_state_immutability_during_workflow",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:24.270639",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestConditionalRouting::test_determine_workflow_type_chat_query",
+      "test_function": "test_determine_workflow_type_chat_query",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0079,
+      "timestamp": "2025-11-13T06:28:24.279116",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestConditionalRouting::test_determine_workflow_type_content_analysis",
+      "test_function": "test_determine_workflow_type_content_analysis",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0073,
+      "timestamp": "2025-11-13T06:28:24.287054",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestConditionalRouting::test_route_content_processing_scout_first",
+      "test_function": "test_route_content_processing_scout_first",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0072,
+      "timestamp": "2025-11-13T06:28:24.294755",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestConditionalRouting::test_check_if_cleaning_needed",
+      "test_function": "test_check_if_cleaning_needed",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0072,
+      "timestamp": "2025-11-13T06:28:24.302524",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestConditionalRouting::test_skip_cleaner_when_no_threads",
+      "test_function": "test_skip_cleaner_when_no_threads",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0073,
+      "timestamp": "2025-11-13T06:28:24.310431",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestWorkflowExecution::test_graph_invocation_with_state",
+      "test_function": "test_graph_invocation_with_state",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0064,
+      "timestamp": "2025-11-13T06:28:24.317386",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestWorkflowExecution::test_error_handling_in_routing",
+      "test_function": "test_error_handling_in_routing",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0065,
+      "timestamp": "2025-11-13T06:28:24.324441",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestWorkflowCompilation::test_graph_compilation_success",
+      "test_function": "test_graph_compilation_success",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0064,
+      "timestamp": "2025-11-13T06:28:24.331382",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestWorkflowCompilation::test_graph_visualization",
+      "test_function": "test_graph_visualization",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0068,
+      "timestamp": "2025-11-13T06:28:24.338683",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_orchestrator_agent.py::TestWorkflowCompilation::test_checkpointer_configuration",
+      "test_function": "test_checkpointer_configuration",
+      "agent": "orchestrator",
+      "status": "passed",
+      "duration": 0.0061,
+      "timestamp": "2025-11-13T06:28:24.345303",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestDualPathRouting::test_brand_analytics_task_invocation",
+      "test_function": "test_brand_analytics_task_invocation",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:24.345895",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestDualPathRouting::test_custom_campaign_task_invocation",
+      "test_function": "test_custom_campaign_task_invocation",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:24.346325",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestDualPathRouting::test_config_differences_brand_vs_custom",
+      "test_function": "test_config_differences_brand_vs_custom",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T06:28:24.346781",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestDualPathRouting::test_invalid_campaign_type_handling",
+      "test_function": "test_invalid_campaign_type_handling",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:24.347216",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestSearchQueryGeneration::test_llm_query_generation_brand",
+      "test_function": "test_llm_query_generation_brand",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:24.347662",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestSearchQueryGeneration::test_llm_query_generation_custom",
+      "test_function": "test_llm_query_generation_custom",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:24.348079",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestSearchQueryGeneration::test_query_generation_with_keywords",
+      "test_function": "test_query_generation_with_keywords",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:24.348489",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestSearchQueryGeneration::test_query_generation_error_handling",
+      "test_function": "test_query_generation_error_handling",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T06:28:24.349160",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestTavilySearchExecution::test_tavily_search_success",
+      "test_function": "test_tavily_search_success",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:24.349641",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestTavilySearchExecution::test_tavily_search_empty_results",
+      "test_function": "test_tavily_search_empty_results",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:24.350080",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestTavilySearchExecution::test_tavily_search_api_error",
+      "test_function": "test_tavily_search_api_error",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:24.350500",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestDataExtraction::test_llm_structured_extraction",
+      "test_function": "test_llm_structured_extraction",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:24.350974",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestDataExtraction::test_extraction_with_invalid_json",
+      "test_function": "test_extraction_with_invalid_json",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:24.351385",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestDataExtraction::test_extraction_with_empty_content",
+      "test_function": "test_extraction_with_empty_content",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T06:28:24.351795",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestDataExtraction::test_extraction_deduplication",
+      "test_function": "test_extraction_deduplication",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.4716,
+      "timestamp": "2025-11-13T06:28:24.823880",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestDataStorage::test_store_brand_analytics_data",
+      "test_function": "test_store_brand_analytics_data",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T06:28:24.825424",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestDataStorage::test_store_custom_campaign_data",
+      "test_function": "test_store_custom_campaign_data",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T06:28:24.826432",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestDataStorage::test_resilient_bulk_save",
+      "test_function": "test_resilient_bulk_save",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T06:28:24.827401",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestMemoryManagement::test_memory_cleanup_after_collection",
+      "test_function": "test_memory_cleanup_after_collection",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T06:28:24.828331",
+      "longrepr": null
+    },
+    {
+      "test_name": "tests/unit_test/test_scout_agent.py::TestMemoryManagement::test_progress_tracking",
+      "test_function": "test_progress_tracking",
+      "agent": "scout",
+      "status": "passed",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T06:28:24.829131",
+      "longrepr": null
+    }
+  ]
+}

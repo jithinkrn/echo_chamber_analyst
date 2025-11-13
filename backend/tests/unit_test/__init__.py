@@ -1,3 +1,3 @@
 """
-Unit tests for EchoChamber Analyst.
+Unit tests for Echo Chamber Analyst agents.
 """
