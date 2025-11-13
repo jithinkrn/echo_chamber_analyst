@@ -79,6 +79,11 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-django pytest-asyncio pytest-cov
 
+      - name: Create logs directory
+        working-directory: ./backend
+        run: |
+          mkdir -p logs
+
       - name: Run Unit Tests
         working-directory: ./backend
         run: |
