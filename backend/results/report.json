@@ -1,0 +1,1935 @@
+{
+  "created": 1763029640.892287,
+  "duration": 4.446084976196289,
+  "exitcode": 0,
+  "root": "/Users/jithinkrishnan/Documents/Study/IS06 /MVP/newgit/echo_chamber_analyst/backend/tests/security_tests",
+  "environment": {},
+  "summary": {
+    "passed": 49,
+    "total": 49,
+    "collected": 49
+  },
+  "collectors": [
+    {
+      "nodeid": "",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": ".",
+          "type": "Package"
+        }
+      ]
+    },
+    {
+      "nodeid": "results",
+      "outcome": "passed",
+      "result": []
+    },
+    {
+      "nodeid": "test_api_security.py::TestInputValidation",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_api_security.py::TestInputValidation::test_invalid_uuid_rejected",
+          "type": "Function",
+          "lineno": 11
+        }
+      ]
+    },
+    {
+      "nodeid": "test_api_security.py",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_api_security.py::TestInputValidation",
+          "type": "Class"
+        }
+      ]
+    },
+    {
+      "nodeid": "test_authentication_security.py::TestJWTSecurity",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_authentication_security.py::TestJWTSecurity::test_valid_token_accepted",
+          "type": "Function",
+          "lineno": 15
+        }
+      ]
+    },
+    {
+      "nodeid": "test_authentication_security.py::TestPasswordSecurity",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_authentication_security.py::TestPasswordSecurity::test_password_not_in_response",
+          "type": "Function",
+          "lineno": 24
+        },
+        {
+          "nodeid": "test_authentication_security.py::TestPasswordSecurity::test_password_hashed_in_db",
+          "type": "Function",
+          "lineno": 30
+        }
+      ]
+    },
+    {
+      "nodeid": "test_authentication_security.py::TestSessionSecurity",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_authentication_security.py::TestSessionSecurity::test_no_credentials_in_url",
+          "type": "Function",
+          "lineno": 39
+        }
+      ]
+    },
+    {
+      "nodeid": "test_authentication_security.py",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_authentication_security.py::TestJWTSecurity",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_authentication_security.py::TestPasswordSecurity",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_authentication_security.py::TestSessionSecurity",
+          "type": "Class"
+        }
+      ]
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestSecretsProtection",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_configuration_security.py::TestSecretsProtection::test_secret_key_not_exposed",
+          "type": "Function",
+          "lineno": 13
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestSecretsProtection::test_api_keys_not_exposed",
+          "type": "Function",
+          "lineno": 18
+        }
+      ]
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestErrorHandling",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_configuration_security.py::TestErrorHandling::test_no_stack_traces",
+          "type": "Function",
+          "lineno": 30
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestErrorHandling::test_validation_errors_safe",
+          "type": "Function",
+          "lineno": 37
+        }
+      ]
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestDebugMode",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_configuration_security.py::TestDebugMode::test_debug_disabled_in_prod",
+          "type": "Function",
+          "lineno": 47
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestDebugMode::test_no_debug_toolbar",
+          "type": "Function",
+          "lineno": 52
+        }
+      ]
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestSecurityHeaders",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_configuration_security.py::TestSecurityHeaders::test_no_x_powered_by",
+          "type": "Function",
+          "lineno": 61
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestSecurityHeaders::test_server_header_minimal",
+          "type": "Function",
+          "lineno": 66
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestSecurityHeaders::test_security_headers_present",
+          "type": "Function",
+          "lineno": 73
+        }
+      ]
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestConfigurationValidation",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_configuration_security.py::TestConfigurationValidation::test_allowed_hosts_configured",
+          "type": "Function",
+          "lineno": 83
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestConfigurationValidation::test_secret_key_not_default",
+          "type": "Function",
+          "lineno": 89
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestConfigurationValidation::test_secure_cookies_in_prod",
+          "type": "Function",
+          "lineno": 94
+        }
+      ]
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestDatabaseSecurity",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_configuration_security.py::TestDatabaseSecurity::test_not_sqlite_in_prod",
+          "type": "Function",
+          "lineno": 104
+        }
+      ]
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestCORSConfiguration",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_configuration_security.py::TestCORSConfiguration::test_cors_not_allow_all",
+          "type": "Function",
+          "lineno": 114
+        }
+      ]
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestAPIKeyManagement",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_configuration_security.py::TestAPIKeyManagement::test_keys_from_environment",
+          "type": "Function",
+          "lineno": 124
+        }
+      ]
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestFileAccessSecurity",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_configuration_security.py::TestFileAccessSecurity::test_backup_files_not_accessible",
+          "type": "Function",
+          "lineno": 134
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestFileAccessSecurity::test_source_not_accessible",
+          "type": "Function",
+          "lineno": 141
+        }
+      ]
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestLoggingSecurity",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_configuration_security.py::TestLoggingSecurity::test_tokens_not_logged",
+          "type": "Function",
+          "lineno": 152
+        }
+      ]
+    },
+    {
+      "nodeid": "test_configuration_security.py",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_configuration_security.py::TestSecretsProtection",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestErrorHandling",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestDebugMode",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestSecurityHeaders",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestConfigurationValidation",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestDatabaseSecurity",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestCORSConfiguration",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestAPIKeyManagement",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestFileAccessSecurity",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_configuration_security.py::TestLoggingSecurity",
+          "type": "Class"
+        }
+      ]
+    },
+    {
+      "nodeid": "test_injection_security.py::TestSQLInjectionPrevention",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_injection_security.py::TestSQLInjectionPrevention::test_filter_injection_safe",
+          "type": "Function",
+          "lineno": 11
+        },
+        {
+          "nodeid": "test_injection_security.py::TestSQLInjectionPrevention::test_order_injection_safe",
+          "type": "Function",
+          "lineno": 18
+        }
+      ]
+    },
+    {
+      "nodeid": "test_injection_security.py::TestXSSPrevention",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_injection_security.py::TestXSSPrevention::test_html_in_input_sanitized",
+          "type": "Function",
+          "lineno": 28
+        },
+        {
+          "nodeid": "test_injection_security.py::TestXSSPrevention::test_javascript_in_input_sanitized",
+          "type": "Function",
+          "lineno": 41
+        }
+      ]
+    },
+    {
+      "nodeid": "test_injection_security.py::TestCommandInjectionPrevention",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_injection_security.py::TestCommandInjectionPrevention::test_special_chars_in_filenames",
+          "type": "Function",
+          "lineno": 57
+        }
+      ]
+    },
+    {
+      "nodeid": "test_injection_security.py::TestPathTraversalPrevention",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_injection_security.py::TestPathTraversalPrevention::test_dot_dot_slash_blocked",
+          "type": "Function",
+          "lineno": 68
+        }
+      ]
+    },
+    {
+      "nodeid": "test_injection_security.py",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_injection_security.py::TestSQLInjectionPrevention",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_injection_security.py::TestXSSPrevention",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_injection_security.py::TestCommandInjectionPrevention",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_injection_security.py::TestPathTraversalPrevention",
+          "type": "Class"
+        }
+      ]
+    },
+    {
+      "nodeid": "test_llm_security.py::TestPromptInjectionDefense",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_llm_security.py::TestPromptInjectionDefense::test_block_ignore_instructions",
+          "type": "Function",
+          "lineno": 13
+        },
+        {
+          "nodeid": "test_llm_security.py::TestPromptInjectionDefense::test_block_admin_mode",
+          "type": "Function",
+          "lineno": 19
+        },
+        {
+          "nodeid": "test_llm_security.py::TestPromptInjectionDefense::test_block_forget_everything",
+          "type": "Function",
+          "lineno": 25
+        },
+        {
+          "nodeid": "test_llm_security.py::TestPromptInjectionDefense::test_block_dan_jailbreak",
+          "type": "Function",
+          "lineno": 31
+        },
+        {
+          "nodeid": "test_llm_security.py::TestPromptInjectionDefense::test_block_disregard_instructions",
+          "type": "Function",
+          "lineno": 37
+        },
+        {
+          "nodeid": "test_llm_security.py::TestPromptInjectionDefense::test_block_ignore_programming",
+          "type": "Function",
+          "lineno": 43
+        },
+        {
+          "nodeid": "test_llm_security.py::TestPromptInjectionDefense::test_block_jailbreak_keyword",
+          "type": "Function",
+          "lineno": 49
+        }
+      ]
+    },
+    {
+      "nodeid": "test_llm_security.py::TestHarmfulIntentDetection",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_llm_security.py::TestHarmfulIntentDetection::test_block_violence",
+          "type": "Function",
+          "lineno": 59
+        },
+        {
+          "nodeid": "test_llm_security.py::TestHarmfulIntentDetection::test_block_misinformation",
+          "type": "Function",
+          "lineno": 64
+        },
+        {
+          "nodeid": "test_llm_security.py::TestHarmfulIntentDetection::test_allow_legitimate_queries",
+          "type": "Function",
+          "lineno": 69
+        }
+      ]
+    },
+    {
+      "nodeid": "test_llm_security.py::TestProfanityFiltering",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_llm_security.py::TestProfanityFiltering::test_block_profanity",
+          "type": "Function",
+          "lineno": 78
+        },
+        {
+          "nodeid": "test_llm_security.py::TestProfanityFiltering::test_allow_clean_language",
+          "type": "Function",
+          "lineno": 84
+        }
+      ]
+    },
+    {
+      "nodeid": "test_llm_security.py::TestRateLimiting",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_llm_security.py::TestRateLimiting::test_rate_limit_validation",
+          "type": "Function",
+          "lineno": 93
+        }
+      ]
+    },
+    {
+      "nodeid": "test_llm_security.py::TestInputValidation",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_llm_security.py::TestInputValidation::test_reject_too_long",
+          "type": "Function",
+          "lineno": 108
+        },
+        {
+          "nodeid": "test_llm_security.py::TestInputValidation::test_accept_valid_length",
+          "type": "Function",
+          "lineno": 114
+        }
+      ]
+    },
+    {
+      "nodeid": "test_llm_security.py::TestXSSBlocking",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_llm_security.py::TestXSSBlocking::test_block_script_tags",
+          "type": "Function",
+          "lineno": 123
+        }
+      ]
+    },
+    {
+      "nodeid": "test_llm_security.py::TestSQLInjectionBlocking",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_llm_security.py::TestSQLInjectionBlocking::test_block_drop_table",
+          "type": "Function",
+          "lineno": 133
+        }
+      ]
+    },
+    {
+      "nodeid": "test_llm_security.py::TestOutputSanitization",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_llm_security.py::TestOutputSanitization::test_mask_emails",
+          "type": "Function",
+          "lineno": 143
+        },
+        {
+          "nodeid": "test_llm_security.py::TestOutputSanitization::test_mask_phone_numbers",
+          "type": "Function",
+          "lineno": 150
+        }
+      ]
+    },
+    {
+      "nodeid": "test_llm_security.py::TestReDoSPrevention",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_llm_security.py::TestReDoSPrevention::test_fast_validation",
+          "type": "Function",
+          "lineno": 161
+        }
+      ]
+    },
+    {
+      "nodeid": "test_llm_security.py",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "test_llm_security.py::TestPromptInjectionDefense",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_llm_security.py::TestHarmfulIntentDetection",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_llm_security.py::TestProfanityFiltering",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_llm_security.py::TestRateLimiting",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_llm_security.py::TestInputValidation",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_llm_security.py::TestXSSBlocking",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_llm_security.py::TestSQLInjectionBlocking",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_llm_security.py::TestOutputSanitization",
+          "type": "Class"
+        },
+        {
+          "nodeid": "test_llm_security.py::TestReDoSPrevention",
+          "type": "Class"
+        }
+      ]
+    },
+    {
+      "nodeid": ".",
+      "outcome": "passed",
+      "result": [
+        {
+          "nodeid": "results",
+          "type": "Dir"
+        },
+        {
+          "nodeid": "test_api_security.py",
+          "type": "Module"
+        },
+        {
+          "nodeid": "test_authentication_security.py",
+          "type": "Module"
+        },
+        {
+          "nodeid": "test_configuration_security.py",
+          "type": "Module"
+        },
+        {
+          "nodeid": "test_injection_security.py",
+          "type": "Module"
+        },
+        {
+          "nodeid": "test_llm_security.py",
+          "type": "Module"
+        }
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "nodeid": "test_api_security.py::TestInputValidation::test_invalid_uuid_rejected",
+      "lineno": 11,
+      "outcome": "passed",
+      "keywords": [
+        "test_invalid_uuid_rejected",
+        "TestInputValidation",
+        "test_api_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 1.1959672500088345,
+        "outcome": "passed",
+        "stdout": "Operations to perform:\n  Synchronize unmigrated apps: agents, api, corsheaders, django, django_filters, drf_spectacular, messages, rest_framework, rest_framework_simplejwt, staticfiles\n  Apply all migrations: admin, auth, common, contenttypes, sessions, token_blacklist\nSynchronizing apps without migrations:\n  Creating tables...\n    Running deferred SQL...\nRunning migrations:\n  Applying contenttypes.0001_initial... OK\n  Applying auth.0001_initial... OK\n  Applying admin.0001_initial... OK\n  Applying admin.0002_logentry_remove_auto_add... OK\n  Applying admin.0003_logentry_add_action_flag_choices... OK\n  Applying contenttypes.0002_remove_content_type_name... OK\n  Applying auth.0002_alter_permission_name_max_length... OK\n  Applying auth.0003_alter_user_email_max_length... OK\n  Applying auth.0004_alter_user_username_opts... OK\n  Applying auth.0005_alter_user_last_login_null... OK\n  Applying auth.0006_require_contenttypes_0002... OK\n  Applying auth.0007_alter_validators_add_error_messages... OK\n  Applying auth.0008_alter_user_username_max_length... OK\n  Applying auth.0009_alter_user_last_name_max_length... OK\n  Applying auth.0010_alter_group_name_max_length... OK\n  Applying auth.0011_update_proxy_permissions... OK\n  Applying auth.0012_alter_user_first_name_max_length... OK\n  Applying common.0001_initial... OK\n  Applying common.0002_dashboard_models... OK\n  Applying common.0003_brand_campaign_brand_competitor... OK\n  Applying common.0004_source_category_source_description_source_is_default... OK\n  Applying common.0005_campaign_metadata_influencer_advocacy_score_and_more... OK\n  Applying common.0006_add_vector_fields... OK\n  Applying common.0007_add_search_indexes... OK\n  Applying common.0008_add_campaign_completion_fields... OK\n  Applying common.0009_add_system_settings... OK\n  Applying common.0010_campaign_collection_weeks_and_more... OK\n  Applying common.0011_alter_community_unique_together_and_more... OK\n  Applying common.0012_add_week_to_painpoint_constraint... OK\n  Applying common.0013_monthly_tracking... OK\n  Applying common.0014_update_community_fields... OK\n  Applying common.0016_prevent_duplicate_communities...\u2705 No duplicate communities found\n OK\n  Applying common.0017_fix_unique_constraint_per_campaign... OK\n  Applying common.0018_add_thread_url_field... OK\n  Applying common.0019_alter_thread_author_alter_thread_thread_id... OK\n  Applying common.0020_add_thread_embeddings... OK\n  Applying common.0021_add_strategic_report_insight_type... OK\n  Applying sessions.0001_initial... OK\n  Applying token_blacklist.0001_initial... OK\n  Applying token_blacklist.0002_outstandingtoken_jti_hex... OK\n  Applying token_blacklist.0003_auto_20171017_2007... OK\n  Applying token_blacklist.0004_auto_20171017_2013... OK\n  Applying token_blacklist.0005_remove_outstandingtoken_jti... OK\n  Applying token_blacklist.0006_auto_20171017_2113... OK\n  Applying token_blacklist.0007_auto_20171017_2214... OK\n  Applying token_blacklist.0008_migrate_to_bigautofield... OK\n  Applying token_blacklist.0010_fix_migrate_to_bigautofield... OK\n  Applying token_blacklist.0011_linearizes_history... OK\n  Applying token_blacklist.0012_alter_outstandingtoken_user... OK\n  Applying token_blacklist.0013_alter_blacklistedtoken_options_and_more... OK\n",
+        "stderr": "Creating test database for alias 'default' ('test_echo_chamber_analyst')...\n"
+      },
+      "call": {
+        "duration": 0.02874316700035706,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/campaigns/not-a-uuid/\n"
+      },
+      "teardown": {
+        "duration": 0.0012951670069014654,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_authentication_security.py::TestJWTSecurity::test_valid_token_accepted",
+      "lineno": 15,
+      "outcome": "passed",
+      "keywords": [
+        "test_valid_token_accepted",
+        "TestJWTSecurity",
+        "test_authentication_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.07428158300172072,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0005256669974187389,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/campaigns/\n"
+      },
+      "teardown": {
+        "duration": 0.0009874579991446808,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_authentication_security.py::TestPasswordSecurity::test_password_not_in_response",
+      "lineno": 24,
+      "outcome": "passed",
+      "keywords": [
+        "test_password_not_in_response",
+        "TestPasswordSecurity",
+        "test_authentication_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.07387833298707847,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0005822910025017336,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/campaigns/\n"
+      },
+      "teardown": {
+        "duration": 0.0010120420047314838,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_authentication_security.py::TestPasswordSecurity::test_password_hashed_in_db",
+      "lineno": 30,
+      "outcome": "passed",
+      "keywords": [
+        "test_password_hashed_in_db",
+        "TestPasswordSecurity",
+        "test_authentication_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.07309970799542498,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 8.520801202394068e-05,
+        "outcome": "passed"
+      },
+      "teardown": {
+        "duration": 0.0006438340060412884,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_authentication_security.py::TestSessionSecurity::test_no_credentials_in_url",
+      "lineno": 39,
+      "outcome": "passed",
+      "keywords": [
+        "test_no_credentials_in_url",
+        "TestSessionSecurity",
+        "test_authentication_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.07447454199427739,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.00046179098717402667,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/campaigns/\n"
+      },
+      "teardown": {
+        "duration": 0.0010126249981112778,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestSecretsProtection::test_api_keys_not_exposed",
+      "lineno": 18,
+      "outcome": "passed",
+      "keywords": [
+        "test_api_keys_not_exposed",
+        "TestSecretsProtection",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.07419545900484081,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.00043766701128333807,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/campaigns/\n"
+      },
+      "teardown": {
+        "duration": 0.000911958995857276,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestErrorHandling::test_no_stack_traces",
+      "lineno": 30,
+      "outcome": "passed",
+      "keywords": [
+        "test_no_stack_traces",
+        "TestErrorHandling",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.07341741600248497,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.00044541699753608555,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/campaigns/invalid-uuid/\n"
+      },
+      "teardown": {
+        "duration": 0.001011125001241453,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestErrorHandling::test_validation_errors_safe",
+      "lineno": 37,
+      "outcome": "passed",
+      "keywords": [
+        "test_validation_errors_safe",
+        "TestErrorHandling",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.07244958401133772,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.00047366599028464407,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/brands/\n"
+      },
+      "teardown": {
+        "duration": 0.0007665419980185106,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestLoggingSecurity::test_tokens_not_logged",
+      "lineno": 152,
+      "outcome": "passed",
+      "keywords": [
+        "test_tokens_not_logged",
+        "TestLoggingSecurity",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.07336208299966529,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0004968330031260848,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/campaigns/\n"
+      },
+      "teardown": {
+        "duration": 0.0007246249879244715,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_injection_security.py::TestSQLInjectionPrevention::test_filter_injection_safe",
+      "lineno": 11,
+      "outcome": "passed",
+      "keywords": [
+        "test_filter_injection_safe",
+        "TestSQLInjectionPrevention",
+        "test_injection_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.07317933300510049,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0004350420058472082,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/brands/\n"
+      },
+      "teardown": {
+        "duration": 0.0007482920045731589,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_injection_security.py::TestSQLInjectionPrevention::test_order_injection_safe",
+      "lineno": 18,
+      "outcome": "passed",
+      "keywords": [
+        "test_order_injection_safe",
+        "TestSQLInjectionPrevention",
+        "test_injection_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.07297283399384469,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.00041870800487231463,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/campaigns/\n"
+      },
+      "teardown": {
+        "duration": 0.0007197920058388263,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_injection_security.py::TestXSSPrevention::test_html_in_input_sanitized",
+      "lineno": 28,
+      "outcome": "passed",
+      "keywords": [
+        "test_html_in_input_sanitized",
+        "TestXSSPrevention",
+        "test_injection_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.07346120799775235,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0003941670001950115,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/brands/\n"
+      },
+      "teardown": {
+        "duration": 0.0007557909993920475,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_injection_security.py::TestXSSPrevention::test_javascript_in_input_sanitized",
+      "lineno": 41,
+      "outcome": "passed",
+      "keywords": [
+        "test_javascript_in_input_sanitized",
+        "TestXSSPrevention",
+        "test_injection_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.07369862499763258,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0004153749905526638,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/brands/\n"
+      },
+      "teardown": {
+        "duration": 0.0007859589968575165,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_injection_security.py::TestCommandInjectionPrevention::test_special_chars_in_filenames",
+      "lineno": 57,
+      "outcome": "passed",
+      "keywords": [
+        "test_special_chars_in_filenames",
+        "TestCommandInjectionPrevention",
+        "test_injection_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.07333374999871012,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.00036870800249744207,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/campaigns/\n"
+      },
+      "teardown": {
+        "duration": 0.0007229579932754859,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestSecretsProtection::test_secret_key_not_exposed",
+      "lineno": 13,
+      "outcome": "passed",
+      "keywords": [
+        "test_secret_key_not_exposed",
+        "TestSecretsProtection",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00024858299002517015,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.00028033400303684175,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/health/\n"
+      },
+      "teardown": {
+        "duration": 6.795799708925188e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestDebugMode::test_debug_disabled_in_prod",
+      "lineno": 47,
+      "outcome": "passed",
+      "keywords": [
+        "test_debug_disabled_in_prod",
+        "TestDebugMode",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.0002151669905288145,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 4.504100070334971e-05,
+        "outcome": "passed"
+      },
+      "teardown": {
+        "duration": 6.562500493600965e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestDebugMode::test_no_debug_toolbar",
+      "lineno": 52,
+      "outcome": "passed",
+      "keywords": [
+        "test_no_debug_toolbar",
+        "TestDebugMode",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00020670800586231053,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.00035116700746584684,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /__debug__/\n"
+      },
+      "teardown": {
+        "duration": 6.533300620503724e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestSecurityHeaders::test_no_x_powered_by",
+      "lineno": 61,
+      "outcome": "passed",
+      "keywords": [
+        "test_no_x_powered_by",
+        "TestSecurityHeaders",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00022474999423138797,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0002902080013882369,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/health/\n"
+      },
+      "teardown": {
+        "duration": 7.295799150597304e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestSecurityHeaders::test_server_header_minimal",
+      "lineno": 66,
+      "outcome": "passed",
+      "keywords": [
+        "test_server_header_minimal",
+        "TestSecurityHeaders",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00022708300093654543,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0007685839955229312,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/health/\n"
+      },
+      "teardown": {
+        "duration": 7.912499131634831e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestSecurityHeaders::test_security_headers_present",
+      "lineno": 73,
+      "outcome": "passed",
+      "keywords": [
+        "test_security_headers_present",
+        "TestSecurityHeaders",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.0002466249861754477,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0003176669997628778,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/health/\n"
+      },
+      "teardown": {
+        "duration": 6.0999998822808266e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestConfigurationValidation::test_allowed_hosts_configured",
+      "lineno": 83,
+      "outcome": "passed",
+      "keywords": [
+        "test_allowed_hosts_configured",
+        "TestConfigurationValidation",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.0002377090131631121,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 5.1041002734564245e-05,
+        "outcome": "passed"
+      },
+      "teardown": {
+        "duration": 5.1875002100132406e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestConfigurationValidation::test_secret_key_not_default",
+      "lineno": 89,
+      "outcome": "passed",
+      "keywords": [
+        "test_secret_key_not_default",
+        "TestConfigurationValidation",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00018620799528434873,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 4.0583996451459825e-05,
+        "outcome": "passed"
+      },
+      "teardown": {
+        "duration": 5.629099905490875e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestConfigurationValidation::test_secure_cookies_in_prod",
+      "lineno": 94,
+      "outcome": "passed",
+      "keywords": [
+        "test_secure_cookies_in_prod",
+        "TestConfigurationValidation",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.0002357500052312389,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 4.099999205209315e-05,
+        "outcome": "passed"
+      },
+      "teardown": {
+        "duration": 6.962499173823744e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestDatabaseSecurity::test_not_sqlite_in_prod",
+      "lineno": 104,
+      "outcome": "passed",
+      "keywords": [
+        "test_not_sqlite_in_prod",
+        "TestDatabaseSecurity",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00021666700195055455,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 4.495900066103786e-05,
+        "outcome": "passed"
+      },
+      "teardown": {
+        "duration": 6.09580019954592e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestCORSConfiguration::test_cors_not_allow_all",
+      "lineno": 114,
+      "outcome": "passed",
+      "keywords": [
+        "test_cors_not_allow_all",
+        "TestCORSConfiguration",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00021033300436101854,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 4.25000034738332e-05,
+        "outcome": "passed"
+      },
+      "teardown": {
+        "duration": 6.658300117123872e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestAPIKeyManagement::test_keys_from_environment",
+      "lineno": 124,
+      "outcome": "passed",
+      "keywords": [
+        "test_keys_from_environment",
+        "TestAPIKeyManagement",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.000229124998440966,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 5.054099892731756e-05,
+        "outcome": "passed"
+      },
+      "teardown": {
+        "duration": 5.616700218524784e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestFileAccessSecurity::test_backup_files_not_accessible",
+      "lineno": 134,
+      "outcome": "passed",
+      "keywords": [
+        "test_backup_files_not_accessible",
+        "TestFileAccessSecurity",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00022466699010692537,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0008883330010576174,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /backup.sql\nWARNING Not Found: /.env\nWARNING Not Found: /.git/config\nWARNING Not Found: /db.sqlite3\n"
+      },
+      "teardown": {
+        "duration": 6.00829953327775e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_configuration_security.py::TestFileAccessSecurity::test_source_not_accessible",
+      "lineno": 141,
+      "outcome": "passed",
+      "keywords": [
+        "test_source_not_accessible",
+        "TestFileAccessSecurity",
+        "test_configuration_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00020637499983422458,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0006237080087885261,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /manage.py\nWARNING Not Found: /settings.py\nWARNING Not Found: /requirements.txt\n"
+      },
+      "teardown": {
+        "duration": 7.216598896775395e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_injection_security.py::TestPathTraversalPrevention::test_dot_dot_slash_blocked",
+      "lineno": 68,
+      "outcome": "passed",
+      "keywords": [
+        "test_dot_dot_slash_blocked",
+        "TestPathTraversalPrevention",
+        "test_injection_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.0002243329945486039,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0006184579979162663,
+        "outcome": "passed",
+        "stderr": "WARNING Not Found: /api/brands/../../etc/passwd\nWARNING Not Found: /api/brands/../../../settings.py\nWARNING Not Found: /api/brands/....//....//etc/passwd\n"
+      },
+      "teardown": {
+        "duration": 6.600000779144466e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestPromptInjectionDefense::test_block_ignore_instructions",
+      "lineno": 13,
+      "outcome": "passed",
+      "keywords": [
+        "test_block_ignore_instructions",
+        "TestPromptInjectionDefense",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00021408300381153822,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.00016258300456684083,
+        "outcome": "passed",
+        "stderr": "WARNING prompt_injection pattern detected in query: \\bignore (?:previous|all|above|prior) (?:instructions|prompts|rules|commands)\\b\n"
+      },
+      "teardown": {
+        "duration": 5.816700286231935e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestPromptInjectionDefense::test_block_admin_mode",
+      "lineno": 19,
+      "outcome": "passed",
+      "keywords": [
+        "test_block_admin_mode",
+        "TestPromptInjectionDefense",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00019500000053085387,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.00014099999680183828,
+        "outcome": "passed",
+        "stderr": "WARNING prompt_injection pattern detected in query: \\byou are now\\b\n"
+      },
+      "teardown": {
+        "duration": 5.9582991525530815e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestPromptInjectionDefense::test_block_forget_everything",
+      "lineno": 25,
+      "outcome": "passed",
+      "keywords": [
+        "test_block_forget_everything",
+        "TestPromptInjectionDefense",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.0001889160048449412,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 7.279199780896306e-05,
+        "outcome": "passed",
+        "stderr": "WARNING prompt_injection pattern detected in query: \\bforget (?:everything|all|previous|prior)\\b\n"
+      },
+      "teardown": {
+        "duration": 5.750000127591193e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestPromptInjectionDefense::test_block_dan_jailbreak",
+      "lineno": 31,
+      "outcome": "passed",
+      "keywords": [
+        "test_block_dan_jailbreak",
+        "TestPromptInjectionDefense",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.000189665996003896,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0003525000065565109,
+        "outcome": "passed",
+        "stderr": "WARNING prompt_injection pattern detected in query: \\bDAN (?:mode|prompt)\\b\n"
+      },
+      "teardown": {
+        "duration": 5.820801015943289e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestPromptInjectionDefense::test_block_disregard_instructions",
+      "lineno": 37,
+      "outcome": "passed",
+      "keywords": [
+        "test_block_disregard_instructions",
+        "TestPromptInjectionDefense",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00018358298984821886,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 7.395900320261717e-05,
+        "outcome": "passed",
+        "stderr": "WARNING prompt_injection pattern detected in query: \\bdisregard (?:previous|all|prior|above)\\b\n"
+      },
+      "teardown": {
+        "duration": 6.25829998170957e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestPromptInjectionDefense::test_block_ignore_programming",
+      "lineno": 43,
+      "outcome": "passed",
+      "keywords": [
+        "test_block_ignore_programming",
+        "TestPromptInjectionDefense",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00019341699953656644,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.00010058299812953919,
+        "outcome": "passed",
+        "stderr": "WARNING prompt_injection pattern detected in query: \\bignore your programming\\b\n"
+      },
+      "teardown": {
+        "duration": 5.7541998103260994e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestPromptInjectionDefense::test_block_jailbreak_keyword",
+      "lineno": 49,
+      "outcome": "passed",
+      "keywords": [
+        "test_block_jailbreak_keyword",
+        "TestPromptInjectionDefense",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.0002901249972637743,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 9.533300180919468e-05,
+        "outcome": "passed",
+        "stderr": "WARNING prompt_injection pattern detected in query: \\bjailbreak\\b\n"
+      },
+      "teardown": {
+        "duration": 5.470900214277208e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestHarmfulIntentDetection::test_block_violence",
+      "lineno": 59,
+      "outcome": "passed",
+      "keywords": [
+        "test_block_violence",
+        "TestHarmfulIntentDetection",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00020291599503252655,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0001976249914150685,
+        "outcome": "passed",
+        "stderr": "WARNING harmful_intent pattern detected in query: \\b(?:how to|teach me to|help me) (?:kill|murder|harm|hurt|attack|assassinate)\\b\n"
+      },
+      "teardown": {
+        "duration": 5.891699402127415e-05,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestHarmfulIntentDetection::test_block_misinformation",
+      "lineno": 64,
+      "outcome": "passed",
+      "keywords": [
+        "test_block_misinformation",
+        "TestHarmfulIntentDetection",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00020645800395868719,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0004117079952266067,
+        "outcome": "passed",
+        "stderr": "WARNING harmful_intent pattern detected in query: \\b(?:spread|create|generate) (?:misinformation|disinformation|fake news|propaganda)\\b\n"
+      },
+      "teardown": {
+        "duration": 0.0001378330052830279,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestHarmfulIntentDetection::test_allow_legitimate_queries",
+      "lineno": 69,
+      "outcome": "passed",
+      "keywords": [
+        "test_allow_legitimate_queries",
+        "TestHarmfulIntentDetection",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.0002594580000732094,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.5854678329924354,
+        "outcome": "passed",
+        "stderr": "INFO HTTP Request: POST https://api.openai.com/v1/moderations \"HTTP/1.1 200 OK\"\n",
+        "log": [
+          {
+            "name": "httpx",
+            "msg": "HTTP Request: POST https://api.openai.com/v1/moderations \"HTTP/1.1 200 OK\"",
+            "args": null,
+            "levelname": "INFO",
+            "levelno": 20,
+            "pathname": "/opt/anaconda3/envs/ecanewpy312/lib/python3.12/site-packages/httpx/_client.py",
+            "filename": "_client.py",
+            "module": "_client",
+            "exc_info": null,
+            "exc_text": null,
+            "stack_info": null,
+            "lineno": 1025,
+            "funcName": "_send_single_request",
+            "created": 1763029639.272363,
+            "msecs": 272.0,
+            "relativeCreated": 4929.434061050415,
+            "thread": 8413618368,
+            "threadName": "MainThread",
+            "processName": "MainProcess",
+            "process": 20954,
+            "taskName": null,
+            "asctime": "2025-11-13 10:27:19,272"
+          }
+        ]
+      },
+      "teardown": {
+        "duration": 0.0002603330067358911,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestProfanityFiltering::test_block_profanity",
+      "lineno": 78,
+      "outcome": "passed",
+      "keywords": [
+        "test_block_profanity",
+        "TestProfanityFiltering",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.0007578340009786189,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0004455419984878972,
+        "outcome": "passed",
+        "stderr": "WARNING profanity pattern detected in query: \\bfuck(?:ing|ed|er)?\\b\n"
+      },
+      "teardown": {
+        "duration": 0.00013304100139066577,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestProfanityFiltering::test_allow_clean_language",
+      "lineno": 84,
+      "outcome": "passed",
+      "keywords": [
+        "test_allow_clean_language",
+        "TestProfanityFiltering",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.0004565000126603991,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.5045225840003695,
+        "outcome": "passed",
+        "stderr": "INFO HTTP Request: POST https://api.openai.com/v1/moderations \"HTTP/1.1 200 OK\"\n",
+        "log": [
+          {
+            "name": "httpx",
+            "msg": "HTTP Request: POST https://api.openai.com/v1/moderations \"HTTP/1.1 200 OK\"",
+            "args": null,
+            "levelname": "INFO",
+            "levelno": 20,
+            "pathname": "/opt/anaconda3/envs/ecanewpy312/lib/python3.12/site-packages/httpx/_client.py",
+            "filename": "_client.py",
+            "module": "_client",
+            "exc_info": null,
+            "exc_text": null,
+            "stack_info": null,
+            "lineno": 1025,
+            "funcName": "_send_single_request",
+            "created": 1763029639.7853272,
+            "msecs": 785.0,
+            "relativeCreated": 5442.398309707642,
+            "thread": 8413618368,
+            "threadName": "MainThread",
+            "processName": "MainProcess",
+            "process": 20954,
+            "taskName": null,
+            "asctime": "2025-11-13 10:27:19,785"
+          }
+        ]
+      },
+      "teardown": {
+        "duration": 0.00046816600661259145,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestRateLimiting::test_rate_limit_validation",
+      "lineno": 93,
+      "outcome": "passed",
+      "keywords": [
+        "test_rate_limit_validation",
+        "TestRateLimiting",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.0010241249983664602,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.6262794999929611,
+        "outcome": "passed",
+        "stderr": "INFO HTTP Request: POST https://api.openai.com/v1/moderations \"HTTP/1.1 200 OK\"\n",
+        "log": [
+          {
+            "name": "httpx",
+            "msg": "HTTP Request: POST https://api.openai.com/v1/moderations \"HTTP/1.1 200 OK\"",
+            "args": null,
+            "levelname": "INFO",
+            "levelno": 20,
+            "pathname": "/opt/anaconda3/envs/ecanewpy312/lib/python3.12/site-packages/httpx/_client.py",
+            "filename": "_client.py",
+            "module": "_client",
+            "exc_info": null,
+            "exc_text": null,
+            "stack_info": null,
+            "lineno": 1025,
+            "funcName": "_send_single_request",
+            "created": 1763029640.416032,
+            "msecs": 416.0,
+            "relativeCreated": 6073.103189468384,
+            "thread": 8413618368,
+            "threadName": "MainThread",
+            "processName": "MainProcess",
+            "process": 20954,
+            "taskName": null,
+            "asctime": "2025-11-13 10:27:20,416"
+          }
+        ]
+      },
+      "teardown": {
+        "duration": 0.00021816699882037938,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestInputValidation::test_reject_too_long",
+      "lineno": 108,
+      "outcome": "passed",
+      "keywords": [
+        "test_reject_too_long",
+        "TestInputValidation",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.0005465419963002205,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0001152909972006455,
+        "outcome": "passed"
+      },
+      "teardown": {
+        "duration": 0.0001075409963959828,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestInputValidation::test_accept_valid_length",
+      "lineno": 114,
+      "outcome": "passed",
+      "keywords": [
+        "test_accept_valid_length",
+        "TestInputValidation",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00038475000474136323,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.406901458001812,
+        "outcome": "passed",
+        "stderr": "INFO HTTP Request: POST https://api.openai.com/v1/moderations \"HTTP/1.1 200 OK\"\n",
+        "log": [
+          {
+            "name": "httpx",
+            "msg": "HTTP Request: POST https://api.openai.com/v1/moderations \"HTTP/1.1 200 OK\"",
+            "args": null,
+            "levelname": "INFO",
+            "levelno": 20,
+            "pathname": "/opt/anaconda3/envs/ecanewpy312/lib/python3.12/site-packages/httpx/_client.py",
+            "filename": "_client.py",
+            "module": "_client",
+            "exc_info": null,
+            "exc_text": null,
+            "stack_info": null,
+            "lineno": 1025,
+            "funcName": "_send_single_request",
+            "created": 1763029640.824407,
+            "msecs": 824.0,
+            "relativeCreated": 6481.478214263916,
+            "thread": 8413618368,
+            "threadName": "MainThread",
+            "processName": "MainProcess",
+            "process": 20954,
+            "taskName": null,
+            "asctime": "2025-11-13 10:27:20,824"
+          }
+        ]
+      },
+      "teardown": {
+        "duration": 0.0005816250049974769,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestXSSBlocking::test_block_script_tags",
+      "lineno": 123,
+      "outcome": "passed",
+      "keywords": [
+        "test_block_script_tags",
+        "TestXSSBlocking",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.001269417000003159,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0006928750080987811,
+        "outcome": "passed",
+        "stderr": "WARNING Blocked pattern detected in query: <script>\n"
+      },
+      "teardown": {
+        "duration": 0.0008820410002954304,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestSQLInjectionBlocking::test_block_drop_table",
+      "lineno": 133,
+      "outcome": "passed",
+      "keywords": [
+        "test_block_drop_table",
+        "TestSQLInjectionBlocking",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.0011263339983997867,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0004209580074530095,
+        "outcome": "passed",
+        "stderr": "WARNING Blocked pattern detected in query: '; DROP TABLE\n"
+      },
+      "teardown": {
+        "duration": 0.00017758300236891955,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestOutputSanitization::test_mask_emails",
+      "lineno": 143,
+      "outcome": "passed",
+      "keywords": [
+        "test_mask_emails",
+        "TestOutputSanitization",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.000537708998308517,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.0004106659907847643,
+        "outcome": "passed"
+      },
+      "teardown": {
+        "duration": 0.00012487500498536974,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestOutputSanitization::test_mask_phone_numbers",
+      "lineno": 150,
+      "outcome": "passed",
+      "keywords": [
+        "test_mask_phone_numbers",
+        "TestOutputSanitization",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.00043791600910481066,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.00010720899445004761,
+        "outcome": "passed"
+      },
+      "teardown": {
+        "duration": 0.0003137500025331974,
+        "outcome": "passed"
+      }
+    },
+    {
+      "nodeid": "test_llm_security.py::TestReDoSPrevention::test_fast_validation",
+      "lineno": 161,
+      "outcome": "passed",
+      "keywords": [
+        "test_fast_validation",
+        "TestReDoSPrevention",
+        "test_llm_security.py",
+        "security_tests",
+        ""
+      ],
+      "setup": {
+        "duration": 0.0005951659986749291,
+        "outcome": "passed"
+      },
+      "call": {
+        "duration": 0.00012525000784080476,
+        "outcome": "passed"
+      },
+      "teardown": {
+        "duration": 0.04999383399263024,
+        "outcome": "passed",
+        "stderr": "Destroying test database for alias 'default' ('test_echo_chamber_analyst')...\n"
+      }
+    }
+  ],
+  "warnings": [
+    {
+      "message": "Unknown config option: env\n",
+      "category": "PytestConfigWarning",
+      "when": "config",
+      "filename": "/opt/anaconda3/envs/ecanewpy312/lib/python3.12/site-packages/_pytest/config/__init__.py",
+      "lineno": 1397
+    }
+  ]
+}
