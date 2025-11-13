@@ -1,11 +1,11 @@
 {
-  "timestamp": "2025-11-13T06:28:24.830455",
+  "timestamp": "2025-11-13T08:03:39.741085",
   "exit_status": 0,
   "total_tests": 79,
   "passed": 79,
   "failed": 0,
   "skipped": 0,
-  "total_duration_seconds": 1.59,
+  "total_duration_seconds": 1.37,
   "by_agent": {
     "analyst": {
       "total": 18,
@@ -20,7 +20,7 @@
       "passed": 8,
       "failed": 0,
       "skipped": 0,
-      "duration": 0.03,
+      "duration": 0.0,
       "pass_rate": 100.0
     },
     "datacleaner": {
@@ -36,7 +36,7 @@
       "passed": 15,
       "failed": 0,
       "skipped": 0,
-      "duration": 0.98,
+      "duration": 0.99,
       "pass_rate": 100.0
     },
     "orchestrator": {
@@ -44,7 +44,7 @@
       "passed": 17,
       "failed": 0,
       "skipped": 0,
-      "duration": 0.13,
+      "duration": 0.03,
       "pass_rate": 100.0
     },
     "scout": {
@@ -52,7 +52,7 @@
       "passed": 20,
       "failed": 0,
       "skipped": 0,
-      "duration": 0.47,
+      "duration": 0.3,
       "pass_rate": 100.0
     }
   },
@@ -63,7 +63,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0001,
-      "timestamp": "2025-11-13T06:28:23.179245",
+      "timestamp": "2025-11-13T08:03:38.340524",
       "longrepr": null
     },
     {
@@ -72,7 +72,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.179827",
+      "timestamp": "2025-11-13T08:03:38.340876",
       "longrepr": null
     },
     {
@@ -81,7 +81,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.180316",
+      "timestamp": "2025-11-13T08:03:38.341159",
       "longrepr": null
     },
     {
@@ -90,7 +90,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.180816",
+      "timestamp": "2025-11-13T08:03:38.341436",
       "longrepr": null
     },
     {
@@ -98,8 +98,8 @@
       "test_function": "test_gpt4o_insights_generation",
       "agent": "analyst",
       "status": "passed",
-      "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.181275",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T08:03:38.342026",
       "longrepr": null
     },
     {
@@ -108,7 +108,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.181712",
+      "timestamp": "2025-11-13T08:03:38.342311",
       "longrepr": null
     },
     {
@@ -117,7 +117,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.182151",
+      "timestamp": "2025-11-13T08:03:38.342598",
       "longrepr": null
     },
     {
@@ -126,7 +126,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.182585",
+      "timestamp": "2025-11-13T08:03:38.342873",
       "longrepr": null
     },
     {
@@ -135,7 +135,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.183039",
+      "timestamp": "2025-11-13T08:03:38.343121",
       "longrepr": null
     },
     {
@@ -144,7 +144,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.183467",
+      "timestamp": "2025-11-13T08:03:38.343361",
       "longrepr": null
     },
     {
@@ -153,7 +153,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.183896",
+      "timestamp": "2025-11-13T08:03:38.343598",
       "longrepr": null
     },
     {
@@ -162,7 +162,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.184331",
+      "timestamp": "2025-11-13T08:03:38.343832",
       "longrepr": null
     },
     {
@@ -171,7 +171,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.184783",
+      "timestamp": "2025-11-13T08:03:38.344065",
       "longrepr": null
     },
     {
@@ -180,7 +180,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.185242",
+      "timestamp": "2025-11-13T08:03:38.344298",
       "longrepr": null
     },
     {
@@ -189,7 +189,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.185733",
+      "timestamp": "2025-11-13T08:03:38.344530",
       "longrepr": null
     },
     {
@@ -198,7 +198,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.186182",
+      "timestamp": "2025-11-13T08:03:38.344760",
       "longrepr": null
     },
     {
@@ -207,7 +207,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.186610",
+      "timestamp": "2025-11-13T08:03:38.344991",
       "longrepr": null
     },
     {
@@ -216,7 +216,7 @@
       "agent": "analyst",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.187059",
+      "timestamp": "2025-11-13T08:03:38.345221",
       "longrepr": null
     },
     {
@@ -224,8 +224,8 @@
       "test_function": "test_guardrails_block_profanity",
       "agent": "chatbot",
       "status": "passed",
-      "duration": 0.0025,
-      "timestamp": "2025-11-13T06:28:23.190333",
+      "duration": 0.0017,
+      "timestamp": "2025-11-13T08:03:38.347404",
       "longrepr": null
     },
     {
@@ -233,8 +233,8 @@
       "test_function": "test_guardrails_block_prompt_injection",
       "agent": "chatbot",
       "status": "passed",
-      "duration": 0.0006,
-      "timestamp": "2025-11-13T06:28:23.191747",
+      "duration": 0.0007,
+      "timestamp": "2025-11-13T08:03:38.348656",
       "longrepr": null
     },
     {
@@ -243,7 +243,7 @@
       "agent": "chatbot",
       "status": "passed",
       "duration": 0.0004,
-      "timestamp": "2025-11-13T06:28:23.192893",
+      "timestamp": "2025-11-13T08:03:38.349537",
       "longrepr": null
     },
     {
@@ -251,8 +251,8 @@
       "test_function": "test_guardrails_allow_legitimate_queries",
       "agent": "chatbot",
       "status": "passed",
-      "duration": 0.0304,
-      "timestamp": "2025-11-13T06:28:23.223944",
+      "duration": 0.0025,
+      "timestamp": "2025-11-13T08:03:38.352618",
       "longrepr": null
     },
     {
@@ -260,8 +260,8 @@
       "test_function": "test_chatbot_response_cites_sources",
       "agent": "chatbot",
       "status": "passed",
-      "duration": 0.001,
-      "timestamp": "2025-11-13T06:28:23.226082",
+      "duration": 0.0013,
+      "timestamp": "2025-11-13T08:03:38.354466",
       "longrepr": null
     },
     {
@@ -269,8 +269,8 @@
       "test_function": "test_chatbot_conversation_history",
       "agent": "chatbot",
       "status": "passed",
-      "duration": 0.0009,
-      "timestamp": "2025-11-13T06:28:23.227820",
+      "duration": 0.0011,
+      "timestamp": "2025-11-13T08:03:38.356158",
       "longrepr": null
     },
     {
@@ -279,7 +279,7 @@
       "agent": "chatbot",
       "status": "passed",
       "duration": 0.0004,
-      "timestamp": "2025-11-13T06:28:23.229016",
+      "timestamp": "2025-11-13T08:03:38.357192",
       "longrepr": null
     },
     {
@@ -287,8 +287,8 @@
       "test_function": "test_llm_failure_fallback",
       "agent": "chatbot",
       "status": "passed",
-      "duration": 0.0009,
-      "timestamp": "2025-11-13T06:28:23.230577",
+      "duration": 0.0012,
+      "timestamp": "2025-11-13T08:03:38.358839",
       "longrepr": null
     },
     {
@@ -297,7 +297,7 @@
       "agent": "datacleaner",
       "status": "passed",
       "duration": 0.0001,
-      "timestamp": "2025-11-13T06:28:23.231492",
+      "timestamp": "2025-11-13T08:03:38.359510",
       "longrepr": null
     },
     {
@@ -305,8 +305,8 @@
       "test_function": "test_log_pii_detection",
       "agent": "monitoring",
       "status": "passed",
-      "duration": 0.0001,
-      "timestamp": "2025-11-13T06:28:23.232289",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T08:03:38.359932",
       "longrepr": null
     },
     {
@@ -315,7 +315,7 @@
       "agent": "monitoring",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.232760",
+      "timestamp": "2025-11-13T08:03:38.360196",
       "longrepr": null
     },
     {
@@ -324,7 +324,7 @@
       "agent": "monitoring",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.233185",
+      "timestamp": "2025-11-13T08:03:38.360505",
       "longrepr": null
     },
     {
@@ -332,8 +332,8 @@
       "test_function": "test_compliance_audit_trail",
       "agent": "monitoring",
       "status": "passed",
-      "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.233624",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T08:03:38.360902",
       "longrepr": null
     },
     {
@@ -341,8 +341,8 @@
       "test_function": "test_monitor_node_execution_decorator",
       "agent": "monitoring",
       "status": "passed",
-      "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:23.234065",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T08:03:38.361219",
       "longrepr": null
     },
     {
@@ -350,8 +350,8 @@
       "test_function": "test_log_node_duration",
       "agent": "monitoring",
       "status": "passed",
-      "duration": 0.2364,
-      "timestamp": "2025-11-13T06:28:23.470938",
+      "duration": 0.2381,
+      "timestamp": "2025-11-13T08:03:38.599709",
       "longrepr": null
     },
     {
@@ -359,8 +359,8 @@
       "test_function": "test_log_node_errors",
       "agent": "monitoring",
       "status": "passed",
-      "duration": 0.2444,
-      "timestamp": "2025-11-13T06:28:23.718147",
+      "duration": 0.2515,
+      "timestamp": "2025-11-13T08:03:38.852114",
       "longrepr": null
     },
     {
@@ -368,8 +368,8 @@
       "test_function": "test_log_token_usage",
       "agent": "monitoring",
       "status": "passed",
-      "duration": 0.2472,
-      "timestamp": "2025-11-13T06:28:23.967369",
+      "duration": 0.2493,
+      "timestamp": "2025-11-13T08:03:39.102156",
       "longrepr": null
     },
     {
@@ -377,8 +377,8 @@
       "test_function": "test_calculate_token_cost_gpt4o",
       "agent": "monitoring",
       "status": "passed",
-      "duration": 0.0011,
-      "timestamp": "2025-11-13T06:28:23.972334",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T08:03:39.103628",
       "longrepr": null
     },
     {
@@ -387,7 +387,7 @@
       "agent": "monitoring",
       "status": "passed",
       "duration": 0.0001,
-      "timestamp": "2025-11-13T06:28:23.976466",
+      "timestamp": "2025-11-13T08:03:39.104354",
       "longrepr": null
     },
     {
@@ -396,7 +396,7 @@
       "agent": "monitoring",
       "status": "passed",
       "duration": 0.0001,
-      "timestamp": "2025-11-13T06:28:23.977750",
+      "timestamp": "2025-11-13T08:03:39.105017",
       "longrepr": null
     },
     {
@@ -404,8 +404,8 @@
       "test_function": "test_aggregate_workflow_cost",
       "agent": "monitoring",
       "status": "passed",
-      "duration": 0.2484,
-      "timestamp": "2025-11-13T06:28:24.227191",
+      "duration": 0.2511,
+      "timestamp": "2025-11-13T08:03:39.356684",
       "longrepr": null
     },
     {
@@ -413,8 +413,8 @@
       "test_function": "test_langsmith_tracer_initialization",
       "agent": "monitoring",
       "status": "passed",
-      "duration": 0.0004,
-      "timestamp": "2025-11-13T06:28:24.228698",
+      "duration": 0.0002,
+      "timestamp": "2025-11-13T08:03:39.357428",
       "longrepr": null
     },
     {
@@ -422,8 +422,8 @@
       "test_function": "test_langsmith_callback_handler",
       "agent": "monitoring",
       "status": "passed",
-      "duration": 0.0003,
-      "timestamp": "2025-11-13T06:28:24.229911",
+      "duration": 0.0002,
+      "timestamp": "2025-11-13T08:03:39.357965",
       "longrepr": null
     },
     {
@@ -431,8 +431,8 @@
       "test_function": "test_langsmith_graceful_degradation",
       "agent": "monitoring",
       "status": "passed",
-      "duration": 0.0002,
-      "timestamp": "2025-11-13T06:28:24.231069",
+      "duration": 0.0001,
+      "timestamp": "2025-11-13T08:03:39.358428",
       "longrepr": null
     },
     {
@@ -440,8 +440,8 @@
       "test_function": "test_create_graph_structure",
       "agent": "orchestrator",
       "status": "passed",
-      "duration": 0.0123,
-      "timestamp": "2025-11-13T06:28:24.244357",
+      "duration": 0.0108,
+      "timestamp": "2025-11-13T08:03:39.369600",
       "longrepr": null
     },
     {
@@ -449,8 +449,8 @@
       "test_function": "test_nodes_added_to_graph",
       "agent": "orchestrator",
       "status": "passed",
-      "duration": 0.0133,
-      "timestamp": "2025-11-13T06:28:24.258592",
+      "duration": 0.0066,
+      "timestamp": "2025-11-13T08:03:39.376557",
       "longrepr": null
     },
     {
@@ -458,8 +458,8 @@
       "test_function": "test_entry_point_configuration",
       "agent": "orchestrator",
       "status": "passed",
-      "duration": 0.0085,
-      "timestamp": "2025-11-13T06:28:24.268011",
+      "duration": 0.0055,
+      "timestamp": "2025-11-13T08:03:39.382436",
       "longrepr": null
     },
     {
@@ -468,7 +468,7 @@
       "agent": "orchestrator",
       "status": "passed",
       "duration": 0.0001,
-      "timestamp": "2025-11-13T06:28:24.268719",
+      "timestamp": "2025-11-13T08:03:39.382806",
       "longrepr": null
     },
     {
@@ -476,8 +476,8 @@
       "test_function": "test_state_with_optional_fields",
       "agent": "orchestrator",
       "status": "passed",
-      "duration": 0.0001,
-      "timestamp": "2025-11-13T06:28:24.269409",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T08:03:39.383108",
       "longrepr": null
     },
     {
@@ -485,8 +485,8 @@
       "test_function": "test_state_validation_missing_required_fields",
       "agent": "orchestrator",
       "status": "passed",
-      "duration": 0.0001,
-      "timestamp": "2025-11-13T06:28:24.270080",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T08:03:39.383396",
       "longrepr": null
     },
     {
@@ -495,7 +495,7 @@
       "agent": "orchestrator",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:24.270639",
+      "timestamp": "2025-11-13T08:03:39.383671",
       "longrepr": null
     },
     {
@@ -503,8 +503,8 @@
       "test_function": "test_determine_workflow_type_chat_query",
       "agent": "orchestrator",
       "status": "passed",
-      "duration": 0.0079,
-      "timestamp": "2025-11-13T06:28:24.279116",
+      "duration": 0.005,
+      "timestamp": "2025-11-13T08:03:39.388866",
       "longrepr": null
     },
     {
@@ -512,8 +512,8 @@
       "test_function": "test_determine_workflow_type_content_analysis",
       "agent": "orchestrator",
       "status": "passed",
-      "duration": 0.0073,
-      "timestamp": "2025-11-13T06:28:24.287054",
+      "duration": 0.0049,
+      "timestamp": "2025-11-13T08:03:39.394059",
       "longrepr": null
     },
     {
@@ -521,8 +521,8 @@
       "test_function": "test_route_content_processing_scout_first",
       "agent": "orchestrator",
       "status": "passed",
-      "duration": 0.0072,
-      "timestamp": "2025-11-13T06:28:24.294755",
+      "duration": 0.0045,
+      "timestamp": "2025-11-13T08:03:39.398853",
       "longrepr": null
     },
     {
@@ -530,8 +530,8 @@
       "test_function": "test_check_if_cleaning_needed",
       "agent": "orchestrator",
       "status": "passed",
-      "duration": 0.0072,
-      "timestamp": "2025-11-13T06:28:24.302524",
+      "duration": 0.0047,
+      "timestamp": "2025-11-13T08:03:39.403762",
       "longrepr": null
     },
     {
@@ -539,8 +539,8 @@
       "test_function": "test_skip_cleaner_when_no_threads",
       "agent": "orchestrator",
       "status": "passed",
-      "duration": 0.0073,
-      "timestamp": "2025-11-13T06:28:24.310431",
+      "duration": 0.0046,
+      "timestamp": "2025-11-13T08:03:39.408611",
       "longrepr": null
     },
     {
@@ -548,8 +548,8 @@
       "test_function": "test_graph_invocation_with_state",
       "agent": "orchestrator",
       "status": "passed",
-      "duration": 0.0064,
-      "timestamp": "2025-11-13T06:28:24.317386",
+      "duration": 0.005,
+      "timestamp": "2025-11-13T08:03:39.413864",
       "longrepr": null
     },
     {
@@ -557,8 +557,8 @@
       "test_function": "test_error_handling_in_routing",
       "agent": "orchestrator",
       "status": "passed",
-      "duration": 0.0065,
-      "timestamp": "2025-11-13T06:28:24.324441",
+      "duration": 0.0045,
+      "timestamp": "2025-11-13T08:03:39.418639",
       "longrepr": null
     },
     {
@@ -566,8 +566,8 @@
       "test_function": "test_graph_compilation_success",
       "agent": "orchestrator",
       "status": "passed",
-      "duration": 0.0064,
-      "timestamp": "2025-11-13T06:28:24.331382",
+      "duration": 0.0047,
+      "timestamp": "2025-11-13T08:03:39.423560",
       "longrepr": null
     },
     {
@@ -575,8 +575,8 @@
       "test_function": "test_graph_visualization",
       "agent": "orchestrator",
       "status": "passed",
-      "duration": 0.0068,
-      "timestamp": "2025-11-13T06:28:24.338683",
+      "duration": 0.0047,
+      "timestamp": "2025-11-13T08:03:39.428486",
       "longrepr": null
     },
     {
@@ -584,8 +584,8 @@
       "test_function": "test_checkpointer_configuration",
       "agent": "orchestrator",
       "status": "passed",
-      "duration": 0.0061,
-      "timestamp": "2025-11-13T06:28:24.345303",
+      "duration": 0.0039,
+      "timestamp": "2025-11-13T08:03:39.432614",
       "longrepr": null
     },
     {
@@ -594,7 +594,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:24.345895",
+      "timestamp": "2025-11-13T08:03:39.432942",
       "longrepr": null
     },
     {
@@ -603,7 +603,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:24.346325",
+      "timestamp": "2025-11-13T08:03:39.433172",
       "longrepr": null
     },
     {
@@ -611,8 +611,8 @@
       "test_function": "test_config_differences_brand_vs_custom",
       "agent": "scout",
       "status": "passed",
-      "duration": 0.0001,
-      "timestamp": "2025-11-13T06:28:24.346781",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T08:03:39.433396",
       "longrepr": null
     },
     {
@@ -621,7 +621,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:24.347216",
+      "timestamp": "2025-11-13T08:03:39.433612",
       "longrepr": null
     },
     {
@@ -630,7 +630,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:24.347662",
+      "timestamp": "2025-11-13T08:03:39.433832",
       "longrepr": null
     },
     {
@@ -639,7 +639,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:24.348079",
+      "timestamp": "2025-11-13T08:03:39.434054",
       "longrepr": null
     },
     {
@@ -648,7 +648,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:24.348489",
+      "timestamp": "2025-11-13T08:03:39.434266",
       "longrepr": null
     },
     {
@@ -656,8 +656,8 @@
       "test_function": "test_query_generation_error_handling",
       "agent": "scout",
       "status": "passed",
-      "duration": 0.0001,
-      "timestamp": "2025-11-13T06:28:24.349160",
+      "duration": 0.0,
+      "timestamp": "2025-11-13T08:03:39.434486",
       "longrepr": null
     },
     {
@@ -666,7 +666,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:24.349641",
+      "timestamp": "2025-11-13T08:03:39.434706",
       "longrepr": null
     },
     {
@@ -675,7 +675,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:24.350080",
+      "timestamp": "2025-11-13T08:03:39.434919",
       "longrepr": null
     },
     {
@@ -684,7 +684,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:24.350500",
+      "timestamp": "2025-11-13T08:03:39.435146",
       "longrepr": null
     },
     {
@@ -693,7 +693,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:24.350974",
+      "timestamp": "2025-11-13T08:03:39.435364",
       "longrepr": null
     },
     {
@@ -702,7 +702,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:24.351385",
+      "timestamp": "2025-11-13T08:03:39.435575",
       "longrepr": null
     },
     {
@@ -711,7 +711,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0,
-      "timestamp": "2025-11-13T06:28:24.351795",
+      "timestamp": "2025-11-13T08:03:39.435793",
       "longrepr": null
     },
     {
@@ -719,8 +719,8 @@
       "test_function": "test_extraction_deduplication",
       "agent": "scout",
       "status": "passed",
-      "duration": 0.4716,
-      "timestamp": "2025-11-13T06:28:24.823880",
+      "duration": 0.3015,
+      "timestamp": "2025-11-13T08:03:39.737514",
       "longrepr": null
     },
     {
@@ -729,7 +729,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0001,
-      "timestamp": "2025-11-13T06:28:24.825424",
+      "timestamp": "2025-11-13T08:03:39.738145",
       "longrepr": null
     },
     {
@@ -738,7 +738,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0001,
-      "timestamp": "2025-11-13T06:28:24.826432",
+      "timestamp": "2025-11-13T08:03:39.738551",
       "longrepr": null
     },
     {
@@ -747,7 +747,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0001,
-      "timestamp": "2025-11-13T06:28:24.827401",
+      "timestamp": "2025-11-13T08:03:39.738917",
       "longrepr": null
     },
     {
@@ -756,7 +756,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0001,
-      "timestamp": "2025-11-13T06:28:24.828331",
+      "timestamp": "2025-11-13T08:03:39.739257",
       "longrepr": null
     },
     {
@@ -765,7 +765,7 @@
       "agent": "scout",
       "status": "passed",
       "duration": 0.0001,
-      "timestamp": "2025-11-13T06:28:24.829131",
+      "timestamp": "2025-11-13T08:03:39.739587",
       "longrepr": null
     }
   ]

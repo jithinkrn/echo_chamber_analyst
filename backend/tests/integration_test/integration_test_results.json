@@ -1,0 +1,59 @@
+{
+  "test_type": "integration",
+  "timestamp": "2025-11-13 08:44:55",
+  "total_tests": 5,
+  "passed": 5,
+  "failed": 0,
+  "skipped": 0,
+  "errors": 0,
+  "total_duration_seconds": 100.69,
+  "by_module": {
+    "test_workflow_integration": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "duration": 100.59,
+      "pass_rate": "100.0%"
+    }
+  },
+  "test_details": [
+    {
+      "name": "test_complete_workflow_sync_execution",
+      "module": "test_workflow_integration",
+      "outcome": "passed",
+      "duration": 0.115,
+      "nodeid": "tests/integration_test/test_workflow_integration.py::TestWorkflowIntegration::test_complete_workflow_sync_execution"
+    },
+    {
+      "name": "test_celery_workflow_execution_custom",
+      "module": "test_workflow_integration",
+      "outcome": "passed",
+      "duration": 5.128,
+      "nodeid": "tests/integration_test/test_workflow_integration.py::TestWorkflowIntegration::test_celery_workflow_execution_custom"
+    },
+    {
+      "name": "test_celery_workflow_execution_brand_analytics",
+      "module": "test_workflow_integration",
+      "outcome": "passed",
+      "duration": 95.165,
+      "nodeid": "tests/integration_test/test_workflow_integration.py::TestWorkflowIntegration::test_celery_workflow_execution_brand_analytics"
+    },
+    {
+      "name": "test_workflow_error_handling",
+      "module": "test_workflow_integration",
+      "outcome": "passed",
+      "duration": 0.098,
+      "nodeid": "tests/integration_test/test_workflow_integration.py::TestWorkflowIntegration::test_workflow_error_handling"
+    },
+    {
+      "name": "test_workflow_state_persistence",
+      "module": "test_workflow_integration",
+      "outcome": "passed",
+      "duration": 0.081,
+      "nodeid": "tests/integration_test/test_workflow_integration.py::TestWorkflowIntegration::test_workflow_state_persistence"
+    }
+  ],
+  "session_start_time": 1763023495.6525388,
+  "overall_pass_rate": "100.0%"
+}
