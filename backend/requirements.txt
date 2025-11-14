@@ -116,3 +116,16 @@ pytest-asyncio==1.3.0
 pytest-django==4.11.1
 pytest-html==4.1.1
 pytest-json-report==1.5.0
+
+# Fairness Testing (numpy 2.3.4 compatible)
+aif360==0.6.1
+scikit-learn==1.7.2
+
+# Explainability (numpy 2.3.4 compatible)
+shap==0.50.0
+lime==0.2.0.1
+matplotlib==3.10.0
+pandas==2.2.3
+
+# Note: These are the latest versions compatible with numpy 2.3.4
+# To install: pip install aif360 scikit-learn shap lime matplotlib pandas --upgrade

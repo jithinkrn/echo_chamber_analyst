@@ -1,0 +1,193 @@
+# Promptfoo Configuration for Echo Chamber Analyst LLM Testing
+# This configuration tests RAG responses, intent classification, and strategic insights
+
+description: "LLM Quality Testing for Echo Chamber Analyst"
+
+prompts:
+  # Intent Classification Tests
+  - label: "intent-classification-semantic"
+    raw: |
+      You are an intent classification system. Classify this query:
+      "{{query}}"
+
+      Respond with JSON: {"intent_type": "semantic|keyword|hybrid|conversational"}
+
+  - label: "intent-classification-conversational"
+    raw: |
+      You are an intent classification system. Classify this query:
+      "{{query}}"
+
+      Respond with JSON: {"intent_type": "semantic|keyword|hybrid|conversational"}
+
+  # RAG Response Tests
+  - label: "rag-response-with-context"
+    raw: |
+      Context: {{context}}
+
+      Question: {{question}}
+
+      Answer the question based ONLY on the provided context. If the answer is not in the context, say "I don't have information about that."
+
+      Answer:
+
+providers:
+  # Use environment variable for API key
+  - id: openai:gpt-4o-mini
+    config:
+      temperature: 0.1
+      max_tokens: 500
+
+  - id: openai:gpt-4o
+    config:
+      temperature: 0.3
+      max_tokens: 1000
+
+tests:
+  # ===== Intent Classification Tests =====
+
+  - description: "Intent: Semantic query about brand"
+    vars:
+      query: "What are people saying about Tesla's autopilot safety?"
+    assert:
+      - type: contains-json
+      - type: javascript
+        value: JSON.parse(output).intent_type === "semantic"
+
+  - description: "Intent: Keyword search"
+    vars:
+      query: "Find posts mentioning 'product launch' exactly"
+    assert:
+      - type: contains-json
+      - type: javascript
+        value: |
+          const intent = JSON.parse(output).intent_type;
+          intent === "keyword" || intent === "hybrid"
+
+  - description: "Intent: Conversational greeting"
+    vars:
+      query: "Hello, how are you today?"
+    assert:
+      - type: contains-json
+      - type: javascript
+        value: JSON.parse(output).intent_type === "conversational"
+
+  - description: "Intent: Conversational thanks"
+    vars:
+      query: "Thanks for your help!"
+    assert:
+      - type: contains-json
+      - type: javascript
+        value: JSON.parse(output).intent_type === "conversational"
+
+  # ===== RAG Hallucination Tests =====
+
+  - description: "RAG: No hallucination - only answer from context"
+    vars:
+      context: "Brand X has two main pain points: 1. Slow delivery (mentioned 45 times), 2. Poor customer support (mentioned 32 times)."
+      question: "What are the top pain points for Brand X?"
+    assert:
+      - type: contains
+        value: "delivery"
+      - type: contains
+        value: "support"
+      - type: not-contains
+        value: "price"  # Should not hallucinate price
+      - type: not-contains
+        value: "quality"  # Should not hallucinate quality
+
+  - description: "RAG: Handle missing information correctly"
+    vars:
+      context: "Brand Y has positive sentiment of 0.72 across 150 posts."
+      question: "What are the pain points for Brand Y?"
+    assert:
+      - type: contains
+        value: "don't have"  # Should admit lack of information
+
+  - description: "RAG: Accurate number citation"
+    vars:
+      context: "The campaign collected 1,247 posts with an average sentiment of -0.35."
+      question: "How many posts were collected?"
+    assert:
+      - type: contains
+        value: "1,247"  # Should cite exact number
+      - type: not-contains
+        value: "approximately"  # Should be exact when data is available
+
+  - description: "RAG: Don't confuse similar brands"
+    vars:
+      context: "Brand A has negative sentiment. Brand B has positive sentiment."
+      question: "What is Brand A's sentiment?"
+    assert:
+      - type: contains
+        value: "negative"
+      - type: not-contains
+        value: "positive"  # Shouldn't confuse brands
+
+  # ===== Answer Relevance Tests =====
+
+  - description: "RAG: Answer is relevant to question"
+    vars:
+      context: "Echo chamber score of 85 indicates high polarization. Communities show 92% sentiment homogeneity."
+      question: "Is this community an echo chamber?"
+    assert:
+      - type: contains
+        value: "echo"
+      - type: javascript
+        value: |
+          output.includes("85") || output.includes("high") || output.includes("polarization")
+
+  - description: "RAG: Stay focused on brand analytics"
+    vars:
+      context: "Brand metrics show 500 posts, sentiment 0.65, echo score 42."
+      question: "What's the weather today?"
+    assert:
+      - type: contains
+        value: "don't have"  # Should recognize off-topic question
+
+  # ===== Source Attribution Tests =====
+
+  - description: "RAG: Cite source when answering"
+    vars:
+      context: "According to r/gaming thread 'Server Issues': Players report frequent disconnections."
+      question: "What are players saying about server issues?"
+    assert:
+      - type: contains
+        value: "disconnect"
+      # In production, check for proper citation format
+
+  # ===== Strategic Insight Quality Tests =====
+
+  - description: "Insight: Should be specific with numbers"
+    provider: openai:gpt-4o
+    vars:
+      brand_data: |
+        Brand: TechCorp
+        Sentiment: -0.42
+        Echo Score: 78
+        Pain Points: 12 (top: latency, crashes)
+        Communities: 5
+        Posts: 842
+    assert:
+      - type: javascript
+        value: |
+          // Should include percentages or specific numbers
+          output.match(/\d+%/) !== null || output.match(/-?\d+\.\d+/) !== null
+      - type: llm-rubric
+        value: "The response is actionable and includes specific KPIs or metrics"
+
+  - description: "Insight: Should be actionable"
+    provider: openai:gpt-4o
+    vars:
+      brand_data: |
+        Campaign: Retention Drive
+        Sentiment: -0.28
+        Pain Points: pricing concerns (67%), feature requests (45%)
+    assert:
+      - type: llm-rubric
+        value: "The response provides specific actions the brand can take"
+
+# Output configuration
+outputPath: ./results/
+
+# Additional settings
+sharing: false

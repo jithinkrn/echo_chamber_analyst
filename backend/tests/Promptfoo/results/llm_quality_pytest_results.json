@@ -1,0 +1,6 @@
+{
+  "test_suite": "LLM Quality Tests",
+  "timestamp": "2025-11-14T07:58:05.164300",
+  "description": "Pytest-based LLM quality validation",
+  "note": "Run 'promptfoo eval' for comprehensive LLM testing"
+}
