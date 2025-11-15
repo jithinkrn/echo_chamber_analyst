@@ -55,7 +55,7 @@ class PromptfooResultsPlugin:
         os.makedirs(results_dir, exist_ok=True)
 
         # Save overall results
-        overall_file = os.path.join(results_dir, 'promptfoo_test_results.json')
+        overall_file = os.path.join(results_dir, 'redteam_pytest_results.json')
         with open(overall_file, 'w') as f:
             json.dump(self.results, f, indent=2)
 

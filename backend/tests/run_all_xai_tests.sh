@@ -81,9 +81,9 @@ run_test_suite \
     "Tests word-level attributions for text analysis"
 
 run_test_suite \
-    "Promptfoo Security Tests" \
+    "Promptfoo RAG Quality & Security Tests" \
     "run_promptfoo_tests.sh" \
-    "Tests prompt injection, PII leakage, and safety"
+    "Tests RAG quality, guardrails, and multi-layered security"
 
 # Print summary
 echo ""
@@ -108,10 +108,11 @@ echo ""
 
 # Print detailed results locations
 echo "📊 Results saved to:"
-echo "   - AIF360:    AIF360/results/"
-echo "   - SHAP:      SHAP/results/"
-echo "   - LIME:      LIME/results/"
-echo "   - Promptfoo: Promptfoo/results/"
+echo "   - AIF360:         AIF360/results/"
+echo "   - SHAP:           SHAP/results/"
+echo "   - LIME:           LIME/results/"
+echo "   - Promptfoo RAG:  Promptfoo/results/rag_quality_results.json"
+echo "   - Promptfoo Red:  Promptfoo/results/redteam/"
 echo ""
 
 # Exit with appropriate code
