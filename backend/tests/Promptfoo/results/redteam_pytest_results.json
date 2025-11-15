@@ -1,0 +1,11 @@
+{
+  "test_suite": "Promptfoo LLM Quality Tests",
+  "timestamp": "2025-11-15T09:49:11.452686",
+  "tests_run": [],
+  "summary": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0
+  },
+  "note": "These are pytest tests. For full LLM testing, run: promptfoo eval -c promptfooconfig.yaml"
+}

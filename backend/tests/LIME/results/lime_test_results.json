@@ -1,31 +1,10 @@
 {
   "test_suite": "LIME Sentiment Explainability Tests",
-  "timestamp": "2025-11-14T08:09:49.895751",
-  "tests_run": [
-    {
-      "name": "tests/LIME/test_llm_text_explainability.py::TestLIMETextExplainability::test_lime_explains_pain_point_text_importance",
-      "outcome": "passed",
-      "duration": 73.15114412500043
-    },
-    {
-      "name": "tests/LIME/test_llm_text_explainability.py::TestLIMETextExplainability::test_lime_keyword_attribution",
-      "outcome": "passed",
-      "duration": 0.014855458000965882
-    },
-    {
-      "name": "tests/LIME/test_llm_text_explainability.py::TestLIMETextExplainability::test_lime_text_explainer_structure",
-      "outcome": "passed",
-      "duration": 0.015432000000146218
-    },
-    {
-      "name": "tests/LIME/test_llm_text_explainability.py::TestLIMEInsightComparison::test_compare_urgent_vs_minor_pain_points",
-      "outcome": "passed",
-      "duration": 0.015298375001293607
-    }
-  ],
+  "timestamp": "2025-11-15T09:49:11.445476",
+  "tests_run": [],
   "summary": {
-    "total": 4,
-    "passed": 4,
+    "total": 0,
+    "passed": 0,
     "failed": 0
   }
 }

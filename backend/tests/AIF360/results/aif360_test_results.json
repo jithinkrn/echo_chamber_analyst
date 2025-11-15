@@ -1,31 +1,10 @@
 {
   "test_suite": "AIF360 Fairness Tests",
-  "timestamp": "2025-11-14T07:29:39.485860",
-  "tests_run": [
-    {
-      "name": "tests/AIF360/test_llm_insight_fairness.py::TestAIF360LLMInsightFairness::test_fairness_across_industries",
-      "outcome": "passed",
-      "duration": 84.1594455830018
-    },
-    {
-      "name": "tests/AIF360/test_llm_insight_fairness.py::TestAIF360LLMInsightFairness::test_fairness_across_budget_categories",
-      "outcome": "passed",
-      "duration": 79.52871091700217
-    },
-    {
-      "name": "tests/AIF360/test_llm_insight_fairness.py::TestAIF360FairnessComparison::test_compare_tech_vs_nontch_industries",
-      "outcome": "passed",
-      "duration": 88.96327404100157
-    },
-    {
-      "name": "tests/AIF360/test_llm_insight_fairness.py::TestAIF360LLMInsightFairness::test_aif360_integration",
-      "outcome": "passed",
-      "duration": 0.0013723340016440488
-    }
-  ],
+  "timestamp": "2025-11-15T09:49:09.396685",
+  "tests_run": [],
   "summary": {
-    "total": 4,
-    "passed": 4,
+    "total": 0,
+    "passed": 0,
     "failed": 0,
     "skipped": 0,
     "errors": 0
