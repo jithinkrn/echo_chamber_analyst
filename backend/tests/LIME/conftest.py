@@ -77,6 +77,31 @@ def sample_brand_for_lime(db):
     user.delete()
 
 
+# Global storage for detailed LIME explanations
+_lime_explanations = []
+
+
+def store_lime_explanation(test_name, text, word_importances, prediction_proba=None):
+    """
+    Store LIME explanation for later saving to JSON.
+
+    Args:
+        test_name: Name of the test
+        text: The text that was explained
+        word_importances: List of (word, importance) tuples from LIME
+        prediction_proba: Optional prediction probabilities
+    """
+    _lime_explanations.append({
+        "test_name": test_name,
+        "text": text,
+        "word_importances": [
+            {"word": word, "importance": float(importance)}
+            for word, importance in word_importances
+        ],
+        "prediction_proba": prediction_proba
+    })
+
+
 # Pytest plugin to capture and save results
 class LIMEResultsPlugin:
     """Plugin to capture LIME test results."""
@@ -87,6 +112,7 @@ class LIMEResultsPlugin:
             "test_suite": "LIME Sentiment Explainability Tests",
             "timestamp": datetime.now().isoformat(),
             "tests_run": [],
+            "lime_explanations": [],
             "summary": {
                 "total": 0,
                 "passed": 0,
@@ -120,10 +146,23 @@ class LIMEResultsPlugin:
         results_dir = os.path.join(os.path.dirname(__file__), 'results')
         os.makedirs(results_dir, exist_ok=True)
 
+        # Add stored LIME explanations to results
+        self.results['lime_explanations'] = _lime_explanations
+
         # Save overall results
         overall_file = os.path.join(results_dir, 'lime_test_results.json')
         with open(overall_file, 'w') as f:
             json.dump(self.results, f, indent=2)
+
+        # Save detailed LIME explanations separately
+        if _lime_explanations:
+            explanations_file = os.path.join(results_dir, 'lime_explanations_detailed.json')
+            with open(explanations_file, 'w') as f:
+                json.dump({
+                    "timestamp": self.results['timestamp'],
+                    "explanations": _lime_explanations
+                }, f, indent=2)
+            print(f"   - LIME explanations: {len(_lime_explanations)} saved")
 
         print(f"\n📊 LIME test results saved to: {results_dir}/")
         print(f"   - Overall: {self.results['summary']['passed']}/{self.results['summary']['total']} passed")

@@ -51,6 +51,7 @@ django.setup()
 # ============================================================================
 from agents.analyst import generate_ai_powered_insights_from_brand_analytics  # ← REAL backend code
 from common.models import Brand, User
+from .conftest import store_fairness_metrics  # Import storage function
 
 # AIF360 imports
 from aif360.datasets import BinaryLabelDataset
@@ -182,6 +183,23 @@ class TestAIF360LLMInsightFairness:
         print(f"  → > 1.2: Discrimination against privileged")
         print("="*80)
 
+        # Store fairness metrics for JSON export
+        store_fairness_metrics(
+            test_name="test_fairness_across_industries",
+            protected_attribute="industry",
+            privileged_group="Technology",
+            unprivileged_group="Fashion/Food/Healthcare",
+            statistical_parity_difference=spd,
+            disparate_impact=di,
+            dataset_info={
+                "total_samples": int(len(df)),
+                "privileged_samples": int(len(df[df['industry_code'] == 1.0])),
+                "unprivileged_samples": int(len(df[df['industry_code'] == 0.0])),
+                "urgent_privileged": int(len(df[(df['industry_code'] == 1.0) & (df['is_urgent'] == 1)])),
+                "urgent_unprivileged": int(len(df[(df['industry_code'] == 0.0) & (df['is_urgent'] == 1)]))
+            }
+        )
+
         # Assertions
         assert spd is not None
         assert di is not None
@@ -269,6 +287,23 @@ class TestAIF360LLMInsightFairness:
         print(f"Statistical Parity Difference: {spd:.4f}")
         print(f"Disparate Impact Ratio: {di:.4f}")
         print("="*80)
+
+        # Store fairness metrics for JSON export
+        store_fairness_metrics(
+            test_name="test_fairness_across_budget_categories",
+            protected_attribute="budget_category",
+            privileged_group="Large Budget",
+            unprivileged_group="Small/Medium Budget",
+            statistical_parity_difference=spd,
+            disparate_impact=di,
+            dataset_info={
+                "total_samples": int(len(df)),
+                "privileged_samples": int(len(df[df['budget_category_code'] == 1.0])),
+                "unprivileged_samples": int(len(df[df['budget_category_code'] == 0.0])),
+                "urgent_privileged": int(len(df[(df['budget_category_code'] == 1.0) & (df['is_urgent'] == 1)])),
+                "urgent_unprivileged": int(len(df[(df['budget_category_code'] == 0.0) & (df['is_urgent'] == 1)]))
+            }
+        )
 
         assert spd is not None
         assert di is not None

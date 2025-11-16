@@ -127,6 +127,43 @@ def sample_brand_with_data(db):
     print("   ✅ Cleanup complete")
 
 
+# Global storage for detailed SHAP explanations
+_shap_explanations = []
+
+
+def store_shap_explanation(test_name, feature_names, feature_values, shap_values, base_value=None):
+    """
+    Store SHAP explanation for later saving to JSON.
+
+    Args:
+        test_name: Name of the test
+        feature_names: List of feature names
+        feature_values: Array or list of feature values
+        shap_values: Array of SHAP values
+        base_value: Optional base value (expected value)
+    """
+    import numpy as np
+
+    # Convert numpy arrays to lists for JSON serialization
+    if isinstance(feature_values, np.ndarray):
+        feature_values = feature_values.tolist()
+    if isinstance(shap_values, np.ndarray):
+        shap_values = shap_values.tolist()
+
+    _shap_explanations.append({
+        "test_name": test_name,
+        "feature_importances": [
+            {
+                "feature": name,
+                "value": float(val) if not isinstance(val, list) else val,
+                "shap_value": float(shap_val) if not isinstance(shap_val, list) else shap_val
+            }
+            for name, val, shap_val in zip(feature_names, feature_values, shap_values)
+        ],
+        "base_value": float(base_value) if base_value is not None else None
+    })
+
+
 # Pytest plugin to capture and save results
 class SHAPResultsPlugin:
     """Plugin to capture SHAP test results."""
@@ -137,6 +174,7 @@ class SHAPResultsPlugin:
             "test_suite": "SHAP Explainability Tests",
             "timestamp": datetime.now().isoformat(),
             "tests_run": [],
+            "shap_explanations": [],
             "summary": {
                 "total": 0,
                 "passed": 0,
@@ -170,10 +208,23 @@ class SHAPResultsPlugin:
         results_dir = os.path.join(os.path.dirname(__file__), 'results')
         os.makedirs(results_dir, exist_ok=True)
 
+        # Add stored SHAP explanations to results
+        self.results['shap_explanations'] = _shap_explanations
+
         # Save overall results
         overall_file = os.path.join(results_dir, 'shap_test_results.json')
         with open(overall_file, 'w') as f:
             json.dump(self.results, f, indent=2)
+
+        # Save detailed SHAP explanations separately
+        if _shap_explanations:
+            explanations_file = os.path.join(results_dir, 'shap_explanations_detailed.json')
+            with open(explanations_file, 'w') as f:
+                json.dump({
+                    "timestamp": self.results['timestamp'],
+                    "explanations": _shap_explanations
+                }, f, indent=2)
+            print(f"   - SHAP explanations: {len(_shap_explanations)} saved")
 
         print(f"\n📊 SHAP test results saved to: {results_dir}/")
         print(f"   - Overall: {self.results['summary']['passed']}/{self.results['summary']['total']} passed")

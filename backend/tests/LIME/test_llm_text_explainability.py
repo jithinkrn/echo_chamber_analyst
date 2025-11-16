@@ -46,6 +46,7 @@ django.setup()
 # ============================================================================
 from agents.analyst import generate_ai_powered_insights_from_brand_analytics  # ← REAL backend code
 from common.models import Brand, User
+from .conftest import store_lime_explanation  # Import storage function
 
 
 class TestLIMETextExplainability:
@@ -172,6 +173,14 @@ class TestLIMETextExplainability:
             print(f"  {word:20s}: {importance:+.4f}")
         print("="*80)
 
+        # Store explanation for JSON export
+        store_lime_explanation(
+            test_name="test_lime_explains_pain_point_text_importance",
+            text=text_instance,
+            word_importances=word_importances,
+            prediction_proba=exp.predict_proba.tolist() if hasattr(exp, 'predict_proba') else None
+        )
+
         # Assertions
         assert exp is not None
         assert len(word_importances) > 0
@@ -216,6 +225,14 @@ class TestLIMETextExplainability:
 
         # Generate explanation
         exp = explainer.explain_instance(text, simple_sentiment_classifier, num_features=5, num_samples=10)
+
+        # Store explanation for JSON export
+        store_lime_explanation(
+            test_name="test_lime_text_explainer_structure",
+            text=text,
+            word_importances=exp.as_list(),
+            prediction_proba=exp.predict_proba.tolist() if hasattr(exp, 'predict_proba') else None
+        )
 
         # Assertions
         assert explainer is not None
@@ -275,6 +292,14 @@ class TestLIMETextExplainability:
             for word, importance in exp.as_list()[:3]:
                 print(f"  {word}: {importance:+.4f}")
 
+            # Store explanation for JSON export
+            store_lime_explanation(
+                test_name=f"test_lime_keyword_attribution_{test_texts.index(text)}",
+                text=text,
+                word_importances=exp.as_list(),
+                prediction_proba=exp.predict_proba.tolist() if hasattr(exp, 'predict_proba') else None
+            )
+
             assert exp is not None
 
 
@@ -316,6 +341,20 @@ class TestLIMEInsightComparison:
         for word, importance in exp_minor.as_list():
             print(f"  {word:15s}: {importance:+.4f}")
         print("="*80)
+
+        # Store explanations for JSON export
+        store_lime_explanation(
+            test_name="test_compare_urgent_vs_minor_pain_points_urgent",
+            text=urgent_text,
+            word_importances=exp_urgent.as_list(),
+            prediction_proba=exp_urgent.predict_proba.tolist() if hasattr(exp_urgent, 'predict_proba') else None
+        )
+        store_lime_explanation(
+            test_name="test_compare_urgent_vs_minor_pain_points_minor",
+            text=minor_text,
+            word_importances=exp_minor.as_list(),
+            prediction_proba=exp_minor.predict_proba.tolist() if hasattr(exp_minor, 'predict_proba') else None
+        )
 
         # Verify both explanations exist
         assert exp_urgent is not None

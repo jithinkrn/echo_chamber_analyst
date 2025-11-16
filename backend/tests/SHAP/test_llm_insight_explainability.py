@@ -41,6 +41,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 # ============================================================================
 from agents.analyst import generate_ai_powered_insights_from_brand_analytics  # ← REAL backend code
 from common.models import Brand, User
+from .conftest import store_shap_explanation  # Import storage function
 
 
 class TestSHAPLLMInsightExplainability:
@@ -195,6 +196,15 @@ class TestSHAPLLMInsightExplainability:
             print(f"{feature:20s}: {shap_val:+.4f} (feature value: {X_test[0][i]})")
         print("="*80)
 
+        # Store SHAP explanation for JSON export
+        store_shap_explanation(
+            test_name="test_shap_explains_feature_importance_for_insights",
+            feature_names=feature_names,
+            feature_values=X_test[0],
+            shap_values=shap_values[0],
+            base_value=explainer.expected_value if hasattr(explainer, 'expected_value') else None
+        )
+
         # Verify SHAP is working: negative sentiment should increase urgency
         sentiment_shap_value = shap_values[0][0]
         echo_shap_value = shap_values[0][1]
@@ -224,6 +234,15 @@ class TestSHAPLLMInsightExplainability:
 
         # Calculate SHAP values
         shap_values = explainer.shap_values(X_test, nsamples=10)
+
+        # Store SHAP explanation for JSON export
+        store_shap_explanation(
+            test_name="test_shap_feature_attribution_structure",
+            feature_names=['feature_1', 'feature_2'],
+            feature_values=X_test[0],
+            shap_values=shap_values[0],
+            base_value=explainer.expected_value if hasattr(explainer, 'expected_value') else None
+        )
 
         # Verify output structure
         assert shap_values is not None
@@ -282,6 +301,23 @@ class TestSHAPInsightComparison:
         print(f"  Echo Score: {shap_negative[0][1]:+.4f}")
         print(f"  Pain Point Count: {shap_negative[0][2]:+.4f}")
         print("="*80)
+
+        # Store SHAP explanations for JSON export
+        feature_names = ['sentiment', 'echo_score', 'pain_point_count']
+        store_shap_explanation(
+            test_name="test_compare_positive_vs_negative_scenarios_positive",
+            feature_names=feature_names,
+            feature_values=positive_scenario[0],
+            shap_values=shap_positive[0],
+            base_value=explainer.expected_value if hasattr(explainer, 'expected_value') else None
+        )
+        store_shap_explanation(
+            test_name="test_compare_positive_vs_negative_scenarios_negative",
+            feature_names=feature_names,
+            feature_values=negative_scenario[0],
+            shap_values=shap_negative[0],
+            base_value=explainer.expected_value if hasattr(explainer, 'expected_value') else None
+        )
 
         # Verify SHAP can distinguish scenarios
         assert shap_positive is not None

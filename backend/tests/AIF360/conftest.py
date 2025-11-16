@@ -293,6 +293,55 @@ def test_budget_biased_campaigns(test_brand, test_user, db):
     }
 
 
+# Global storage for detailed AIF360 fairness metrics
+_fairness_metrics = []
+
+
+def store_fairness_metrics(test_name, protected_attribute, privileged_group, unprivileged_group,
+                          statistical_parity_difference, disparate_impact, dataset_info=None):
+    """
+    Store AIF360 fairness metrics for later saving to JSON.
+
+    Args:
+        test_name: Name of the test
+        protected_attribute: The protected attribute being tested (e.g., 'industry', 'budget')
+        privileged_group: Description of the privileged group
+        unprivileged_group: Description of the unprivileged group
+        statistical_parity_difference: SPD metric value
+        disparate_impact: DI metric value
+        dataset_info: Optional dict with dataset statistics
+    """
+    import numpy as np
+
+    # Convert numpy/pandas types to native Python types
+    spd = float(statistical_parity_difference)
+    di = float(disparate_impact)
+
+    # Calculate fairness assessments as native Python bools
+    spd_fair = True if abs(spd) <= 0.1 else False
+    di_fair = True if 0.8 <= di <= 1.2 else False
+    overall_fair = True if (spd_fair and di_fair) else False
+
+    _fairness_metrics.append({
+        "test_name": test_name,
+        "protected_attribute": protected_attribute,
+        "privileged_group": privileged_group,
+        "unprivileged_group": unprivileged_group,
+        "metrics": {
+            "statistical_parity_difference": spd,
+            "disparate_impact": di
+        },
+        "fairness_assessment": {
+            "spd_fair": spd_fair,
+            "di_fair": di_fair,
+            "overall_fair": overall_fair
+        },
+        "dataset_info": {k: int(v) if isinstance(v, (np.integer, np.int64, np.int32)) else
+                         float(v) if isinstance(v, (np.floating, np.float64, np.float32)) else v
+                         for k, v in (dataset_info or {}).items()}
+    })
+
+
 # Pytest plugin to capture and save results
 class AIF360ResultsPlugin:
     """Plugin to capture AIF360 test results."""
@@ -302,6 +351,7 @@ class AIF360ResultsPlugin:
             "test_suite": "AIF360 Fairness Tests",
             "timestamp": datetime.now().isoformat(),
             "tests_run": [],
+            "fairness_metrics": [],
             "summary": {
                 "total": 0,
                 "passed": 0,
@@ -339,10 +389,23 @@ class AIF360ResultsPlugin:
         results_dir = os.path.join(os.path.dirname(__file__), 'results')
         os.makedirs(results_dir, exist_ok=True)
 
+        # Add stored fairness metrics to results
+        self.results['fairness_metrics'] = _fairness_metrics
+
         # Save overall results
         overall_file = os.path.join(results_dir, 'aif360_test_results.json')
         with open(overall_file, 'w') as f:
             json.dump(self.results, f, indent=2)
+
+        # Save detailed fairness metrics separately
+        if _fairness_metrics:
+            metrics_file = os.path.join(results_dir, 'fairness_metrics_detailed.json')
+            with open(metrics_file, 'w') as f:
+                json.dump({
+                    "timestamp": self.results['timestamp'],
+                    "metrics": _fairness_metrics
+                }, f, indent=2)
+            print(f"   - Fairness metrics: {len(_fairness_metrics)} saved")
 
         # Separate brand and campaign results
         brand_tests = [t for t in self.results['tests_run'] if 'brand_fairness' in t['name']]

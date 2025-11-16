@@ -1,29 +1,6 @@
 {
-  "test_suite": "LIME Sentiment Explainability Tests",
   "timestamp": "2025-11-16T03:53:51.067761",
-  "tests_run": [
-    {
-      "name": "tests/LIME/test_llm_text_explainability.py::TestLIMETextExplainability::test_lime_explains_pain_point_text_importance",
-      "outcome": "passed",
-      "duration": 65.08437475000392
-    },
-    {
-      "name": "tests/LIME/test_llm_text_explainability.py::TestLIMETextExplainability::test_lime_keyword_attribution",
-      "outcome": "passed",
-      "duration": 0.014449500013142824
-    },
-    {
-      "name": "tests/LIME/test_llm_text_explainability.py::TestLIMETextExplainability::test_lime_text_explainer_structure",
-      "outcome": "passed",
-      "duration": 0.015335874981246889
-    },
-    {
-      "name": "tests/LIME/test_llm_text_explainability.py::TestLIMEInsightComparison::test_compare_urgent_vs_minor_pain_points",
-      "outcome": "passed",
-      "duration": 0.015823708003154024
-    }
-  ],
-  "lime_explanations": [
+  "explanations": [
     {
       "test_name": "test_lime_explains_pain_point_text_importance",
       "text": "Critical delivery delays causing customer frustration and negative reviews",
@@ -226,10 +203,5 @@
         0.3
       ]
     }
-  ],
-  "summary": {
-    "total": 4,
-    "passed": 4,
-    "failed": 0
-  }
+  ]
 }
