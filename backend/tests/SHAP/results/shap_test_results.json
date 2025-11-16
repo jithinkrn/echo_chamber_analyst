@@ -1,10 +1,26 @@
 {
   "test_suite": "SHAP Explainability Tests",
-  "timestamp": "2025-11-15T09:49:11.463999",
-  "tests_run": [],
+  "timestamp": "2025-11-16T02:16:50.130007",
+  "tests_run": [
+    {
+      "name": "tests/SHAP/test_llm_insight_explainability.py::TestSHAPLLMInsightExplainability::test_shap_explains_feature_importance_for_insights",
+      "outcome": "passed",
+      "duration": 279.0698476249818
+    },
+    {
+      "name": "tests/SHAP/test_llm_insight_explainability.py::TestSHAPInsightComparison::test_compare_positive_vs_negative_scenarios",
+      "outcome": "passed",
+      "duration": 0.0018944590119645
+    },
+    {
+      "name": "tests/SHAP/test_llm_insight_explainability.py::TestSHAPLLMInsightExplainability::test_shap_feature_attribution_structure",
+      "outcome": "passed",
+      "duration": 0.0007809999806340784
+    }
+  ],
   "summary": {
-    "total": 0,
-    "passed": 0,
+    "total": 3,
+    "passed": 3,
     "failed": 0
   }
 }
