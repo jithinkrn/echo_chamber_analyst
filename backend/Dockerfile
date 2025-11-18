@@ -1,30 +1,69 @@
-FROM python:3.11-slim
+# ========================================
+# Production Dockerfile for Django Backend
+# ========================================
+
+FROM python:3.12-slim
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     libpq-dev \
+    postgresql-client \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download spaCy model
-RUN python -m spacy download en_core_web_sm
+# Install additional production dependencies
+RUN pip install --no-cache-dir \
+    gunicorn==21.2.0 \
+    psycopg2-binary==2.9.10 \
+    pgvector==0.3.6
 
 # Copy application code
 COPY . .
 
+# Make entrypoint executable (IMPORTANT)
+RUN chmod 755 docker-entrypoint.sh
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/staticfiles /app/media
+
+# Collect static files
+RUN python manage.py collectstatic --noinput || true
+
 # Create non-root user
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
 USER appuser
 
 # Expose port
 EXPOSE 8000
 
-# Default command
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# Health check - Temporarily disabled for debugging
+# HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+#     CMD curl -f http://localhost:8000/health/ || exit 1
+
+# Use entrypoint to run migrations/seed, then start Gunicorn
+ENTRYPOINT ["./docker-entrypoint.sh"]
+
+# Start gunicorn
+CMD ["gunicorn", "config.wsgi:application", \
+     "--bind", "0.0.0.0:8000", \
+     "--workers", "4", \
+     "--worker-class", "sync", \
+     "--timeout", "120", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-", \
+     "--log-level", "info"]
