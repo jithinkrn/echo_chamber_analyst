@@ -6,34 +6,7 @@ A multi-agent AI platform that scouts, ranks, and distills hidden conversations 
 
 ---
 
-## 🚀 Quick Start
-
-### Option 1: Docker Compose (Recommended)
-
-The fastest way to get started is using Docker Compose, which automatically sets up all services:
-
-```bash
-# Clone the repository
-git clone https://github.com/jithinkrn/echo_chamber_analyst.git
-cd echo_chamber_analyst
-
-# Start all services (PostgreSQL, Redis, Backend, Celery, Frontend)
-docker-compose up -d
-
-# Run database migrations
-docker-compose exec backend python manage.py migrate
-
-# Create admin user
-docker-compose exec backend python manage.py create_admin_user
-# Default credentials: admin@example.com / admin123
-
-# Access the application
-# Frontend: http://localhost:3000
-# Backend API: http://localhost:8000/api
-# Django Admin: http://localhost:8000/admin
-```
-
-### Option 2: Local Development (Manual Setup)
+### Local Development (Manual Requirements Setup)
 
 See the [Local Development Setup](#-local-development-setup-manual) section below for detailed manual installation instructions.
 
@@ -92,6 +65,11 @@ The `docker-compose.yml` file starts 6 services:
 ### Complete Docker Compose Workflow
 
 ```bash
+
+# 0. Clone the repository
+git clone https://github.com/jithinkrn/echo_chamber_analyst.git
+cd echo_chamber_analyst
+
 # 1. Start all services
 docker-compose up -d
 
@@ -101,16 +79,14 @@ docker-compose ps
 # 3. Run database migrations
 docker-compose exec backend python manage.py migrate
 
-# 4. Create admin user for Django admin panel
-docker-compose exec backend python manage.py create_admin_user
+# 4. Create custom superuser for login
+docker-compose exec backend python manage.py createsuperuser
+# Follow prompts to set custom username, email, and password
 
-# 5. (Optional) Create test data for development
-docker-compose exec backend python manage.py create_test_data
-
-# 6. View logs from all services
+# 5. View logs from all services
 docker-compose logs -f
 
-# 7. View logs from specific service
+# 5. View logs from specific service
 docker-compose logs -f backend
 docker-compose logs -f celery-worker
 docker-compose logs -f celery-beat
