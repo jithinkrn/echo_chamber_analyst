@@ -70,23 +70,34 @@ The `docker-compose.yml` file starts 6 services:
 git clone https://github.com/jithinkrn/echo_chamber_analyst.git
 cd echo_chamber_analyst
 
-# 1. Start all services
+# 1. Configure environment variables for Docker and backend
+# Copy the example file and update with your actual API keys
+cp .env.docker.example .env.docker
+# Edit .env.docker with your credentials (OPENAI_API_KEY, DB_PASSWORD, SECRET_KEY)
+
+# In /backend Copy the example environment file
+cp .env.example .env
+
+# Edit the .env file with your credentials
+nano .env  # or use your preferred editor
+
+# 2. Start all services
 docker-compose up -d
 
-# 2. Check service status
+# 3. Check service status
 docker-compose ps
 
-# 3. Run database migrations
+# 4. Run database migrations
 docker-compose exec backend python manage.py migrate
 
-# 4. Create custom superuser for login
+# 5. Create custom superuser for login
 docker-compose exec backend python manage.py createsuperuser
 # Follow prompts to set custom username, email, and password
 
-# 5. View logs from all services
+# 6. View logs from all services
 docker-compose logs -f
 
-# 5. View logs from specific service
+# 7. View logs from specific service
 docker-compose logs -f backend
 docker-compose logs -f celery-worker
 docker-compose logs -f celery-beat
@@ -244,8 +255,10 @@ pip install -r requirements.txt
 #### Configure Environment Variables
 
 ```bash
-# The .env file is already present in the backend directory
-# Edit it with your credentials
+# Copy the example environment file
+cp .env.example .env
+
+# Edit the .env file with your credentials
 nano .env  # or use your preferred editor
 ```
 
