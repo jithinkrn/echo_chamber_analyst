@@ -38,7 +38,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for complete AWS ECS deployment instructions.
 - **Monitoring**: LangSmith for AI observability
 
 ### Frontend
-- **Framework**: Next.js 15 + React + TypeScript
+- **Framework**: Next.js 14 + React + TypeScript
 - **Styling**: Tailwind CSS
 - **Charts**: Recharts for data visualization
 - **Authentication**: JWT tokens
